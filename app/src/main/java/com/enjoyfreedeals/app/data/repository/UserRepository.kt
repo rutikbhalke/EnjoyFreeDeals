@@ -104,6 +104,48 @@ class UserRepository(private val context: Context) {
         }
     }
 
+    suspend fun addPriceDropAlert(dealId: String, targetPrice: Double) {
+        val userId = getCurrentUserId() ?: return
+        val targets = mockUser.priceDropTargetPrices + (dealId to targetPrice)
+        if (firebaseEnabled) {
+            firestore?.collection(Constants.USERS)?.document(userId)
+                ?.update(
+                    "priceDropAlerts",
+                    FieldValue.arrayUnion(dealId),
+                    "priceDropTargetPrices",
+                    targets,
+                    "updatedAt",
+                    System.currentTimeMillis()
+                )
+                ?.await()
+        }
+        if (!mockUser.priceDropAlerts.contains(dealId)) {
+            mockUser = mockUser.copy(priceDropAlerts = mockUser.priceDropAlerts + dealId)
+        }
+        mockUser = mockUser.copy(priceDropTargetPrices = targets)
+    }
+
+    suspend fun removePriceDropAlert(dealId: String) {
+        val userId = getCurrentUserId() ?: return
+        val targets = mockUser.priceDropTargetPrices - dealId
+        if (firebaseEnabled) {
+            firestore?.collection(Constants.USERS)?.document(userId)
+                ?.update(
+                    "priceDropAlerts",
+                    FieldValue.arrayRemove(dealId),
+                    "priceDropTargetPrices",
+                    targets,
+                    "updatedAt",
+                    System.currentTimeMillis()
+                )
+                ?.await()
+        }
+        mockUser = mockUser.copy(
+            priceDropAlerts = mockUser.priceDropAlerts - dealId,
+            priceDropTargetPrices = targets
+        )
+    }
+
     fun getSavedDeals(): Flow<List<DealModel>> =
         flowOf(MockDeals.deals.filter { mockUser.savedDeals.contains(it.dealId) })
 
@@ -130,4 +172,3 @@ class UserRepository(private val context: Context) {
         )
     }
 }
-

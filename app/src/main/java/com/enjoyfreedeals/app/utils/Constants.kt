@@ -10,10 +10,13 @@ object Constants {
 
     const val USERS = "users"
     const val DEALS = "deals"
+    const val PRODUCTS = "products"
     const val CATEGORIES = "categories"
     const val BLOGS = "blogs"
     const val NOTIFICATIONS = "notifications"
     const val APP_INFO = "appInfo"
+    const val PRICE_HISTORY = "price_history"
+    const val PRICE_ALERTS = "price_alerts"
 
     const val MOCK_USER_ID = "mock-user"
 
@@ -41,4 +44,3 @@ object Constants {
         "Expiring Soon"
     )
 }
-

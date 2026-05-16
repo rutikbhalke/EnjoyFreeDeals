@@ -37,6 +37,9 @@ fun DealsScreen(
     onSaveDeal: (DealModel) -> Unit,
     onRemoveSavedDeal: (DealModel) -> Unit,
     onShareDeal: (DealModel) -> Unit,
+    onTogglePriceAlert: (DealModel) -> Unit,
+    onOpenDealDetails: (DealModel) -> Unit,
+    onPriceAlertClick: (DealModel) -> Unit,
     onMessageShown: () -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -82,7 +85,12 @@ fun DealsScreen(
                         onShareDeal = {
                             shareDeal(context, it)
                             onShareDeal(it)
-                        }
+                        },
+                        priceHistory = state.priceHistory[deal.dealId].orEmpty(),
+                        isPriceAlertEnabled = state.priceDropAlerts.contains(deal.dealId),
+                        onTogglePriceAlert = onTogglePriceAlert,
+                        onOpenDetails = onOpenDealDetails,
+                        onPriceAlertClick = onPriceAlertClick
                     )
                 }
             }
@@ -93,7 +101,7 @@ fun DealsScreen(
 }
 
 fun shareDeal(context: Context, deal: DealModel) {
-    val text = "${deal.title}\n${deal.description}\n${deal.dealUrl}"
+    val text = "${deal.title}\n${deal.description}\n${deal.redirectUrl}"
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_SUBJECT, deal.title)
@@ -101,4 +109,3 @@ fun shareDeal(context: Context, deal: DealModel) {
     }
     context.startActivity(Intent.createChooser(intent, "Share deal"))
 }
-

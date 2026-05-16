@@ -13,6 +13,11 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
 
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
     match /categories/{categoryId} {
       allow read: if true;
       allow write: if request.auth != null;
@@ -28,10 +33,18 @@ service cloud.firestore {
       allow create: if request.auth != null;
     }
 
+    match /price_history/{historyId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /price_alerts/{alertId} {
+      allow read, create, update, delete: if request.auth != null;
+    }
+
     match /appInfo/{document} {
       allow read: if true;
       allow write: if request.auth != null;
     }
   }
 }
-

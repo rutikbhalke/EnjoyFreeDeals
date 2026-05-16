@@ -8,10 +8,11 @@ data class UserModel(
     var profileImage: String = "",
     var savedDeals: List<String> = emptyList(),
     var sharedDeals: List<String> = emptyList(),
+    var priceDropAlerts: List<String> = emptyList(),
+    var priceDropTargetPrices: Map<String, Double> = emptyMap(),
     var notificationEnabled: Boolean = true,
     var darkModeEnabled: Boolean = false,
     var fcmToken: String = "",
     var createdAt: Long = System.currentTimeMillis(),
     var updatedAt: Long = System.currentTimeMillis()
 )
-

@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.enjoyfreedeals.app.data.model.CategoryModel
 import com.enjoyfreedeals.app.data.model.DealModel
+import com.enjoyfreedeals.app.data.model.PricePointModel
 import com.enjoyfreedeals.app.theme.AccentYellow
 import com.enjoyfreedeals.app.theme.PrimaryGreen
 import com.enjoyfreedeals.app.theme.PrimaryRed
@@ -72,7 +73,11 @@ fun HomeScreen(
     onCategoryClick: (CategoryModel) -> Unit,
     onViewDeal: (DealModel) -> Unit,
     onSaveDeal: (DealModel) -> Unit,
-    onShareDeal: (DealModel) -> Unit
+    onShareDeal: (DealModel) -> Unit,
+    onOpenDealDetails: (DealModel) -> Unit,
+    onPriceAlertClick: (DealModel) -> Unit,
+    priceHistory: Map<String, List<PricePointModel>> = emptyMap(),
+    priceDropAlerts: Set<String> = emptySet()
 ) {
     PremiumBackground {
         LazyColumn(
@@ -102,19 +107,19 @@ fun HomeScreen(
                 }
             }
             item {
-                DealSection("Featured Deals", state.deals.filter { it.isFeatured }.take(4), onViewDeal, onSaveDeal, onShareDeal)
+                DealSection("Featured Deals", state.deals.filter { it.isFeatured }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
             }
             item {
-                DealSection("Hot Deals", state.deals.filter { it.isHotDeal }.take(4), onViewDeal, onSaveDeal, onShareDeal)
+                DealSection("Hot Deals", state.deals.filter { it.isHotDeal }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
             }
             item {
-                DealSection("Free Deals", state.deals.filter { it.isFreeDeal }.take(4), onViewDeal, onSaveDeal, onShareDeal)
+                DealSection("Free Deals", state.deals.filter { it.isFreeDeal }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
             }
             item {
-                DealSection("Today's Deals", state.deals.take(5), onViewDeal, onSaveDeal, onShareDeal)
+                DealSection("Today's Deals", state.deals.take(5), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
             }
             item {
-                DealSection("Expiring Soon Deals", state.deals.sortedBy { it.expiryDate }.take(4), onViewDeal, onSaveDeal, onShareDeal)
+                DealSection("Expiring Soon Deals", state.deals.sortedBy { it.expiryDate }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
             }
             item {
                 StoreWiseSection(state.deals, onViewDeal)
@@ -201,7 +206,11 @@ private fun DealSection(
     deals: List<DealModel>,
     onViewDeal: (DealModel) -> Unit,
     onSaveDeal: (DealModel) -> Unit,
-    onShareDeal: (DealModel) -> Unit
+    onShareDeal: (DealModel) -> Unit,
+    onOpenDealDetails: (DealModel) -> Unit,
+    onPriceAlertClick: (DealModel) -> Unit,
+    priceHistory: Map<String, List<PricePointModel>>,
+    priceDropAlerts: Set<String>
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionTitle(title)
@@ -209,7 +218,17 @@ private fun DealSection(
             EmptyState("No deals found right now.", "Please check again shortly.")
         } else {
             deals.forEach { deal ->
-                DealCard(deal, false, onViewDeal, onSaveDeal, onShareDeal)
+                DealCard(
+                    deal = deal,
+                    isSaved = false,
+                    onViewDeal = onViewDeal,
+                    onSaveDeal = onSaveDeal,
+                    onShareDeal = onShareDeal,
+                    priceHistory = priceHistory[deal.dealId].orEmpty(),
+                    isPriceAlertEnabled = priceDropAlerts.contains(deal.dealId),
+                    onOpenDetails = onOpenDealDetails,
+                    onPriceAlertClick = onPriceAlertClick
+                )
             }
         }
     }
@@ -240,4 +259,3 @@ private fun StoreWiseSection(deals: List<DealModel>, onViewDeal: (DealModel) -> 
         }
     }
 }
-

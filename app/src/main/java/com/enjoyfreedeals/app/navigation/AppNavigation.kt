@@ -43,6 +43,8 @@ import com.enjoyfreedeals.app.ui.blog.BlogScreen
 import com.enjoyfreedeals.app.ui.category.CategoryDealsScreen
 import com.enjoyfreedeals.app.ui.category.CategoryScreen
 import com.enjoyfreedeals.app.ui.deals.DealsScreen
+import com.enjoyfreedeals.app.ui.deals.PriceAlertScreen
+import com.enjoyfreedeals.app.ui.deals.ProductPriceHistoryScreen
 import com.enjoyfreedeals.app.ui.home.HomeScreen
 import com.enjoyfreedeals.app.ui.notification.NotificationScreen
 import com.enjoyfreedeals.app.ui.profile.ProfileScreen
@@ -153,9 +155,19 @@ private fun MainScaffold(
     val profileState by profileViewModel.uiState.collectAsState()
 
     fun viewDeal(deal: DealModel) {
-        CustomTabsHelper.openDealUrl(context, deal.dealUrl) { message ->
+        CustomTabsHelper.openDealUrl(context, deal.redirectUrl) { message ->
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
+    }
+
+    fun openDealDetails(deal: DealModel) {
+        dealsViewModel.selectDeal(deal)
+        navController.navigate(Route.ProductPriceHistory)
+    }
+
+    fun openPriceAlert(deal: DealModel) {
+        dealsViewModel.selectDeal(deal)
+        navController.navigate(Route.PriceAlert)
     }
 
     Scaffold(
@@ -210,7 +222,11 @@ private fun MainScaffold(
                         },
                         onViewDeal = ::viewDeal,
                         onSaveDeal = dealsViewModel::saveDeal,
-                        onShareDeal = dealsViewModel::shareDeal
+                        onShareDeal = dealsViewModel::shareDeal,
+                        onOpenDealDetails = ::openDealDetails,
+                        onPriceAlertClick = ::openPriceAlert,
+                        priceHistory = dealsState.priceHistory,
+                        priceDropAlerts = dealsState.priceDropAlerts
                     )
                 }
                 composable(Route.Deals) {
@@ -223,6 +239,9 @@ private fun MainScaffold(
                         onSaveDeal = dealsViewModel::saveDeal,
                         onRemoveSavedDeal = dealsViewModel::removeSavedDeal,
                         onShareDeal = dealsViewModel::shareDeal,
+                        onTogglePriceAlert = dealsViewModel::togglePriceDropAlert,
+                        onOpenDealDetails = ::openDealDetails,
+                        onPriceAlertClick = ::openPriceAlert,
                         onMessageShown = dealsViewModel::clearMessage
                     )
                 }
@@ -239,7 +258,11 @@ private fun MainScaffold(
                         onSort = categoryViewModel::updateSort,
                         onViewDeal = ::viewDeal,
                         onSaveDeal = dealsViewModel::saveDeal,
-                        onShareDeal = dealsViewModel::shareDeal
+                        onShareDeal = dealsViewModel::shareDeal,
+                        onOpenDealDetails = ::openDealDetails,
+                        onPriceAlertClick = ::openPriceAlert,
+                        priceHistory = dealsState.priceHistory,
+                        priceDropAlerts = dealsState.priceDropAlerts
                     )
                 }
                 composable(Route.Blog) {
@@ -279,14 +302,43 @@ private fun MainScaffold(
                         deals = profileState.savedDeals,
                         onViewDeal = ::viewDeal,
                         onRemoveSavedDeal = profileViewModel::removeSavedDeal,
-                        onShareDeal = dealsViewModel::shareDeal
+                        onShareDeal = dealsViewModel::shareDeal,
+                        onOpenDealDetails = ::openDealDetails,
+                        onPriceAlertClick = ::openPriceAlert,
+                        priceHistory = dealsState.priceHistory,
+                        priceDropAlerts = dealsState.priceDropAlerts
                     )
                 }
                 composable(Route.SharedDeals) {
                     SharedDealsScreen(
                         deals = profileState.sharedDeals,
                         onViewDeal = ::viewDeal,
-                        onShareAgain = dealsViewModel::shareDeal
+                        onShareAgain = dealsViewModel::shareDeal,
+                        onOpenDealDetails = ::openDealDetails,
+                        onPriceAlertClick = ::openPriceAlert,
+                        priceHistory = dealsState.priceHistory,
+                        priceDropAlerts = dealsState.priceDropAlerts
+                    )
+                }
+                composable(Route.ProductPriceHistory) {
+                    val selectedDeal = dealsState.selectedDeal
+                    ProductPriceHistoryScreen(
+                        deal = selectedDeal,
+                        history = selectedDeal?.let { dealsState.priceHistory[it.dealId] }.orEmpty(),
+                        isAlertEnabled = selectedDeal?.let { dealsState.priceDropAlerts.contains(it.dealId) } == true,
+                        onSetPriceAlert = ::openPriceAlert,
+                        onViewDeal = ::viewDeal
+                    )
+                }
+                composable(Route.PriceAlert) {
+                    val selectedDeal = dealsState.selectedDeal
+                    PriceAlertScreen(
+                        deal = selectedDeal,
+                        history = selectedDeal?.let { dealsState.priceHistory[it.dealId] }.orEmpty(),
+                        currentTargetPrice = selectedDeal?.let { dealsState.priceDropTargets[it.dealId] },
+                        onSaveAlert = dealsViewModel::savePriceAlert,
+                        onRemoveAlert = dealsViewModel::removePriceAlert,
+                        onViewDeal = ::viewDeal
                     )
                 }
                 composable(Route.About) {
@@ -317,6 +369,8 @@ private object Route {
     const val SavedDeals = "saved_deals"
     const val SharedDeals = "shared_deals"
     const val About = "about"
+    const val ProductPriceHistory = "product_price_history"
+    const val PriceAlert = "price_alert"
 }
 
 private data class BottomTab(val route: String, val label: String, val icon: ImageVector)
@@ -328,4 +382,3 @@ private val bottomTabs = listOf(
     BottomTab(Route.Blog, "Blog", Icons.AutoMirrored.Outlined.Article),
     BottomTab(Route.Profile, "Profile", Icons.Outlined.Person)
 )
-

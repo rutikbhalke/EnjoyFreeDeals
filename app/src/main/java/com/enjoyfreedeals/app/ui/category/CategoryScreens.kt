@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.enjoyfreedeals.app.data.model.CategoryModel
 import com.enjoyfreedeals.app.data.model.DealModel
+import com.enjoyfreedeals.app.data.model.PricePointModel
 import com.enjoyfreedeals.app.ui.components.CategoryCard
 import com.enjoyfreedeals.app.ui.components.DealCard
 import com.enjoyfreedeals.app.ui.components.DealSearchBox
@@ -54,7 +55,11 @@ fun CategoryDealsScreen(
     onSort: (String) -> Unit,
     onViewDeal: (DealModel) -> Unit,
     onSaveDeal: (DealModel) -> Unit,
-    onShareDeal: (DealModel) -> Unit
+    onShareDeal: (DealModel) -> Unit,
+    onOpenDealDetails: (DealModel) -> Unit,
+    onPriceAlertClick: (DealModel) -> Unit,
+    priceHistory: Map<String, List<PricePointModel>> = emptyMap(),
+    priceDropAlerts: Set<String> = emptySet()
 ) {
     PremiumBackground {
         LazyColumn(
@@ -79,11 +84,20 @@ fun CategoryDealsScreen(
                 }
             } else {
                 items(state.categoryDeals, key = { it.dealId }) { deal ->
-                    DealCard(deal, false, onViewDeal, onSaveDeal, onShareDeal)
+                    DealCard(
+                        deal = deal,
+                        isSaved = false,
+                        onViewDeal = onViewDeal,
+                        onSaveDeal = onSaveDeal,
+                        onShareDeal = onShareDeal,
+                        priceHistory = priceHistory[deal.dealId].orEmpty(),
+                        isPriceAlertEnabled = priceDropAlerts.contains(deal.dealId),
+                        onOpenDetails = onOpenDealDetails,
+                        onPriceAlertClick = onPriceAlertClick
+                    )
                 }
             }
             item { Spacer(Modifier.height(10.dp)) }
         }
     }
 }
-

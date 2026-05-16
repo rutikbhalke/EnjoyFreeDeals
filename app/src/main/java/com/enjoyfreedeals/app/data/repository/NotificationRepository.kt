@@ -93,7 +93,7 @@ class NotificationRepository(private val context: Context) {
             message = "boAt Bluetooth Earbuds are now 60% off.",
             image = MockDeals.deals.first().productImage,
             dealId = "amazon-boat-earbuds",
-            targetUrl = MockDeals.deals.first().dealUrl,
+            targetUrl = MockDeals.deals.first().redirectUrl,
             notificationType = NotificationType.HOT_DEAL.name,
             isRead = false,
             userId = userId
@@ -104,9 +104,20 @@ class NotificationRepository(private val context: Context) {
             message = "A skincare sample kit is available for free right now.",
             image = MockDeals.deals.first { it.isFreeDeal }.productImage,
             dealId = "sample-skincare",
-            targetUrl = MockDeals.deals.first { it.isFreeDeal }.dealUrl,
+            targetUrl = MockDeals.deals.first { it.isFreeDeal }.redirectUrl,
             notificationType = NotificationType.FREE_DEAL.name,
             isRead = true,
+            userId = userId
+        ),
+        NotificationModel(
+            notificationId = "price-drop-watch",
+            title = "Price drop alert",
+            message = "Smartwatch reached a new low price. Check the price graph now.",
+            image = MockDeals.deals.first { it.dealId == "tatacliq-watch" }.productImage,
+            dealId = "tatacliq-watch",
+            targetUrl = MockDeals.deals.first { it.dealId == "tatacliq-watch" }.redirectUrl,
+            notificationType = NotificationType.PRICE_DROP.name,
+            isRead = false,
             userId = userId
         )
     )

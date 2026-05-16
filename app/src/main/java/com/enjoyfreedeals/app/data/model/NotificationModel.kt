@@ -17,8 +17,8 @@ enum class NotificationType {
     HOT_DEAL,
     FREE_DEAL,
     EXPIRING_SOON,
+    PRICE_DROP,
     COUPON,
     BLOG,
     SYSTEM
 }
-

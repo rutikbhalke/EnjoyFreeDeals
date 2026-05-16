@@ -28,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.TrendingDown
 import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.CardGiftcard
@@ -41,6 +42,8 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.ImageNotSupported
 import androidx.compose.material.icons.outlined.LocalGroceryStore
 import androidx.compose.material.icons.outlined.LocalOffer
+import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.outlined.NotificationsOff
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.School
@@ -70,8 +73,10 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -84,6 +89,8 @@ import com.enjoyfreedeals.app.R
 import com.enjoyfreedeals.app.data.model.BlogModel
 import com.enjoyfreedeals.app.data.model.CategoryModel
 import com.enjoyfreedeals.app.data.model.DealModel
+import com.enjoyfreedeals.app.data.model.PricePointModel
+import com.enjoyfreedeals.app.data.repository.DealRepository
 import com.enjoyfreedeals.app.theme.AccentYellow
 import com.enjoyfreedeals.app.theme.CardWhite
 import com.enjoyfreedeals.app.theme.DarkText
@@ -231,10 +238,27 @@ fun DealCard(
     onViewDeal: (DealModel) -> Unit,
     onSaveDeal: (DealModel) -> Unit,
     onShareDeal: (DealModel) -> Unit,
+    priceHistory: List<PricePointModel> = emptyList(),
+    isPriceAlertEnabled: Boolean = false,
+    onTogglePriceAlert: ((DealModel) -> Unit)? = null,
+    onOpenDetails: ((DealModel) -> Unit)? = null,
+    onPriceAlertClick: ((DealModel) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val effectiveHistory = priceHistory.ifEmpty {
+        listOf(DealRepository.buildPriceHistoryRecord(deal, emptyList(), deal.priceCheckedAt))
+    }
+    val stats = DealRepository.calculatePriceStats(deal, effectiveHistory)
+    val alertAction = onPriceAlertClick ?: onTogglePriceAlert
+    val cardModifier = if (onOpenDetails != null) {
+        modifier
+            .fillMaxWidth()
+            .clickable { onOpenDetails(deal) }
+    } else {
+        modifier.fillMaxWidth()
+    }
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = cardModifier,
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 5.dp)
@@ -262,34 +286,23 @@ fun DealCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     BadgeText("${deal.discountPercent}% OFF", AccentYellow, DarkText)
-                    if (deal.isHotDeal) BadgeText("HOT", PrimaryRed, Color.White)
-                    if (deal.isFreeDeal) BadgeText("FREE", PrimaryGreen, Color.White)
-                    if (deal.expiryDate - System.currentTimeMillis() < 2L * 24L * 60L * 60L * 1000L) {
-                        BadgeText("LIMITED", Color(0xFF1E1E1E), Color.White)
-                    }
+                    if (stats.isLowestPriceNow) BadgeText("Lowest Price", PrimaryGreen, Color.White)
                 }
             }
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     StorePill(deal.storeName)
-                    Spacer(Modifier.width(8.dp))
-                    Text(deal.categoryName, style = MaterialTheme.typography.labelMedium, color = GreyText)
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(deal.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Text(deal.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(formatPrice(deal.effectivePrice), color = PrimaryGreen, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
+                    Text(formatPrice(stats.currentPrice), color = PrimaryGreen, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
                     Spacer(Modifier.width(8.dp))
                     Text(formatPrice(deal.originalPrice), color = GreyText, textDecoration = TextDecoration.LineThrough)
-                    if (deal.couponCode.isNotBlank()) {
-                        Spacer(Modifier.width(8.dp))
-                        BadgeText(deal.couponCode, SoftYellow, DarkText)
-                    }
                 }
                 Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Button(
                         onClick = { onViewDeal(deal) },
                         modifier = Modifier.weight(1f),
@@ -300,14 +313,196 @@ fun DealCard(
                         Spacer(Modifier.width(8.dp))
                         Text("View Deal", fontWeight = FontWeight.Bold)
                     }
-                    IconButton(onClick = { onSaveDeal(deal) }) {
-                        Icon(if (isSaved) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder, contentDescription = "Save deal", tint = if (isSaved) PrimaryRed else GreyText)
-                    }
-                    IconButton(onClick = { onShareDeal(deal) }) {
-                        Icon(Icons.Outlined.Share, contentDescription = "Share deal", tint = PrimaryGreen)
+                    Button(
+                        onClick = { alertAction?.invoke(deal) },
+                        modifier = Modifier.weight(1f),
+                        enabled = alertAction != null,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isPriceAlertEnabled) PrimaryRed else AccentYellow,
+                            contentColor = if (isPriceAlertEnabled) Color.White else DarkText
+                        ),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isPriceAlertEnabled) Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsOff,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (isPriceAlertEnabled) "Alert On" else "Price Alert", fontWeight = FontWeight.Bold)
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun PriceTrackingPanel(
+    deal: DealModel,
+    history: List<PricePointModel>,
+    isAlertEnabled: Boolean,
+    onToggleAlert: ((DealModel) -> Unit)?
+) {
+    val stats = DealRepository.calculatePriceStats(deal, history)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.AutoMirrored.Outlined.TrendingDown, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Price History", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleSmall)
+                    val subtitle = when {
+                        stats.isLowestPriceNow -> "Lowest price right now"
+                        stats.dropFromAveragePercent > 0 -> "${stats.dropFromAveragePercent}% below average"
+                        else -> "Tracking ${history.size} price points"
+                    }
+                    Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+                }
+                if (onToggleAlert != null) {
+                    IconButton(onClick = { onToggleAlert(deal) }) {
+                        Icon(
+                            imageVector = if (isAlertEnabled) Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsOff,
+                            contentDescription = if (isAlertEnabled) "Disable price drop alert" else "Enable price drop alert",
+                            tint = if (isAlertEnabled) PrimaryRed else PrimaryGreen
+                        )
+                    }
+                }
+            }
+            PriceInsightBadges(deal = deal, stats = stats)
+            PriceStatsRow(stats.currentPrice, stats.averagePrice, stats.highestPrice, stats.lowestPrice)
+            PriceGraph(history = history, modifier = Modifier.fillMaxWidth().height(118.dp))
+        }
+    }
+}
+
+@Composable
+fun PriceGraph(history: List<PricePointModel>, modifier: Modifier = Modifier) {
+    if (history.isEmpty()) {
+        ShimmerBlock(modifier)
+        return
+    }
+    val points = history.sortedBy { it.recordedAt }
+    val prices = points.map { it.price }
+    val min = prices.minOrNull() ?: 0.0
+    val max = prices.maxOrNull() ?: 0.0
+    val average = prices.average()
+    val range = (max - min).takeIf { it > 0.0 } ?: 1.0
+    Canvas(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.72f), SoftGreen.copy(alpha = 0.54f))))
+            .border(1.dp, PrimaryGreen.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
+            .padding(10.dp)
+    ) {
+        val horizontalPadding = 16.dp.toPx()
+        val verticalPadding = 14.dp.toPx()
+        val graphWidth = size.width - horizontalPadding * 2
+        val graphHeight = size.height - verticalPadding * 2
+        val step = if (points.size > 1) graphWidth / (points.size - 1) else graphWidth
+        val path = Path()
+        val areaPath = Path()
+        fun yFor(price: Double): Float {
+            val normalized = ((price - min) / range).toFloat()
+            return verticalPadding + graphHeight - normalized * graphHeight
+        }
+        points.forEachIndexed { index, point ->
+            val x = horizontalPadding + step * index
+            val y = yFor(point.price)
+            if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
+            if (index == 0) areaPath.moveTo(x, size.height - verticalPadding)
+            areaPath.lineTo(x, y)
+            if (index == points.lastIndex) {
+                areaPath.lineTo(x, size.height - verticalPadding)
+                areaPath.close()
+            }
+        }
+        drawLine(
+            color = GreyText.copy(alpha = 0.18f),
+            start = Offset(horizontalPadding, verticalPadding),
+            end = Offset(horizontalPadding, size.height - verticalPadding),
+            strokeWidth = 1.dp.toPx()
+        )
+        drawLine(
+            color = GreyText.copy(alpha = 0.18f),
+            start = Offset(horizontalPadding, size.height - verticalPadding),
+            end = Offset(size.width - horizontalPadding, size.height - verticalPadding),
+            strokeWidth = 1.dp.toPx()
+        )
+        drawLine(
+            color = AccentYellow.copy(alpha = 0.72f),
+            start = Offset(horizontalPadding, yFor(average)),
+            end = Offset(size.width - horizontalPadding, yFor(average)),
+            strokeWidth = 1.5.dp.toPx()
+        )
+        drawPath(
+            path = areaPath,
+            color = PrimaryGreen.copy(alpha = 0.14f)
+        )
+        drawPath(
+            path = path,
+            color = PrimaryGreen,
+            style = Stroke(width = 3.dp.toPx())
+        )
+        points.forEachIndexed { index, point ->
+            val x = horizontalPadding + step * index
+            val y = yFor(point.price)
+            if (index == points.lastIndex || point.price == min || point.price == max) {
+                drawCircle(
+                    color = when {
+                        index == points.lastIndex -> PrimaryGreen
+                        point.price == min -> PrimaryRed
+                        else -> AccentYellow
+                    },
+                    radius = 6.dp.toPx(),
+                    center = Offset(x, y)
+                )
+                drawCircle(
+                    color = Color.White,
+                    radius = 4.dp.toPx(),
+                    center = Offset(x, y)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PriceStatsRow(currentPrice: Double, averagePrice: Double, highestPrice: Double, lowestPrice: Double) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        PriceStat("Current", currentPrice, Modifier.weight(1f))
+        PriceStat("Low", lowestPrice, Modifier.weight(1f))
+        PriceStat("Avg", averagePrice, Modifier.weight(1f))
+        PriceStat("High", highestPrice, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun PriceInsightBadges(deal: DealModel, stats: com.enjoyfreedeals.app.data.model.PriceStatsModel) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+        if (stats.isLowestPriceNow) BadgeText("Lowest Price", PrimaryGreen, Color.White)
+        if (deal.isHotDeal || deal.discountPercent > 50) BadgeText("Hot Deal", PrimaryRed, Color.White)
+        if (stats.dropFromAveragePercent > 0) BadgeText("Below Average", AccentYellow, DarkText)
+        if (stats.dropFromAveragePercent >= 5) BadgeText("Price Dropped", SoftGreen, PrimaryGreen)
+    }
+}
+
+@Composable
+private fun PriceStat(label: String, price: Double, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        color = Color.White.copy(alpha = 0.72f),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, PrimaryGreen.copy(alpha = 0.10f))
+    ) {
+        Column(Modifier.padding(horizontal = 8.dp, vertical = 7.dp)) {
+            Text(label, color = GreyText, style = MaterialTheme.typography.labelSmall)
+            Text(formatPrice(price), color = DarkText, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelLarge)
         }
     }
 }
@@ -445,4 +640,3 @@ fun categoryIcon(id: String): ImageVector = when (id) {
     "food" -> Icons.Outlined.Restaurant
     else -> Icons.Outlined.ShoppingBag
 }
-

@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.enjoyfreedeals.app.data.model.DealModel
+import com.enjoyfreedeals.app.data.model.PricePointModel
 import com.enjoyfreedeals.app.ui.components.DealCard
 import com.enjoyfreedeals.app.ui.components.EmptyState
 import com.enjoyfreedeals.app.ui.components.PremiumBackground
@@ -20,7 +21,11 @@ fun SavedDealsScreen(
     deals: List<DealModel>,
     onViewDeal: (DealModel) -> Unit,
     onRemoveSavedDeal: (DealModel) -> Unit,
-    onShareDeal: (DealModel) -> Unit
+    onShareDeal: (DealModel) -> Unit,
+    onOpenDealDetails: (DealModel) -> Unit,
+    onPriceAlertClick: (DealModel) -> Unit,
+    priceHistory: Map<String, List<PricePointModel>> = emptyMap(),
+    priceDropAlerts: Set<String> = emptySet()
 ) {
     val context = LocalContext.current
     PremiumBackground {
@@ -38,7 +43,11 @@ fun SavedDealsScreen(
                         onShareDeal = {
                             shareDealAgain(context, it)
                             onShareDeal(it)
-                        }
+                        },
+                        priceHistory = priceHistory[deal.dealId].orEmpty(),
+                        isPriceAlertEnabled = priceDropAlerts.contains(deal.dealId),
+                        onOpenDetails = onOpenDealDetails,
+                        onPriceAlertClick = onPriceAlertClick
                     )
                 }
             }
@@ -50,7 +59,11 @@ fun SavedDealsScreen(
 fun SharedDealsScreen(
     deals: List<DealModel>,
     onViewDeal: (DealModel) -> Unit,
-    onShareAgain: (DealModel) -> Unit
+    onShareAgain: (DealModel) -> Unit,
+    onOpenDealDetails: (DealModel) -> Unit,
+    onPriceAlertClick: (DealModel) -> Unit,
+    priceHistory: Map<String, List<PricePointModel>> = emptyMap(),
+    priceDropAlerts: Set<String> = emptySet()
 ) {
     val context = LocalContext.current
     PremiumBackground {
@@ -68,7 +81,11 @@ fun SharedDealsScreen(
                         onShareDeal = {
                             shareDealAgain(context, it)
                             onShareAgain(it)
-                        }
+                        },
+                        priceHistory = priceHistory[deal.dealId].orEmpty(),
+                        isPriceAlertEnabled = priceDropAlerts.contains(deal.dealId),
+                        onOpenDetails = onOpenDealDetails,
+                        onPriceAlertClick = onPriceAlertClick
                     )
                 }
             }
@@ -80,7 +97,7 @@ private fun shareDealAgain(context: Context, deal: DealModel) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_SUBJECT, deal.title)
-        putExtra(Intent.EXTRA_TEXT, "${deal.title}\n${deal.dealUrl}")
+        putExtra(Intent.EXTRA_TEXT, "${deal.title}\n${deal.redirectUrl}")
     }
     context.startActivity(Intent.createChooser(intent, "Share deal"))
 }
