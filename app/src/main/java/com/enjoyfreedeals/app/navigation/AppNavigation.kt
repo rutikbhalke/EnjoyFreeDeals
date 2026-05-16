@@ -1,0 +1,331 @@
+package com.enjoyfreedeals.app.navigation
+
+import android.widget.Toast
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Article
+import androidx.compose.material.icons.outlined.Category
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.LocalOffer
+import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import com.enjoyfreedeals.app.data.model.DealModel
+import com.enjoyfreedeals.app.ui.about.AboutScreen
+import com.enjoyfreedeals.app.ui.auth.CreateAccountScreen
+import com.enjoyfreedeals.app.ui.auth.LoginScreen
+import com.enjoyfreedeals.app.ui.blog.BlogDetailScreen
+import com.enjoyfreedeals.app.ui.blog.BlogScreen
+import com.enjoyfreedeals.app.ui.category.CategoryDealsScreen
+import com.enjoyfreedeals.app.ui.category.CategoryScreen
+import com.enjoyfreedeals.app.ui.deals.DealsScreen
+import com.enjoyfreedeals.app.ui.home.HomeScreen
+import com.enjoyfreedeals.app.ui.notification.NotificationScreen
+import com.enjoyfreedeals.app.ui.profile.ProfileScreen
+import com.enjoyfreedeals.app.ui.saved.SavedDealsScreen
+import com.enjoyfreedeals.app.ui.saved.SharedDealsScreen
+import com.enjoyfreedeals.app.ui.splash.SplashScreen
+import com.enjoyfreedeals.app.utils.CustomTabsHelper
+import com.enjoyfreedeals.app.viewmodel.AuthViewModel
+import com.enjoyfreedeals.app.viewmodel.BlogViewModel
+import com.enjoyfreedeals.app.viewmodel.CategoryViewModel
+import com.enjoyfreedeals.app.viewmodel.DealsViewModel
+import com.enjoyfreedeals.app.viewmodel.HomeViewModel
+import com.enjoyfreedeals.app.viewmodel.NotificationViewModel
+import com.enjoyfreedeals.app.viewmodel.ProfileViewModel
+
+@Composable
+fun AppNavigation(
+    authViewModel: AuthViewModel,
+    homeViewModel: HomeViewModel,
+    dealsViewModel: DealsViewModel,
+    categoryViewModel: CategoryViewModel,
+    blogViewModel: BlogViewModel,
+    notificationViewModel: NotificationViewModel,
+    profileViewModel: ProfileViewModel
+) {
+    val rootNavController = rememberNavController()
+    val authState by authViewModel.uiState.collectAsState()
+
+    LaunchedEffect(Unit) {
+        authViewModel.checkSession()
+    }
+
+    NavHost(rootNavController, startDestination = Route.Splash) {
+        composable(Route.Splash) {
+            SplashScreen(authState.isAuthenticated) { loggedIn ->
+                rootNavController.navigate(if (loggedIn) Route.Main else Route.Login) {
+                    popUpTo(Route.Splash) { inclusive = true }
+                }
+            }
+        }
+        composable(Route.Login) {
+            LoginScreen(
+                state = authState,
+                onLogin = authViewModel::login,
+                onGoogleLogin = authViewModel::loginWithGoogle,
+                onForgotPassword = authViewModel::forgotPassword,
+                onCreateAccount = { rootNavController.navigate(Route.Register) },
+                onSuccess = {
+                    rootNavController.navigate(Route.Main) {
+                        popUpTo(Route.Login) { inclusive = true }
+                    }
+                },
+                onMessageShown = authViewModel::clearMessage
+            )
+        }
+        composable(Route.Register) {
+            CreateAccountScreen(
+                state = authState,
+                onRegister = authViewModel::register,
+                onGoogleLogin = authViewModel::loginWithGoogle,
+                onLogin = { rootNavController.popBackStack() },
+                onSuccess = {
+                    rootNavController.navigate(Route.Main) {
+                        popUpTo(Route.Login) { inclusive = true }
+                    }
+                },
+                onMessageShown = authViewModel::clearMessage
+            )
+        }
+        composable(Route.Main) {
+            MainScaffold(
+                homeViewModel = homeViewModel,
+                dealsViewModel = dealsViewModel,
+                categoryViewModel = categoryViewModel,
+                blogViewModel = blogViewModel,
+                notificationViewModel = notificationViewModel,
+                profileViewModel = profileViewModel,
+                onLogout = {
+                    authViewModel.logout()
+                    rootNavController.navigate(Route.Login) {
+                        popUpTo(Route.Main) { inclusive = true }
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun MainScaffold(
+    homeViewModel: HomeViewModel,
+    dealsViewModel: DealsViewModel,
+    categoryViewModel: CategoryViewModel,
+    blogViewModel: BlogViewModel,
+    notificationViewModel: NotificationViewModel,
+    profileViewModel: ProfileViewModel,
+    onLogout: () -> Unit
+) {
+    val navController = rememberNavController()
+    val backStack by navController.currentBackStackEntryAsState()
+    val destination = backStack?.destination
+    val context = LocalContext.current
+    val homeState by homeViewModel.uiState.collectAsState()
+    val dealsState by dealsViewModel.uiState.collectAsState()
+    val categoryState by categoryViewModel.uiState.collectAsState()
+    val blogState by blogViewModel.uiState.collectAsState()
+    val notificationState by notificationViewModel.uiState.collectAsState()
+    val profileState by profileViewModel.uiState.collectAsState()
+
+    fun viewDeal(deal: DealModel) {
+        CustomTabsHelper.openDealUrl(context, deal.dealUrl) { message ->
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    Scaffold(
+        bottomBar = {
+            Surface(
+                shadowElevation = 10.dp,
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+            ) {
+                NavigationBar(
+                    modifier = Modifier.clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
+                    containerColor = MaterialTheme.colorScheme.surface
+                ) {
+                    bottomTabs.forEach { tab ->
+                        val selected = destination?.hierarchy?.any { it.route == tab.route } == true
+                        val scale by animateFloatAsState(if (selected) 1.16f else 1f, label = "${tab.route}-scale")
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = {
+                                navController.navigate(tab.route) {
+                                    popUpTo(Route.Home) { saveState = true }
+                                    launchSingleTop = true
+                                    restoreState = true
+                                }
+                            },
+                            icon = {
+                                Icon(
+                                    tab.icon,
+                                    contentDescription = tab.label,
+                                    modifier = Modifier.graphicsLayer {
+                                        scaleX = scale
+                                        scaleY = scale
+                                    }
+                                )
+                            },
+                            label = { Text(tab.label) }
+                        )
+                    }
+                }
+            }
+        }
+    ) { padding ->
+        Box(Modifier.padding(padding).background(MaterialTheme.colorScheme.background)) {
+            NavHost(navController, startDestination = Route.Home) {
+                composable(Route.Home) {
+                    HomeScreen(
+                        state = homeState,
+                        onQueryChange = homeViewModel::updateQuery,
+                        onNotificationClick = { navController.navigate(Route.Notifications) },
+                        onCategoryClick = {
+                            categoryViewModel.selectCategory(it)
+                            navController.navigate(Route.CategoryDeals)
+                        },
+                        onViewDeal = ::viewDeal,
+                        onSaveDeal = dealsViewModel::saveDeal,
+                        onShareDeal = dealsViewModel::shareDeal
+                    )
+                }
+                composable(Route.Deals) {
+                    DealsScreen(
+                        state = dealsState,
+                        onSearch = dealsViewModel::updateSearch,
+                        onStoreFilter = dealsViewModel::updateStoreFilter,
+                        onSort = dealsViewModel::updateSort,
+                        onViewDeal = ::viewDeal,
+                        onSaveDeal = dealsViewModel::saveDeal,
+                        onRemoveSavedDeal = dealsViewModel::removeSavedDeal,
+                        onShareDeal = dealsViewModel::shareDeal,
+                        onMessageShown = dealsViewModel::clearMessage
+                    )
+                }
+                composable(Route.Category) {
+                    CategoryScreen(categoryState) {
+                        categoryViewModel.selectCategory(it)
+                        navController.navigate(Route.CategoryDeals)
+                    }
+                }
+                composable(Route.CategoryDeals) {
+                    CategoryDealsScreen(
+                        state = categoryState,
+                        onSearch = categoryViewModel::updateCategorySearch,
+                        onSort = categoryViewModel::updateSort,
+                        onViewDeal = ::viewDeal,
+                        onSaveDeal = dealsViewModel::saveDeal,
+                        onShareDeal = dealsViewModel::shareDeal
+                    )
+                }
+                composable(Route.Blog) {
+                    BlogScreen(blogState) {
+                        blogViewModel.selectBlog(it)
+                        navController.navigate(Route.BlogDetail)
+                    }
+                }
+                composable(Route.BlogDetail) {
+                    BlogDetailScreen(blogState.selectedBlog)
+                }
+                composable(Route.Notifications) {
+                    NotificationScreen(
+                        state = notificationState,
+                        onMarkAllRead = notificationViewModel::markAllAsRead,
+                        onOpenNotification = {
+                            notificationViewModel.markAsRead(it)
+                            CustomTabsHelper.openDealUrl(context, it.targetUrl) { message ->
+                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    )
+                }
+                composable(Route.Profile) {
+                    ProfileScreen(
+                        state = profileState,
+                        onNotificationToggle = profileViewModel::updateNotificationPreference,
+                        onDarkModeToggle = profileViewModel::updateDarkModePreference,
+                        onSavedDeals = { navController.navigate(Route.SavedDeals) },
+                        onSharedDeals = { navController.navigate(Route.SharedDeals) },
+                        onAbout = { navController.navigate(Route.About) },
+                        onLogout = onLogout
+                    )
+                }
+                composable(Route.SavedDeals) {
+                    SavedDealsScreen(
+                        deals = profileState.savedDeals,
+                        onViewDeal = ::viewDeal,
+                        onRemoveSavedDeal = profileViewModel::removeSavedDeal,
+                        onShareDeal = dealsViewModel::shareDeal
+                    )
+                }
+                composable(Route.SharedDeals) {
+                    SharedDealsScreen(
+                        deals = profileState.sharedDeals,
+                        onViewDeal = ::viewDeal,
+                        onShareAgain = dealsViewModel::shareDeal
+                    )
+                }
+                composable(Route.About) {
+                    AboutScreen { url ->
+                        CustomTabsHelper.openDealUrl(context, url) { message ->
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private object Route {
+    const val Splash = "splash"
+    const val Login = "login"
+    const val Register = "register"
+    const val Main = "main"
+    const val Home = "home"
+    const val Deals = "deals"
+    const val Category = "category"
+    const val CategoryDeals = "category_deals"
+    const val Blog = "blog"
+    const val BlogDetail = "blog_detail"
+    const val Notifications = "notifications"
+    const val Profile = "profile"
+    const val SavedDeals = "saved_deals"
+    const val SharedDeals = "shared_deals"
+    const val About = "about"
+}
+
+private data class BottomTab(val route: String, val label: String, val icon: ImageVector)
+
+private val bottomTabs = listOf(
+    BottomTab(Route.Home, "Home", Icons.Outlined.Home),
+    BottomTab(Route.Deals, "All Deals", Icons.Outlined.LocalOffer),
+    BottomTab(Route.Category, "Category", Icons.Outlined.Category),
+    BottomTab(Route.Blog, "Blog", Icons.AutoMirrored.Outlined.Article),
+    BottomTab(Route.Profile, "Profile", Icons.Outlined.Person)
+)
+

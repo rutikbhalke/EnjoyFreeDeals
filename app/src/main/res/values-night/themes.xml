@@ -1,0 +1,9 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Base.Theme.EnjoyFreeDeals" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">#101612</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+    <style name="Theme.EnjoyFreeDeals" parent="Base.Theme.EnjoyFreeDeals" />
+</resources>
