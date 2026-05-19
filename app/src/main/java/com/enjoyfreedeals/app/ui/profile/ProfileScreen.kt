@@ -19,9 +19,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Policy
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.ToggleOff
 import androidx.compose.material.icons.outlined.ToggleOn
 import androidx.compose.material3.Card
@@ -52,6 +55,8 @@ fun ProfileScreen(
     onDarkModeToggle: (Boolean) -> Unit,
     onSavedDeals: () -> Unit,
     onSharedDeals: () -> Unit,
+    onSettings: () -> Unit,
+    onLanguage: () -> Unit,
     onAbout: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -98,6 +103,9 @@ fun ProfileScreen(
                     Column(Modifier.padding(8.dp)) {
                         ProfileRow(Icons.Outlined.FavoriteBorder, "Saved Deals", "View saved offers", onSavedDeals)
                         ProfileRow(Icons.Outlined.Share, "Shared Deals", "Deals you shared", onSharedDeals)
+                        ProfileRow(Icons.Outlined.Visibility, "Recently Viewed", "Products you opened recently", onSavedDeals)
+                        ProfileRow(Icons.Outlined.Language, "Language Settings", "English, Hindi, Marathi and more", onLanguage)
+                        ProfileRow(Icons.Outlined.Settings, "Settings", "Preferences, support and app version", onSettings)
                         ProfileRow(Icons.Outlined.Info, "About App", "EnjoyFreeDeals by BizFlow Team", onAbout)
                         ProfileRow(Icons.Outlined.Policy, "Privacy Policy", "www.mywebz.in/privacy-policy", onAbout)
                         ProfileRow(Icons.Outlined.Policy, "Terms & Conditions", "www.mywebz.in/terms", onAbout)

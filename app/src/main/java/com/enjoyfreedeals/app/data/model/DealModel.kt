@@ -28,6 +28,9 @@ data class DealModel(
     var highestPrice: Double = originalPrice,
     var averagePrice: Double = currentPrice,
     var priceCheckedAt: Long = System.currentTimeMillis(),
+    var rating: Double = 4.3,
+    var deliveryInfo: String = "Free delivery",
+    var comparisonPrices: List<StorePriceModel> = emptyList(),
     var createdAt: Long = System.currentTimeMillis(),
     var updatedAt: Long = System.currentTimeMillis(),
     var expiryDate: Long = System.currentTimeMillis() + DEFAULT_EXPIRY_WINDOW
@@ -38,7 +41,25 @@ data class DealModel(
     val redirectUrl: String
         get() = affiliateUrl.ifBlank { productUrl.ifBlank { dealUrl } }
 
+    val lowestStorePrice: StorePriceModel?
+        get() = comparisonPrices.filter { it.available }.minByOrNull { it.price }
+
     companion object {
         const val DEFAULT_EXPIRY_WINDOW: Long = 7L * 24L * 60L * 60L * 1000L
     }
+}
+
+data class StorePriceModel(
+    var platform: String = "",
+    var price: Double = 0.0,
+    var productUrl: String = "",
+    var affiliateUrl: String = "",
+    var available: Boolean = true,
+    var deliveryInfo: String = "Free delivery",
+    var rating: Double = 4.2,
+    var couponCode: String = "",
+    var lastUpdated: Long = System.currentTimeMillis()
+) {
+    val redirectUrl: String
+        get() = affiliateUrl.ifBlank { productUrl }
 }

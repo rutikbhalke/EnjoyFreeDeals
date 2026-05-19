@@ -5,10 +5,12 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.enjoyfreedeals.app.data.model.CategoryModel
 import com.enjoyfreedeals.app.data.model.DealModel
+import com.enjoyfreedeals.app.data.model.PriceComparisonProductModel
 import com.enjoyfreedeals.app.data.model.UserModel
 import com.enjoyfreedeals.app.data.repository.CategoryRepository
 import com.enjoyfreedeals.app.data.repository.DealRepository
 import com.enjoyfreedeals.app.data.repository.NotificationRepository
+import com.enjoyfreedeals.app.data.repository.PriceComparisonRepository
 import com.enjoyfreedeals.app.data.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +23,7 @@ data class HomeUiState(
     val user: UserModel = UserRepository.mockUser,
     val query: String = "",
     val deals: List<DealModel> = emptyList(),
+    val priceComparisons: List<PriceComparisonProductModel> = emptyList(),
     val categories: List<CategoryModel> = emptyList(),
     val unreadCount: Int = 0,
     val errorMessage: String? = null
@@ -30,6 +33,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private val dealRepository = DealRepository(application.applicationContext)
     private val categoryRepository = CategoryRepository(application.applicationContext)
     private val notificationRepository = NotificationRepository(application.applicationContext)
+    private val priceComparisonRepository = PriceComparisonRepository(application.applicationContext)
     private val userRepository = UserRepository(application.applicationContext)
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -50,6 +54,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
         viewModelScope.launch {
+            priceComparisonRepository.getPriceComparisons().collect { comparisons ->
+                _uiState.update { it.copy(priceComparisons = comparisons) }
+            }
+        }
+        viewModelScope.launch {
             userRepository.getCurrentUserProfile().collect { user ->
                 _uiState.update { it.copy(user = user) }
             }
@@ -66,4 +75,3 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(query = query) }
     }
 }
-

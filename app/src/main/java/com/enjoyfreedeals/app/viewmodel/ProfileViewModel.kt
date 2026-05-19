@@ -64,5 +64,13 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             _uiState.update { it.copy(savedDeals = it.savedDeals.filterNot { saved -> saved.dealId == deal.dealId }) }
         }
     }
-}
 
+    fun clearSavedDeals() {
+        viewModelScope.launch {
+            _uiState.value.savedDeals.forEach { deal ->
+                dealRepository.removeSavedDeal(deal.dealId)
+            }
+            _uiState.update { it.copy(savedDeals = emptyList(), message = "Saved deals cleared.") }
+        }
+    }
+}

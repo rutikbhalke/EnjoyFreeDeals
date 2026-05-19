@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">EnjoyFreeDeals</string>
+    <string name="home">होम</string>
+    <string name="all_deals">सर्व डील्स</string>
+    <string name="category">कॅटेगरी</string>
+    <string name="blog">ब्लॉग</string>
+    <string name="profile">प्रोफाइल</string>
+    <string name="view_deal">डील पहा</string>
+    <string name="view_details">तपशील पहा</string>
+    <string name="save_deal">सेव्ह करा</string>
+    <string name="share_deal">शेअर करा</string>
+    <string name="settings">सेटिंग्स</string>
+    <string name="language">भाषा</string>
+</resources>
