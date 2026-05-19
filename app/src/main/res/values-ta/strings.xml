@@ -1,0 +1,14 @@
+<resources>
+    <string name="app_name">EnjoyFreeDeals</string>
+    <string name="home">முகப்பு</string>
+    <string name="all_deals">அனைத்து டீல்கள்</string>
+    <string name="category">வகை</string>
+    <string name="blog">வலைப்பதிவு</string>
+    <string name="profile">சுயவிவரம்</string>
+    <string name="view_deal">டீலை காண்க</string>
+    <string name="view_details">விவரங்கள்</string>
+    <string name="save_deal">சேமி</string>
+    <string name="share_deal">பகிர்</string>
+    <string name="settings">அமைப்புகள்</string>
+    <string name="language">மொழி</string>
+</resources>

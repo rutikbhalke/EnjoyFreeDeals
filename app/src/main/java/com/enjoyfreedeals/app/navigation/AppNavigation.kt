@@ -45,13 +45,18 @@ import com.enjoyfreedeals.app.ui.category.CategoryScreen
 import com.enjoyfreedeals.app.ui.deals.DealsScreen
 import com.enjoyfreedeals.app.ui.deals.PriceAlertScreen
 import com.enjoyfreedeals.app.ui.deals.ProductPriceHistoryScreen
+import com.enjoyfreedeals.app.ui.deals.shareDeal
+import com.enjoyfreedeals.app.ui.details.ProductDetailScreen
 import com.enjoyfreedeals.app.ui.home.HomeScreen
 import com.enjoyfreedeals.app.ui.notification.NotificationScreen
 import com.enjoyfreedeals.app.ui.profile.ProfileScreen
 import com.enjoyfreedeals.app.ui.saved.SavedDealsScreen
 import com.enjoyfreedeals.app.ui.saved.SharedDealsScreen
+import com.enjoyfreedeals.app.ui.settings.LanguageSettingsScreen
+import com.enjoyfreedeals.app.ui.settings.SettingsScreen
 import com.enjoyfreedeals.app.ui.splash.SplashScreen
 import com.enjoyfreedeals.app.utils.CustomTabsHelper
+import com.enjoyfreedeals.app.utils.LocalAppStrings
 import com.enjoyfreedeals.app.viewmodel.AuthViewModel
 import com.enjoyfreedeals.app.viewmodel.BlogViewModel
 import com.enjoyfreedeals.app.viewmodel.CategoryViewModel
@@ -59,6 +64,7 @@ import com.enjoyfreedeals.app.viewmodel.DealsViewModel
 import com.enjoyfreedeals.app.viewmodel.HomeViewModel
 import com.enjoyfreedeals.app.viewmodel.NotificationViewModel
 import com.enjoyfreedeals.app.viewmodel.ProfileViewModel
+import com.enjoyfreedeals.app.viewmodel.SettingsViewModel
 
 @Composable
 fun AppNavigation(
@@ -68,7 +74,8 @@ fun AppNavigation(
     categoryViewModel: CategoryViewModel,
     blogViewModel: BlogViewModel,
     notificationViewModel: NotificationViewModel,
-    profileViewModel: ProfileViewModel
+    profileViewModel: ProfileViewModel,
+    settingsViewModel: SettingsViewModel
 ) {
     val rootNavController = rememberNavController()
     val authState by authViewModel.uiState.collectAsState()
@@ -122,6 +129,7 @@ fun AppNavigation(
                 blogViewModel = blogViewModel,
                 notificationViewModel = notificationViewModel,
                 profileViewModel = profileViewModel,
+                settingsViewModel = settingsViewModel,
                 onLogout = {
                     authViewModel.logout()
                     rootNavController.navigate(Route.Login) {
@@ -141,6 +149,7 @@ private fun MainScaffold(
     blogViewModel: BlogViewModel,
     notificationViewModel: NotificationViewModel,
     profileViewModel: ProfileViewModel,
+    settingsViewModel: SettingsViewModel,
     onLogout: () -> Unit
 ) {
     val navController = rememberNavController()
@@ -153,6 +162,8 @@ private fun MainScaffold(
     val blogState by blogViewModel.uiState.collectAsState()
     val notificationState by notificationViewModel.uiState.collectAsState()
     val profileState by profileViewModel.uiState.collectAsState()
+    val settingsState by settingsViewModel.uiState.collectAsState()
+    val strings = LocalAppStrings.current
 
     fun viewDeal(deal: DealModel) {
         CustomTabsHelper.openDealUrl(context, deal.redirectUrl) { message ->
@@ -162,7 +173,7 @@ private fun MainScaffold(
 
     fun openDealDetails(deal: DealModel) {
         dealsViewModel.selectDeal(deal)
-        navController.navigate(Route.ProductPriceHistory)
+        navController.navigate(Route.ProductDetail)
     }
 
     fun openPriceAlert(deal: DealModel) {
@@ -183,6 +194,7 @@ private fun MainScaffold(
                     bottomTabs.forEach { tab ->
                         val selected = destination?.hierarchy?.any { it.route == tab.route } == true
                         val scale by animateFloatAsState(if (selected) 1.16f else 1f, label = "${tab.route}-scale")
+                        val label = tab.label(strings)
                         NavigationBarItem(
                             selected = selected,
                             onClick = {
@@ -195,14 +207,14 @@ private fun MainScaffold(
                             icon = {
                                 Icon(
                                     tab.icon,
-                                    contentDescription = tab.label,
+                                    contentDescription = label,
                                     modifier = Modifier.graphicsLayer {
                                         scaleX = scale
                                         scaleY = scale
                                     }
                                 )
                             },
-                            label = { Text(tab.label) }
+                            label = { Text(label) }
                         )
                     }
                 }
@@ -224,6 +236,11 @@ private fun MainScaffold(
                         onSaveDeal = dealsViewModel::saveDeal,
                         onShareDeal = dealsViewModel::shareDeal,
                         onOpenDealDetails = ::openDealDetails,
+                        onStorePriceClick = { storePrice ->
+                            CustomTabsHelper.openDealUrl(context, storePrice.redirectUrl) { message ->
+                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                            }
+                        },
                         onPriceAlertClick = ::openPriceAlert,
                         priceHistory = dealsState.priceHistory,
                         priceDropAlerts = dealsState.priceDropAlerts
@@ -293,8 +310,32 @@ private fun MainScaffold(
                         onDarkModeToggle = profileViewModel::updateDarkModePreference,
                         onSavedDeals = { navController.navigate(Route.SavedDeals) },
                         onSharedDeals = { navController.navigate(Route.SharedDeals) },
+                        onSettings = { navController.navigate(Route.Settings) },
+                        onLanguage = { navController.navigate(Route.LanguageSettings) },
                         onAbout = { navController.navigate(Route.About) },
                         onLogout = onLogout
+                    )
+                }
+                composable(Route.Settings) {
+                    SettingsScreen(
+                        state = settingsState,
+                        onLanguageClick = { navController.navigate(Route.LanguageSettings) },
+                        onDarkModeToggle = {
+                            settingsViewModel.setDarkMode(it)
+                            profileViewModel.updateDarkModePreference(it)
+                        },
+                        onNotificationToggle = {
+                            settingsViewModel.setNotifications(it)
+                            profileViewModel.updateNotificationPreference(it)
+                        },
+                        onClearSavedDeals = profileViewModel::clearSavedDeals,
+                        onAbout = { navController.navigate(Route.About) }
+                    )
+                }
+                composable(Route.LanguageSettings) {
+                    LanguageSettingsScreen(
+                        selectedLanguageCode = settingsState.settings.languageCode,
+                        onSelectLanguage = settingsViewModel::setLanguage
                     )
                 }
                 composable(Route.SavedDeals) {
@@ -328,6 +369,25 @@ private fun MainScaffold(
                         isAlertEnabled = selectedDeal?.let { dealsState.priceDropAlerts.contains(it.dealId) } == true,
                         onSetPriceAlert = ::openPriceAlert,
                         onViewDeal = ::viewDeal
+                    )
+                }
+                composable(Route.ProductDetail) {
+                    val selectedDeal = dealsState.selectedDeal
+                    ProductDetailScreen(
+                        deal = selectedDeal,
+                        allDeals = dealsState.allDeals.ifEmpty { homeState.deals },
+                        onViewDeal = ::viewDeal,
+                        onSaveDeal = dealsViewModel::saveDeal,
+                        onShareDeal = {
+                            shareDeal(context, it)
+                            dealsViewModel.shareDeal(it)
+                        },
+                        onStorePriceClick = { storePrice ->
+                            CustomTabsHelper.openDealUrl(context, storePrice.redirectUrl) { message ->
+                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        onSimilarDealClick = ::openDealDetails
                     )
                 }
                 composable(Route.PriceAlert) {
@@ -368,17 +428,20 @@ private object Route {
     const val Profile = "profile"
     const val SavedDeals = "saved_deals"
     const val SharedDeals = "shared_deals"
+    const val Settings = "settings"
+    const val LanguageSettings = "language_settings"
     const val About = "about"
+    const val ProductDetail = "product_detail"
     const val ProductPriceHistory = "product_price_history"
     const val PriceAlert = "price_alert"
 }
 
-private data class BottomTab(val route: String, val label: String, val icon: ImageVector)
+private data class BottomTab(val route: String, val label: (com.enjoyfreedeals.app.utils.AppStrings) -> String, val icon: ImageVector)
 
 private val bottomTabs = listOf(
-    BottomTab(Route.Home, "Home", Icons.Outlined.Home),
-    BottomTab(Route.Deals, "All Deals", Icons.Outlined.LocalOffer),
-    BottomTab(Route.Category, "Category", Icons.Outlined.Category),
-    BottomTab(Route.Blog, "Blog", Icons.AutoMirrored.Outlined.Article),
-    BottomTab(Route.Profile, "Profile", Icons.Outlined.Person)
+    BottomTab(Route.Home, { it.home }, Icons.Outlined.Home),
+    BottomTab(Route.Deals, { it.allDeals }, Icons.Outlined.LocalOffer),
+    BottomTab(Route.Category, { it.category }, Icons.Outlined.Category),
+    BottomTab(Route.Blog, { it.blog }, Icons.AutoMirrored.Outlined.Article),
+    BottomTab(Route.Profile, { it.profile }, Icons.Outlined.Person)
 )

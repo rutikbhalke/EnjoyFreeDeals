@@ -51,15 +51,18 @@ import coil.compose.AsyncImage
 import com.enjoyfreedeals.app.data.model.CategoryModel
 import com.enjoyfreedeals.app.data.model.DealModel
 import com.enjoyfreedeals.app.data.model.PricePointModel
+import com.enjoyfreedeals.app.data.model.StorePriceModel
 import com.enjoyfreedeals.app.theme.AccentYellow
 import com.enjoyfreedeals.app.theme.PrimaryGreen
 import com.enjoyfreedeals.app.theme.PrimaryRed
+import com.enjoyfreedeals.app.theme.SoftGreen
 import com.enjoyfreedeals.app.ui.components.AppLogo
 import com.enjoyfreedeals.app.ui.components.CategoryCard
 import com.enjoyfreedeals.app.ui.components.DealCard
 import com.enjoyfreedeals.app.ui.components.DealSearchBox
 import com.enjoyfreedeals.app.ui.components.EmptyState
 import com.enjoyfreedeals.app.ui.components.PremiumBackground
+import com.enjoyfreedeals.app.ui.components.PriceComparisonCard
 import com.enjoyfreedeals.app.ui.components.SectionTitle
 import com.enjoyfreedeals.app.ui.components.formatPrice
 import com.enjoyfreedeals.app.viewmodel.HomeUiState
@@ -75,6 +78,7 @@ fun HomeScreen(
     onSaveDeal: (DealModel) -> Unit,
     onShareDeal: (DealModel) -> Unit,
     onOpenDealDetails: (DealModel) -> Unit,
+    onStorePriceClick: (StorePriceModel) -> Unit,
     onPriceAlertClick: (DealModel) -> Unit,
     priceHistory: Map<String, List<PricePointModel>> = emptyMap(),
     priceDropAlerts: Set<String> = emptySet()
@@ -95,6 +99,9 @@ fun HomeScreen(
                 DealSearchBox(value = state.query, onValueChange = onQueryChange)
             }
             item {
+                PullToRefreshHint()
+            }
+            item {
                 BannerSlider(deals = state.deals.filter { it.isFeatured || it.isHotDeal }.take(6), onViewDeal = onViewDeal)
             }
             item {
@@ -113,6 +120,9 @@ fun HomeScreen(
                 DealSection("Hot Deals", state.deals.filter { it.isHotDeal }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
             }
             item {
+                PriceComparisonHighlights(state.deals.take(3), onStorePriceClick)
+            }
+            item {
                 DealSection("Free Deals", state.deals.filter { it.isFreeDeal }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
             }
             item {
@@ -125,6 +135,18 @@ fun HomeScreen(
                 StoreWiseSection(state.deals, onViewDeal)
             }
         }
+    }
+}
+
+@Composable
+private fun PullToRefreshHint() {
+    Surface(color = SoftGreen.copy(alpha = 0.72f), contentColor = PrimaryGreen, shape = RoundedCornerShape(18.dp)) {
+        Text(
+            "Pull to refresh ready for real-time deal loading",
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -235,10 +257,27 @@ private fun DealSection(
 }
 
 @Composable
+private fun PriceComparisonHighlights(
+    deals: List<DealModel>,
+    onStorePriceClick: (StorePriceModel) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionTitle("Best Price Comparison", "Compare prices across Amazon, Flipkart, Meesho and more")
+        if (deals.isEmpty()) {
+            EmptyState("No comparison data yet.", "Price comparison API data will appear here.")
+        } else {
+            deals.forEach { deal ->
+                PriceComparisonCard(deal = deal, onStoreClick = onStorePriceClick)
+            }
+        }
+    }
+}
+
+@Composable
 private fun StoreWiseSection(deals: List<DealModel>, onViewDeal: (DealModel) -> Unit) {
     val stores = deals.groupBy { it.storeName }.entries.take(10)
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SectionTitle("Store-wise Deals", "Quick jump to popular online stores")
+        SectionTitle("Featured Stores", "Quick jump to popular online stores")
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             items(stores.toList(), key = { it.key }) { entry ->
                 val best = entry.value.maxByOrNull { it.discountPercent } ?: return@items

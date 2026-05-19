@@ -1,0 +1,207 @@
+package com.enjoyfreedeals.app.ui.details
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.LocalOffer
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import com.enjoyfreedeals.app.data.model.DealModel
+import com.enjoyfreedeals.app.data.model.StorePriceModel
+import com.enjoyfreedeals.app.data.repository.DealRepository
+import com.enjoyfreedeals.app.theme.AccentYellow
+import com.enjoyfreedeals.app.theme.DarkText
+import com.enjoyfreedeals.app.theme.GreyText
+import com.enjoyfreedeals.app.theme.PrimaryGreen
+import com.enjoyfreedeals.app.theme.PrimaryRed
+import com.enjoyfreedeals.app.theme.SoftGreen
+import com.enjoyfreedeals.app.theme.SoftYellow
+import com.enjoyfreedeals.app.ui.components.DealCard
+import com.enjoyfreedeals.app.ui.components.EmptyState
+import com.enjoyfreedeals.app.ui.components.PremiumBackground
+import com.enjoyfreedeals.app.ui.components.PriceComparisonCard
+import com.enjoyfreedeals.app.ui.components.SectionTitle
+import com.enjoyfreedeals.app.ui.components.formatDate
+import com.enjoyfreedeals.app.ui.components.formatPrice
+import com.enjoyfreedeals.app.utils.LocalAppStrings
+import java.util.Locale
+
+@Composable
+fun ProductDetailScreen(
+    deal: DealModel?,
+    allDeals: List<DealModel>,
+    onViewDeal: (DealModel) -> Unit,
+    onSaveDeal: (DealModel) -> Unit,
+    onShareDeal: (DealModel) -> Unit,
+    onStorePriceClick: (StorePriceModel) -> Unit,
+    onSimilarDealClick: (DealModel) -> Unit
+) {
+    val strings = LocalAppStrings.current
+    PremiumBackground {
+        if (deal == null) {
+            LazyColumn(contentPadding = PaddingValues(18.dp)) {
+                item { EmptyState("Product not found.", "Please select another deal.") }
+            }
+            return@PremiumBackground
+        }
+
+        val stats = DealRepository.calculatePriceStats(deal, emptyList())
+        val similarDeals = allDeals
+            .filter { it.dealId != deal.dealId && it.categoryId == deal.categoryId }
+            .take(6)
+
+        LazyColumn(
+            contentPadding = PaddingValues(18.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                Card(
+                    shape = RoundedCornerShape(28.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+                ) {
+                    Column {
+                        AsyncImage(
+                            model = deal.productImage,
+                            contentDescription = deal.title,
+                            modifier = Modifier.fillMaxWidth().height(260.dp),
+                            contentScale = ContentScale.Crop
+                        )
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(deal.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                            Text(deal.storeName, color = PrimaryGreen, fontWeight = FontWeight.Bold)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(formatPrice(stats.currentPrice), color = PrimaryGreen, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                                Spacer(Modifier.size(10.dp))
+                                Text(formatPrice(deal.originalPrice), color = GreyText, textDecoration = TextDecoration.LineThrough)
+                                Spacer(Modifier.size(8.dp))
+                                Badge("${deal.discountPercent}% OFF", AccentYellow, DarkText)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Outlined.Star, contentDescription = null, tint = AccentYellow, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.size(4.dp))
+                                Text(String.format(Locale.US, "%.1f", deal.rating), fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.size(14.dp))
+                                Text(deal.deliveryInfo, color = GreyText)
+                            }
+                            Text(deal.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            if (deal.couponCode.isNotBlank()) {
+                item {
+                    Surface(color = SoftYellow, contentColor = DarkText, shape = RoundedCornerShape(20.dp)) {
+                        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column {
+                                Text("Coupon Code", color = GreyText, style = MaterialTheme.typography.labelMedium)
+                                Text(deal.couponCode, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge)
+                            }
+                            Badge("Apply at checkout", PrimaryRed, Color.White)
+                        }
+                    }
+                }
+            }
+            item {
+                PriceComparisonCard(deal = deal, onStoreClick = onStorePriceClick)
+            }
+            item {
+                Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SectionTitle("Price History", "Graph placeholder ready for real API history")
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().height(120.dp),
+                            color = SoftGreen,
+                            shape = RoundedCornerShape(20.dp)
+                        ) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.Center) {
+                                Text("Lowest: ${formatPrice(stats.lowestPrice)}", color = PrimaryGreen, fontWeight = FontWeight.Bold)
+                                Text("Last updated: ${formatDate(deal.priceCheckedAt)}", color = GreyText)
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = { onViewDeal(deal) },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                        shape = RoundedCornerShape(18.dp)
+                    ) {
+                        Icon(Icons.Outlined.LocalOffer, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.size(8.dp))
+                        Text(strings.viewDeal, fontWeight = FontWeight.Bold)
+                    }
+                    IconButton(onClick = { onSaveDeal(deal) }) {
+                        Icon(Icons.Outlined.FavoriteBorder, contentDescription = strings.saveDeal, tint = PrimaryRed)
+                    }
+                    IconButton(onClick = { onShareDeal(deal) }) {
+                        Icon(Icons.Outlined.Share, contentDescription = strings.shareDeal, tint = PrimaryGreen)
+                    }
+                }
+            }
+            item {
+                SectionTitle("Similar Deals", "More offers from ${deal.categoryName}")
+                Spacer(Modifier.height(10.dp))
+                if (similarDeals.isEmpty()) {
+                    EmptyState("No similar deals yet.", "More products will appear here soon.")
+                } else {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(similarDeals, key = { it.dealId }) { similar ->
+                            DealCard(
+                                deal = similar,
+                                isSaved = false,
+                                onViewDeal = onViewDeal,
+                                onSaveDeal = onSaveDeal,
+                                onShareDeal = onShareDeal,
+                                onOpenDetails = onSimilarDealClick,
+                                modifier = Modifier.width(330.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Badge(text: String, background: Color, contentColor: Color) {
+    Surface(color = background, contentColor = contentColor, shape = RoundedCornerShape(50)) {
+        Text(text, modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Black)
+    }
+}

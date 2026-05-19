@@ -51,6 +51,8 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material.icons.outlined.Spa
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.outlined.LocalShipping
 import androidx.compose.material.icons.outlined.TravelExplore
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -90,6 +92,7 @@ import com.enjoyfreedeals.app.data.model.BlogModel
 import com.enjoyfreedeals.app.data.model.CategoryModel
 import com.enjoyfreedeals.app.data.model.DealModel
 import com.enjoyfreedeals.app.data.model.PricePointModel
+import com.enjoyfreedeals.app.data.model.StorePriceModel
 import com.enjoyfreedeals.app.data.repository.DealRepository
 import com.enjoyfreedeals.app.theme.AccentYellow
 import com.enjoyfreedeals.app.theme.CardWhite
@@ -100,6 +103,7 @@ import com.enjoyfreedeals.app.theme.PrimaryRed
 import com.enjoyfreedeals.app.theme.SoftGreen
 import com.enjoyfreedeals.app.theme.SoftRed
 import com.enjoyfreedeals.app.theme.SoftYellow
+import com.enjoyfreedeals.app.utils.LocalAppStrings
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -193,6 +197,7 @@ fun SectionTitle(title: String, subtitle: String? = null, modifier: Modifier = M
 
 @Composable
 fun DealSearchBox(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    val strings = LocalAppStrings.current
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -201,7 +206,7 @@ fun DealSearchBox(value: String, onValueChange: (String) -> Unit, modifier: Modi
             .shadow(8.dp, RoundedCornerShape(22.dp))
             .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(22.dp)),
         leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, tint = PrimaryGreen) },
-        placeholder = { Text("Search deals, stores, coupons...") },
+        placeholder = { Text(strings.searchHint) },
         shape = RoundedCornerShape(22.dp),
         singleLine = true,
         colors = OutlinedTextFieldDefaults.colors(
@@ -249,7 +254,7 @@ fun DealCard(
         listOf(DealRepository.buildPriceHistoryRecord(deal, emptyList(), deal.priceCheckedAt))
     }
     val stats = DealRepository.calculatePriceStats(deal, effectiveHistory)
-    val alertAction = onPriceAlertClick ?: onTogglePriceAlert
+    val strings = LocalAppStrings.current
     val cardModifier = if (onOpenDetails != null) {
         modifier
             .fillMaxWidth()
@@ -286,6 +291,7 @@ fun DealCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     BadgeText("${deal.discountPercent}% OFF", AccentYellow, DarkText)
+                    if (deal.isHotDeal) BadgeText("HOT", PrimaryRed, Color.White)
                     if (stats.isLowestPriceNow) BadgeText("Lowest Price", PrimaryGreen, Color.White)
                 }
             }
@@ -295,14 +301,31 @@ fun DealCard(
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(deal.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Star, contentDescription = null, tint = AccentYellow, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(String.format(Locale.US, "%.1f", deal.rating), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.LocalShipping, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(deal.deliveryInfo, color = GreyText, style = MaterialTheme.typography.labelMedium)
+                    }
+                }
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(formatPrice(stats.currentPrice), color = PrimaryGreen, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
                     Spacer(Modifier.width(8.dp))
                     Text(formatPrice(deal.originalPrice), color = GreyText, textDecoration = TextDecoration.LineThrough)
+                    if (deal.couponCode.isNotBlank()) {
+                        Spacer(Modifier.width(8.dp))
+                        BadgeText(deal.couponCode, SoftYellow, DarkText)
+                    }
                 }
                 Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
                         onClick = { onViewDeal(deal) },
                         modifier = Modifier.weight(1f),
@@ -311,26 +334,130 @@ fun DealCard(
                     ) {
                         Icon(Icons.Outlined.LocalOffer, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("View Deal", fontWeight = FontWeight.Bold)
+                        Text(strings.viewDeal, fontWeight = FontWeight.Bold)
                     }
                     Button(
-                        onClick = { alertAction?.invoke(deal) },
+                        onClick = { onOpenDetails?.invoke(deal) },
                         modifier = Modifier.weight(1f),
-                        enabled = alertAction != null,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isPriceAlertEnabled) PrimaryRed else AccentYellow,
-                            contentColor = if (isPriceAlertEnabled) Color.White else DarkText
-                        ),
+                        enabled = onOpenDetails != null,
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentYellow, contentColor = DarkText),
                         shape = RoundedCornerShape(16.dp)
                     ) {
-                        Icon(
-                            imageVector = if (isPriceAlertEnabled) Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsOff,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(if (isPriceAlertEnabled) "Alert On" else "Price Alert", fontWeight = FontWeight.Bold)
+                        Text(strings.viewDetails, fontWeight = FontWeight.Bold)
                     }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    OutlinedActionButton(
+                        label = strings.saveDeal,
+                        icon = if (isSaved) Icons.Outlined.Favorite else Icons.Outlined.FavoriteBorder,
+                        onClick = { onSaveDeal(deal) },
+                        modifier = Modifier.weight(1f),
+                        tint = if (isSaved) PrimaryRed else PrimaryGreen
+                    )
+                    OutlinedActionButton(
+                        label = strings.shareDeal,
+                        icon = Icons.Outlined.Share,
+                        onClick = { onShareDeal(deal) },
+                        modifier = Modifier.weight(1f),
+                        tint = PrimaryGreen
+                    )
+                    if (onPriceAlertClick != null || onTogglePriceAlert != null) {
+                        IconButton(onClick = { (onPriceAlertClick ?: onTogglePriceAlert)?.invoke(deal) }) {
+                            Icon(
+                                if (isPriceAlertEnabled) Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsOff,
+                                contentDescription = "Price alert",
+                                tint = if (isPriceAlertEnabled) PrimaryRed else GreyText
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OutlinedActionButton(
+    label: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tint: Color = PrimaryGreen
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, tint.copy(alpha = 0.24f))
+    ) {
+        Row(Modifier.padding(horizontal = 10.dp, vertical = 9.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(17.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(label, color = tint, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+fun PriceComparisonCard(
+    deal: DealModel,
+    onStoreClick: (StorePriceModel) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val strings = LocalAppStrings.current
+    val prices = deal.comparisonPrices
+    val lowest = prices.filter { it.available }.minByOrNull { it.price }
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SectionTitle(strings.priceComparison, "Last updated ${formatDate(deal.priceCheckedAt)}")
+            if (prices.isEmpty()) {
+                EmptyState("No price comparison available.", "Live API prices can be connected here.")
+            } else {
+                prices.forEach { price ->
+                    StorePriceRow(
+                        price = price,
+                        isBestPrice = lowest?.platform == price.platform && price.available,
+                        onClick = { onStoreClick(price) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StorePriceRow(
+    price: StorePriceModel,
+    isBestPrice: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val strings = LocalAppStrings.current
+    Surface(
+        modifier = modifier.fillMaxWidth().clickable(enabled = price.available, onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        color = if (isBestPrice) SoftGreen.copy(alpha = 0.78f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.58f),
+        border = BorderStroke(1.dp, if (isBestPrice) PrimaryGreen.copy(alpha = 0.32f) else GreyText.copy(alpha = 0.08f))
+    ) {
+        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            StorePill(price.platform)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(if (price.available) price.deliveryInfo else "Not available", color = GreyText, style = MaterialTheme.typography.labelMedium)
+                if (price.couponCode.isNotBlank()) {
+                    Text(price.couponCode, color = PrimaryRed, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(if (price.available) formatPrice(price.price) else "N/A", color = if (isBestPrice) PrimaryGreen else DarkText, fontWeight = FontWeight.Black)
+                if (isBestPrice) {
+                    BadgeText(strings.bestPrice, PrimaryGreen, Color.White)
                 }
             }
         }

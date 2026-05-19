@@ -315,8 +315,10 @@ class DealRepository(private val context: Context) {
             return when (sortOption) {
                 "Highest Discount" -> filtered.sortedByDescending { it.discountPercent }
                 "Lowest Price" -> filtered.sortedBy { it.effectivePrice }
+                "Popular Deals" -> filtered.sortedByDescending { it.savedCount + it.shareCount }
                 "Free Deals" -> filtered.sortedWith(compareByDescending<DealModel> { it.isFreeDeal }.thenBy { it.effectivePrice })
                 "Expiring Soon" -> filtered.sortedBy { it.expiryDate }
+                "Latest Deals" -> filtered.sortedByDescending { it.createdAt }
                 else -> filtered.sortedByDescending { it.createdAt }
             }
         }

@@ -38,8 +38,10 @@ object Constants {
 
     val sortOptions = listOf(
         "Newest Deals",
+        "Latest Deals",
         "Highest Discount",
         "Lowest Price",
+        "Popular Deals",
         "Free Deals",
         "Expiring Soon"
     )

@@ -59,6 +59,21 @@ class DealRepositoryTest {
     }
 
     @Test
+    fun priceComparison_mockDealsHaveMultipleStorePricesAndLowestPrice() {
+        val deal = MockDeals.deals.first { it.dealId == "amazon-boat-earbuds" }
+        assertTrue(deal.comparisonPrices.size >= 4)
+        val lowest = deal.lowestStorePrice
+        assertTrue(lowest != null)
+        assertEquals(lowest!!.price, deal.comparisonPrices.filter { it.available }.minOf { it.price }, 0.0)
+    }
+
+    @Test
+    fun priceComparison_sampleProductsAreGeneratedForHomeSection() {
+        assertTrue(MockDeals.priceComparisonProducts.size >= MockDeals.deals.size)
+        assertTrue(MockDeals.priceComparisonProducts.all { it.ecommercePlatformPrices.isNotEmpty() })
+    }
+
+    @Test
     fun deals_redirectUrlsUseExactProductAndAffiliateLinks() {
         val deal = MockDeals.deals.first { it.dealId == "amazon-boat-earbuds" }
         assertTrue(deal.productUrl.contains("/dp/"))

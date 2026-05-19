@@ -8,10 +8,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.enjoyfreedeals.app.navigation.AppNavigation
 import com.enjoyfreedeals.app.theme.EnjoyFreeDealsTheme
+import com.enjoyfreedeals.app.utils.LocalAppStrings
+import com.enjoyfreedeals.app.utils.Localization
 import com.enjoyfreedeals.app.viewmodel.AuthViewModel
 import com.enjoyfreedeals.app.viewmodel.BlogViewModel
 import com.enjoyfreedeals.app.viewmodel.CategoryViewModel
@@ -19,6 +22,7 @@ import com.enjoyfreedeals.app.viewmodel.DealsViewModel
 import com.enjoyfreedeals.app.viewmodel.HomeViewModel
 import com.enjoyfreedeals.app.viewmodel.NotificationViewModel
 import com.enjoyfreedeals.app.viewmodel.ProfileViewModel
+import com.enjoyfreedeals.app.viewmodel.SettingsViewModel
 
 class MainActivity : ComponentActivity() {
     private val authViewModel: AuthViewModel by viewModels()
@@ -28,6 +32,7 @@ class MainActivity : ComponentActivity() {
     private val blogViewModel: BlogViewModel by viewModels()
     private val notificationViewModel: NotificationViewModel by viewModels()
     private val profileViewModel: ProfileViewModel by viewModels()
+    private val settingsViewModel: SettingsViewModel by viewModels()
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -41,16 +46,20 @@ class MainActivity : ComponentActivity() {
         requestNotificationPermissionIfNeeded()
         setContent {
             val profileState by profileViewModel.uiState.collectAsState()
-            EnjoyFreeDealsTheme(darkTheme = profileState.user.darkModeEnabled) {
-                AppNavigation(
-                    authViewModel = authViewModel,
-                    homeViewModel = homeViewModel,
-                    dealsViewModel = dealsViewModel,
-                    categoryViewModel = categoryViewModel,
-                    blogViewModel = blogViewModel,
-                    notificationViewModel = notificationViewModel,
-                    profileViewModel = profileViewModel
-                )
+            val settingsState by settingsViewModel.uiState.collectAsState()
+            EnjoyFreeDealsTheme(darkTheme = profileState.user.darkModeEnabled || settingsState.settings.darkModeEnabled) {
+                CompositionLocalProvider(LocalAppStrings provides Localization.stringsFor(settingsState.settings.languageCode)) {
+                    AppNavigation(
+                        authViewModel = authViewModel,
+                        homeViewModel = homeViewModel,
+                        dealsViewModel = dealsViewModel,
+                        categoryViewModel = categoryViewModel,
+                        blogViewModel = blogViewModel,
+                        notificationViewModel = notificationViewModel,
+                        profileViewModel = profileViewModel,
+                        settingsViewModel = settingsViewModel
+                    )
+                }
             }
         }
     }
@@ -63,4 +72,3 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
