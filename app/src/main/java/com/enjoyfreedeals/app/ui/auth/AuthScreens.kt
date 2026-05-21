@@ -41,6 +41,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -118,7 +119,8 @@ fun LoginScreen(
                         Text("Forgot Password?", color = PrimaryRed, fontWeight = FontWeight.Bold)
                     }
                 }
-                AuthButton("Login", state.isLoading) { onLogin(email, password) }
+                AuthButton(if (state.isLoading) "Logging in..." else "Login", state.isLoading) { onLogin(email, password) }
+                AuthStatusMessage(state.message ?: state.successMessage, state.message != null)
                 Spacer(Modifier.height(12.dp))
                 GoogleButton(state.isLoading, onGoogleLogin)
                 Spacer(Modifier.height(8.dp))
@@ -179,13 +181,23 @@ fun CreateAccountScreen(
                 Spacer(Modifier.height(10.dp))
                 AuthField(email, { email = it }, "Email", Icons.Outlined.Email, state.emailError, KeyboardType.Email)
                 Spacer(Modifier.height(10.dp))
-                AuthField(mobile, { mobile = it }, "Mobile Number", Icons.Outlined.PhoneAndroid, state.mobileError, KeyboardType.Phone)
+                AuthField(
+                    mobile,
+                    { mobile = it.filter { char -> char.isDigit() }.take(10) },
+                    "Mobile Number",
+                    Icons.Outlined.PhoneAndroid,
+                    state.mobileError,
+                    KeyboardType.Phone
+                )
                 Spacer(Modifier.height(10.dp))
                 PasswordField(password, { password = it }, state.passwordError)
                 Spacer(Modifier.height(10.dp))
                 PasswordField(confirm, { confirm = it }, state.confirmPasswordError, "Confirm Password")
                 Spacer(Modifier.height(16.dp))
-                AuthButton("Create Account", state.isLoading) { onRegister(name, email, mobile, password, confirm) }
+                AuthButton(if (state.isLoading) "Creating account..." else "Create Account", state.isLoading) {
+                    onRegister(name, email, mobile, password, confirm)
+                }
+                AuthStatusMessage(state.message ?: state.successMessage, state.message != null)
                 Spacer(Modifier.height(12.dp))
                 GoogleButton(state.isLoading, onGoogleLogin)
                 Spacer(Modifier.height(8.dp))
@@ -198,6 +210,27 @@ fun CreateAccountScreen(
             }
         }
         SnackbarHost(snackbarHostState)
+    }
+}
+
+@Composable
+private fun AuthStatusMessage(message: String?, isError: Boolean) {
+    AnimatedVisibility(!message.isNullOrBlank()) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp),
+            color = if (isError) PrimaryRed.copy(alpha = 0.10f) else PrimaryGreen.copy(alpha = 0.10f),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Text(
+                text = message.orEmpty(),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                color = if (isError) PrimaryRed else PrimaryGreen,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 

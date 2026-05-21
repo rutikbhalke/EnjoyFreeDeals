@@ -3,6 +3,10 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val backendBaseUrl = providers.gradleProperty("BACKEND_BASE_URL")
+    .orElse(System.getenv("BACKEND_BASE_URL") ?: "http://10.0.2.2:5000")
+    .get()
+
 android {
     namespace = "com.enjoyfreedeals.app"
     compileSdk {
@@ -19,6 +23,7 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "BACKEND_BASE_URL", "\"$backendBaseUrl\"")
     }
 
     buildTypes {
@@ -36,6 +41,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

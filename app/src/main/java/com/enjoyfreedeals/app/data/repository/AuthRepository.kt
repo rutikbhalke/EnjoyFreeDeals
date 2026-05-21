@@ -2,89 +2,85 @@ package com.enjoyfreedeals.app.data.repository
 
 import android.content.Context
 import com.enjoyfreedeals.app.data.model.UserModel
-import com.enjoyfreedeals.app.utils.Constants
-import com.google.firebase.FirebaseApp
-import com.google.firebase.auth.FirebaseAuth
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.tasks.await
+import com.enjoyfreedeals.app.data.remote.BackendClient
+import org.json.JSONObject
 
 class AuthRepository(private val context: Context) {
-    private val userRepository = UserRepository(context)
-    private val firebaseEnabled: Boolean
-        get() = FirebaseApp.getApps(context).isNotEmpty()
+    private val backendClient = BackendClient()
 
-    fun isUserLoggedIn(): Boolean =
-        if (firebaseEnabled) FirebaseAuth.getInstance().currentUser != null else false
+    fun isUserLoggedIn(): Boolean {
+        val user = AuthSessionStore.currentUser(context)
+        if (user != null) {
+            UserRepository.mockUser = user
+        }
+        return AuthSessionStore.isLoggedIn(context)
+    }
 
     fun currentUserId(): String? =
-        if (firebaseEnabled) FirebaseAuth.getInstance().currentUser?.uid else UserRepository.mockUser.userId
+        AuthSessionStore.currentUserId(context)
+
+    fun currentUser(): UserModel? =
+        AuthSessionStore.currentUser(context)
 
     suspend fun login(email: String, password: String): Result<UserModel> = runCatching {
-        if (password.equals("wrongpass", ignoreCase = true)) {
-            error("Invalid email or password.")
-        }
-        if (firebaseEnabled) {
-            FirebaseAuth.getInstance().signInWithEmailAndPassword(email.trim(), password).await()
-            val user = FirebaseAuth.getInstance().currentUser ?: error("Session expired. Please login again.")
-            UserModel(
-                userId = user.uid,
-                name = user.displayName ?: email.substringBefore("@").replaceFirstChar { it.uppercase() },
-                email = user.email ?: email
-            )
-        } else {
-            delay(450)
-            UserRepository.mockUser.copy(
-                email = email.trim(),
-                name = email.substringBefore("@").ifBlank { "Deal Hunter" }.replaceFirstChar { it.uppercase() }
-            ).also { UserRepository.mockUser = it }
-        }
+        val response = backendClient.post(
+            "/api/auth/login",
+            JSONObject()
+                .put("email", email.trim())
+                .put("password", password)
+        )
+        persistAuthResponse(response)
     }
 
-    suspend fun register(name: String, email: String, mobile: String, password: String): Result<UserModel> = runCatching {
-        if (firebaseEnabled) {
-            FirebaseAuth.getInstance().createUserWithEmailAndPassword(email.trim(), password).await()
-            val firebaseUser = FirebaseAuth.getInstance().currentUser ?: error("Registration failed. Please try again.")
-            UserModel(
-                userId = firebaseUser.uid,
-                name = name.trim(),
-                email = email.trim(),
-                mobile = mobile.trim(),
-                savedDeals = emptyList(),
-                sharedDeals = emptyList(),
-                notificationEnabled = true,
-                darkModeEnabled = false
-            ).also { userRepository.saveUserProfile(it) }
-        } else {
-            delay(550)
-            UserModel(
-                userId = Constants.MOCK_USER_ID,
-                name = name.trim(),
-                email = email.trim(),
-                mobile = mobile.trim(),
-                savedDeals = emptyList(),
-                sharedDeals = emptyList()
-            ).also { UserRepository.mockUser = it }
+    suspend fun register(name: String, email: String, mobile: String, password: String): Result<UserModel> =
+        runCatching {
+            val response = backendClient.post(
+                "/api/auth/register",
+                JSONObject()
+                    .put("name", name.trim())
+                    .put("email", email.trim())
+                    .put("mobile", mobile.trim())
+                    .put("password", password)
+            )
+            persistAuthResponse(response)
         }
-    }
 
     suspend fun loginWithGoogle(): Result<UserModel> = runCatching {
-        delay(450)
-        UserRepository.mockUser.copy(name = "Google Deal Hunter", email = "google@enjoyfreedeals.local")
-            .also { UserRepository.mockUser = it }
+        error("Google login is not connected to the backend yet.")
     }
 
     suspend fun sendPasswordReset(email: String): Result<Unit> = runCatching {
-        if (firebaseEnabled) {
-            FirebaseAuth.getInstance().sendPasswordResetEmail(email.trim()).await()
-        } else {
-            delay(250)
-        }
+        backendClient.post(
+            "/api/auth/password-reset",
+            JSONObject().put("email", email.trim())
+        )
+        Unit
     }
 
     fun logoutUser() {
-        if (firebaseEnabled) {
-            FirebaseAuth.getInstance().signOut()
-        }
+        AuthSessionStore.clear(context)
     }
-}
 
+    private fun persistAuthResponse(response: JSONObject): UserModel {
+        val data = response.getJSONObject("data")
+        val user = data.getJSONObject("user").toUserModel()
+        AuthSessionStore.save(
+            context = context,
+            user = user,
+            accessToken = data.optString("accessToken"),
+            refreshToken = data.optString("refreshToken"),
+            expiresAt = data.optLong("expiresAt")
+        )
+        UserRepository.mockUser = user
+        return user
+    }
+
+    private fun JSONObject.toUserModel(): UserModel =
+        UserModel(
+            userId = optString("userId"),
+            name = optString("name"),
+            email = optString("email"),
+            mobile = optString("mobile"),
+            profileImage = optString("profileImage")
+        )
+}

@@ -138,8 +138,9 @@ class DealsViewModel(application: Application) : AndroidViewModel(application) {
 
     fun shareDeal(deal: DealModel) {
         viewModelScope.launch {
-            repository.shareDeal(deal.dealId)
-            _uiState.update { it.copy(message = "Deal shared.") }
+            runCatching { repository.shareDeal(deal.dealId) }
+                .onSuccess { _uiState.update { it.copy(message = "Deal shared.") } }
+                .onFailure { error -> _uiState.update { it.copy(message = error.friendlyMessage("Could not save shared deal.")) } }
         }
     }
 

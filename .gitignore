@@ -13,3 +13,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+.env
+node_modules/
+.mcp.json

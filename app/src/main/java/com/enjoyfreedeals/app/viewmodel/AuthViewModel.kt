@@ -33,7 +33,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     fun checkSession() {
         if (repository.isUserLoggedIn()) {
-            _uiState.update { it.copy(isAuthenticated = true) }
+            _uiState.update { it.copy(isAuthenticated = true, user = repository.currentUser()) }
         }
     }
 
@@ -69,9 +69,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun register(name: String, email: String, mobile: String, password: String, confirmPassword: String) {
+        val normalizedMobile = ValidationUtils.normalizedMobile(mobile)
         val nameError = ValidationUtils.validateName(name)
         val emailError = ValidationUtils.validateEmail(email)
-        val mobileError = ValidationUtils.validateMobile(mobile)
+        val mobileError = ValidationUtils.validateMobile(normalizedMobile)
         val passwordError = ValidationUtils.validatePassword(password)
         val confirmError = ValidationUtils.validateConfirmPassword(password, confirmPassword)
         if (listOf(nameError, emailError, mobileError, passwordError, confirmError).any { it != null }) {
@@ -90,8 +91,19 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, message = null) }
-            repository.register(name, email, mobile, password)
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    nameError = null,
+                    emailError = null,
+                    mobileError = null,
+                    passwordError = null,
+                    confirmPasswordError = null,
+                    message = null,
+                    successMessage = null
+                )
+            }
+            repository.register(name, email, normalizedMobile, password)
                 .onSuccess { user ->
                     _uiState.update {
                         it.copy(

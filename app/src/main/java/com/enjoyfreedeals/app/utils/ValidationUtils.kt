@@ -22,10 +22,13 @@ object ValidationUtils {
     }
 
     fun validateMobile(mobile: String): String? = when {
-        mobile.isBlank() -> "Mobile number cannot be empty."
-        !mobile.matches(Regex("^[0-9]{10}$")) -> "Mobile number must be 10 digits."
+        normalizedMobile(mobile).isBlank() -> "Mobile number cannot be empty."
+        normalizedMobile(mobile).length != 10 -> "Mobile number must be 10 digits."
         else -> null
     }
+
+    fun normalizedMobile(mobile: String): String =
+        mobile.filter { it.isDigit() }.take(10)
 
     fun validateConfirmPassword(password: String, confirmPassword: String): String? = when {
         confirmPassword.isBlank() -> "Confirm password cannot be empty."
