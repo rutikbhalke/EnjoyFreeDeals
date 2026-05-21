@@ -14,7 +14,7 @@ fun Throwable.friendlyMessage(default: String = "Something went wrong. Please tr
         text.contains("permission", ignoreCase = true) -> "Permission denied. Please try again."
         text.contains("password", ignoreCase = true) -> "Invalid email or password."
         text.contains("user", ignoreCase = true) -> "Account not found. Please create an account."
+        text.isNotBlank() -> text
         else -> default
     }
 }
-

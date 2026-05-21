@@ -1,82 +1,102 @@
 package com.enjoyfreedeals.app.data.repository
 
 import android.content.Context
+import android.content.SharedPreferences
 import com.enjoyfreedeals.app.data.mock.MockDeals
 import com.enjoyfreedeals.app.data.model.DealModel
 import com.enjoyfreedeals.app.data.model.UserModel
+import com.enjoyfreedeals.app.data.remote.BackendClient
+import com.enjoyfreedeals.app.data.remote.dataArray
+import com.enjoyfreedeals.app.data.remote.dataObject
+import com.enjoyfreedeals.app.data.remote.toDealModel
+import com.enjoyfreedeals.app.data.remote.toJsonObjects
+import com.enjoyfreedeals.app.data.remote.toUserModel
 import com.enjoyfreedeals.app.utils.Constants
-import com.google.firebase.FirebaseApp
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.firestore.FieldValue
-import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
+import org.json.JSONObject
+import java.net.URLEncoder
 
 class UserRepository(private val context: Context) {
-    private val firebaseEnabled: Boolean
-        get() = FirebaseApp.getApps(context).isNotEmpty()
-
-    private val firestore: FirebaseFirestore?
-        get() = if (firebaseEnabled) FirebaseFirestore.getInstance() else null
+    private val backendClient = BackendClient()
 
     fun getCurrentUserId(): String? =
-        if (firebaseEnabled) FirebaseAuth.getInstance().currentUser?.uid else mockUser.userId
+        AuthSessionStore.currentUserId(context) ?: mockUser.userId
 
-    fun getCurrentUserProfile(): Flow<UserModel> {
-        val userId = getCurrentUserId() ?: return flowOf(mockUser)
-        val db = firestore ?: return flowOf(mockUser)
-        return callbackFlow {
-            val listener = db.collection(Constants.USERS)
-                .document(userId)
-                .addSnapshotListener { snapshot, error ->
-                    if (error != null) {
-                        trySend(mockUser)
-                        return@addSnapshotListener
-                    }
-                    val user = snapshot?.toObject(UserModel::class.java) ?: mockUser.copy(userId = userId)
-                    trySend(user)
-                }
-            awaitClose { listener.remove() }
+    fun getCurrentUserProfile(): Flow<UserModel> = callbackFlow {
+        suspend fun emitCurrentUser() {
+            val sessionUser = AuthSessionStore.currentUser(context)
+            if (sessionUser == null) {
+                trySend(mockUser)
+                return
+            }
+
+            val user = runCatching {
+                backendClient.get("/api/profiles/${sessionUser.userId.urlEncode()}", AuthSessionStore.accessToken(context))
+                    .dataObject()
+                    .toUserModel(sessionUser)
+            }.getOrElse { sessionUser }
+
+            mockUser = mergeLocalUserState(user)
+            trySend(mockUser)
+        }
+
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+            launch { emitCurrentUser() }
+        }
+
+        launch { emitCurrentUser() }
+        AuthSessionStore.registerListener(context, listener)
+        awaitClose {
+            AuthSessionStore.unregisterListener(context, listener)
         }
     }
 
     suspend fun saveUserProfile(user: UserModel) {
-        if (firebaseEnabled) {
-            firestore?.collection(Constants.USERS)?.document(user.userId)?.set(user)?.await()
-        } else {
-            mockUser = user
-        }
+        updateUserProfile(user)
     }
 
     suspend fun updateUserProfile(user: UserModel) {
         val updated = user.copy(updatedAt = System.currentTimeMillis())
-        if (firebaseEnabled) {
-            firestore?.collection(Constants.USERS)?.document(updated.userId)?.set(updated)?.await()
-        } else {
-            mockUser = updated
-        }
+        val payload = JSONObject()
+            .put("fullName", updated.name)
+            .put("email", updated.email)
+            .put("avatarUrl", updated.profileImage)
+
+        val saved = runCatching {
+            backendClient.put(
+                "/api/profiles/${updated.userId.urlEncode()}",
+                payload,
+                AuthSessionStore.accessToken(context)
+            ).dataObject().toUserModel(updated)
+        }.getOrElse { updated }
+
+        mockUser = mergeLocalUserState(saved)
+        AuthSessionStore.updateUser(context, mockUser)
     }
 
     suspend fun updateNotificationPreference(enabled: Boolean) {
-        updateUserField("notificationEnabled", enabled)
         mockUser = mockUser.copy(notificationEnabled = enabled, updatedAt = System.currentTimeMillis())
+        AuthSessionStore.updateUser(context, mockUser)
     }
 
     suspend fun updateDarkModePreference(enabled: Boolean) {
-        updateUserField("darkModeEnabled", enabled)
         mockUser = mockUser.copy(darkModeEnabled = enabled, updatedAt = System.currentTimeMillis())
+        AuthSessionStore.updateUser(context, mockUser)
     }
 
     suspend fun addSavedDeal(dealId: String) {
         val userId = getCurrentUserId() ?: return
-        if (firebaseEnabled) {
-            firestore?.collection(Constants.USERS)?.document(userId)
-                ?.update("savedDeals", FieldValue.arrayUnion(dealId), "updatedAt", System.currentTimeMillis())
-                ?.await()
-        }
+        backendClient.post(
+            "/api/wishlist",
+            JSONObject()
+                .put("userId", userId)
+                .put("dealId", dealId),
+            AuthSessionStore.accessToken(context)
+        )
         if (!mockUser.savedDeals.contains(dealId)) {
             mockUser = mockUser.copy(savedDeals = mockUser.savedDeals + dealId)
         }
@@ -84,82 +104,97 @@ class UserRepository(private val context: Context) {
 
     suspend fun removeSavedDeal(dealId: String) {
         val userId = getCurrentUserId() ?: return
-        if (firebaseEnabled) {
-            firestore?.collection(Constants.USERS)?.document(userId)
-                ?.update("savedDeals", FieldValue.arrayRemove(dealId), "updatedAt", System.currentTimeMillis())
-                ?.await()
+        runCatching {
+            backendClient.delete(
+                "/api/wishlist/${userId.urlEncode()}/${dealId.urlEncode()}",
+                AuthSessionStore.accessToken(context)
+            )
         }
         mockUser = mockUser.copy(savedDeals = mockUser.savedDeals - dealId)
     }
 
     suspend fun addSharedDeal(dealId: String) {
         val userId = getCurrentUserId() ?: return
-        if (firebaseEnabled) {
-            firestore?.collection(Constants.USERS)?.document(userId)
-                ?.update("sharedDeals", FieldValue.arrayUnion(dealId), "updatedAt", System.currentTimeMillis())
-                ?.await()
-        }
-        if (!mockUser.sharedDeals.contains(dealId)) {
-            mockUser = mockUser.copy(sharedDeals = mockUser.sharedDeals + dealId)
-        }
+        backendClient.post(
+            "/api/shared-deals",
+            JSONObject()
+                .put("userId", userId)
+                .put("dealId", dealId)
+                .put("shareChannel", "android"),
+            AuthSessionStore.accessToken(context)
+        )
+        mockUser = mockUser.copy(sharedDeals = (mockUser.sharedDeals + dealId).distinct())
     }
 
     suspend fun addPriceDropAlert(dealId: String, targetPrice: Double) {
-        val userId = getCurrentUserId() ?: return
         val targets = mockUser.priceDropTargetPrices + (dealId to targetPrice)
-        if (firebaseEnabled) {
-            firestore?.collection(Constants.USERS)?.document(userId)
-                ?.update(
-                    "priceDropAlerts",
-                    FieldValue.arrayUnion(dealId),
-                    "priceDropTargetPrices",
-                    targets,
-                    "updatedAt",
-                    System.currentTimeMillis()
-                )
-                ?.await()
-        }
         if (!mockUser.priceDropAlerts.contains(dealId)) {
             mockUser = mockUser.copy(priceDropAlerts = mockUser.priceDropAlerts + dealId)
         }
         mockUser = mockUser.copy(priceDropTargetPrices = targets)
+        AuthSessionStore.updateUser(context, mockUser)
     }
 
     suspend fun removePriceDropAlert(dealId: String) {
-        val userId = getCurrentUserId() ?: return
-        val targets = mockUser.priceDropTargetPrices - dealId
-        if (firebaseEnabled) {
-            firestore?.collection(Constants.USERS)?.document(userId)
-                ?.update(
-                    "priceDropAlerts",
-                    FieldValue.arrayRemove(dealId),
-                    "priceDropTargetPrices",
-                    targets,
-                    "updatedAt",
-                    System.currentTimeMillis()
-                )
-                ?.await()
-        }
         mockUser = mockUser.copy(
             priceDropAlerts = mockUser.priceDropAlerts - dealId,
-            priceDropTargetPrices = targets
+            priceDropTargetPrices = mockUser.priceDropTargetPrices - dealId
         )
+        AuthSessionStore.updateUser(context, mockUser)
     }
 
-    fun getSavedDeals(): Flow<List<DealModel>> =
-        flowOf(MockDeals.deals.filter { mockUser.savedDeals.contains(it.dealId) })
+    fun getSavedDeals(): Flow<List<DealModel>> = flow {
+        val userId = getCurrentUserId()
+        if (userId.isNullOrBlank() || userId == Constants.MOCK_USER_ID) {
+            emit(MockDeals.deals.filter { mockUser.savedDeals.contains(it.dealId) })
+            return@flow
+        }
+
+        val deals = runCatching {
+            backendClient.get("/api/wishlist/${userId.urlEncode()}", AuthSessionStore.accessToken(context))
+                .dataArray()
+                .toJsonObjects()
+                .mapNotNull { it.optJSONObject("deal")?.toDealModel() }
+        }.getOrElse {
+            MockDeals.deals.filter { deal -> mockUser.savedDeals.contains(deal.dealId) }
+        }
+
+        mockUser = mockUser.copy(savedDeals = deals.map { it.dealId })
+        emit(deals)
+    }
 
     fun getSharedDeals(): Flow<List<DealModel>> =
-        flowOf(MockDeals.deals.filter { mockUser.sharedDeals.contains(it.dealId) })
+        flow {
+            val userId = getCurrentUserId()
+            if (userId.isNullOrBlank() || userId == Constants.MOCK_USER_ID) {
+                emit(emptyList())
+                return@flow
+            }
 
-    private suspend fun updateUserField(field: String, value: Any) {
-        val userId = getCurrentUserId() ?: return
-        if (firebaseEnabled) {
-            firestore?.collection(Constants.USERS)?.document(userId)
-                ?.update(field, value, "updatedAt", System.currentTimeMillis())
-                ?.await()
+            val deals = runCatching {
+                backendClient.get("/api/shared-deals/${userId.urlEncode()}", AuthSessionStore.accessToken(context))
+                    .dataArray()
+                    .toJsonObjects()
+                    .mapNotNull { it.optJSONObject("deal")?.toDealModel() }
+            }.getOrElse { emptyList() }
+
+            mockUser = mockUser.copy(sharedDeals = deals.map { it.dealId })
+            emit(deals)
         }
-    }
+
+    private fun mergeLocalUserState(user: UserModel): UserModel =
+        user.copy(
+            savedDeals = mockUser.savedDeals,
+            sharedDeals = mockUser.sharedDeals,
+            priceDropAlerts = mockUser.priceDropAlerts,
+            priceDropTargetPrices = mockUser.priceDropTargetPrices,
+            notificationEnabled = mockUser.notificationEnabled,
+            darkModeEnabled = mockUser.darkModeEnabled,
+            fcmToken = mockUser.fcmToken
+        )
+
+    private fun String.urlEncode(): String =
+        URLEncoder.encode(this, Charsets.UTF_8.name())
 
     companion object {
         var mockUser = UserModel(
@@ -168,7 +203,7 @@ class UserRepository(private val context: Context) {
             email = "hunter@enjoyfreedeals.local",
             mobile = "9876543210",
             savedDeals = listOf("amazon-boat-earbuds", "sample-skincare"),
-            sharedDeals = listOf("flipkart-realme-phone")
+            sharedDeals = emptyList()
         )
     }
 }
