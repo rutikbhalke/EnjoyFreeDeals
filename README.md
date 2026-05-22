@@ -43,6 +43,8 @@ The API runs on `http://localhost:5000` by default.
   - Body: `name`, `email`, `mobile`, `password`
 - `POST /api/auth/login`
   - Body: `email`, `password`
+- `POST /api/auth/google`
+  - Body: `idToken`; optional `accessToken`, `nonce`
 - `POST /api/auth/password-reset`
   - Body: `email`
 - `GET /api/auth/me`
@@ -164,9 +166,28 @@ If Supabase tables are missing, the API returns:
 }
 ```
 
+## Google OAuth Setup
+
+Google login uses the native Android ID-token flow. Android gets a Google ID token, sends it to `POST /api/auth/google`, and the backend exchanges it with Supabase Auth. Android never receives a Supabase service-role key or a Google client secret.
+
+Manual setup required:
+
+1. In Google Cloud, configure the OAuth consent screen.
+2. Create a Web OAuth Client ID. This value is used as `GOOGLE_WEB_CLIENT_ID` in Android builds.
+3. Create an Android OAuth client for package `com.example.freedeals1` with the debug/release SHA fingerprints.
+4. In Supabase Dashboard, enable Auth Provider: Google, then add the Web Client ID and Web Client Secret.
+
+Build Android with the Web Client ID:
+
+```powershell
+.\gradlew :app:assembleDebug -PGOOGLE_WEB_CLIENT_ID="your-web-client-id.apps.googleusercontent.com"
+```
+
+The Google Web Client ID is safe to include in Android. The Google Client Secret is not safe for Android and must stay in Google/Supabase provider configuration only.
+
 ## Android Notes
 
-The Android app is Kotlin-based and calls this backend for email/password auth.
+The Android app is Kotlin-based and calls this backend for email/password and Google auth.
 
 - Keep Supabase service credentials out of Android.
 - The default Android backend URL is `http://10.0.2.2:5000`, which works for the Android emulator when the backend runs on your machine.

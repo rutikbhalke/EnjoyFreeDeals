@@ -37,6 +37,52 @@ async function login(payload) {
   return toAuthResponse(session, authUser, profile);
 }
 
+async function loginWithGoogle(payload) {
+  const input = normalizeGooglePayload(payload);
+  const credentials = {
+    provider: "google",
+    token: input.idToken
+  };
+
+  if (input.accessToken) {
+    credentials.access_token = input.accessToken;
+  }
+  if (input.nonce) {
+    credentials.nonce = input.nonce;
+  }
+
+  const { data, error } = await supabasePublic.auth.signInWithIdToken(credentials);
+  throwIfAuthError(error, "Google login failed. Please try again.");
+
+  if (!data.session || !data.user) {
+    const missingSession = new Error("Google session could not be created. Please try again.");
+    missingSession.statusCode = 500;
+    throw missingSession;
+  }
+
+  const authUser = data.user;
+  const profile = await upsertProfile(authUser, {
+    name:
+      authUser.user_metadata?.full_name ||
+      authUser.user_metadata?.name ||
+      authUser.email?.split("@")[0] ||
+      "",
+    email: authUser.email || ""
+  });
+
+  return toAuthResponse(
+    {
+      user: authUser,
+      accessToken: data.session.access_token,
+      refreshToken: data.session.refresh_token,
+      expiresAt: data.session.expires_at,
+      tokenType: data.session.token_type || "bearer"
+    },
+    authUser,
+    profile
+  );
+}
+
 async function sendPasswordReset(payload) {
   const email = normalizeEmail(payload?.email);
   if (!email) {
@@ -165,6 +211,18 @@ function normalizeCredentials(payload, options = {}) {
   return { email, password, name, mobile };
 }
 
+function normalizeGooglePayload(payload) {
+  const idToken = String(payload?.idToken || payload?.id_token || "").trim();
+  const accessToken = String(payload?.accessToken || payload?.access_token || "").trim();
+  const nonce = String(payload?.nonce || "").trim();
+
+  if (!idToken) {
+    throwBadRequest("idToken is required.");
+  }
+
+  return { idToken, accessToken, nonce };
+}
+
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
 }
@@ -179,12 +237,19 @@ function throwIfAuthError(error, fallbackMessage) {
   if (!error) return;
 
   const message = error.message || fallbackMessage || "Authentication failed.";
+  const code = error.code || "AUTH_ERROR";
   const normalized = new Error(message);
   normalized.statusCode = 400;
-  normalized.code = error.code || "AUTH_ERROR";
+  normalized.code = code;
 
   if (/invalid login credentials|invalid credentials/i.test(message)) {
     normalized.message = "Invalid email or password.";
+    normalized.statusCode = 401;
+  } else if (/provider.*disabled|provider.*not.*enabled|unsupported provider|external provider|oauth.*provider|google.*provider/i.test(`${code} ${message}`)) {
+    normalized.message = "Google login is not configured in Supabase. Enable the Google provider and add the Google client secret.";
+    normalized.statusCode = 500;
+  } else if (/id token|jwt|invalid.*token|token.*invalid|expired|issuer|audience|nonce/i.test(message)) {
+    normalized.message = "Invalid Google sign-in token.";
     normalized.statusCode = 401;
   } else if (/already registered|already exists|duplicate/i.test(message)) {
     normalized.message = "Account already exists. Please login instead.";
@@ -223,6 +288,7 @@ function toApiUser(authUser, profile, mobileOverride) {
 module.exports = {
   register,
   login,
+  loginWithGoogle,
   sendPasswordReset,
   getCurrentUser
 };

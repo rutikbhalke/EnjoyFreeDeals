@@ -1,6 +1,7 @@
 package com.enjoyfreedeals.app.viewmodel
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.enjoyfreedeals.app.data.model.UserModel
@@ -127,10 +128,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun loginWithGoogle() {
+    fun loginWithGoogle(context: Context) {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, message = null) }
-            repository.loginWithGoogle()
+            repository.loginWithGoogle(context)
                 .onSuccess { user ->
                     _uiState.update {
                         it.copy(isLoading = false, isAuthenticated = true, user = user, successMessage = "Google login successful.")

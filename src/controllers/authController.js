@@ -19,6 +19,15 @@ async function login(req, res, next) {
   }
 }
 
+async function googleLogin(req, res, next) {
+  try {
+    const authResult = await authRepository.loginWithGoogle(req.body);
+    return sendSuccess(res, authResult);
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function sendPasswordReset(req, res, next) {
   try {
     const result = await authRepository.sendPasswordReset(req.body);
@@ -44,4 +53,4 @@ function getBearerToken(req) {
   return match ? match[1] : "";
 }
 
-module.exports = { register, login, sendPasswordReset, me };
+module.exports = { register, login, googleLogin, sendPasswordReset, me };

@@ -85,6 +85,7 @@ fun AppNavigation(
 ) {
     val rootNavController = rememberNavController()
     val authState by authViewModel.uiState.collectAsState()
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         authViewModel.checkSession()
@@ -102,7 +103,7 @@ fun AppNavigation(
             LoginScreen(
                 state = authState,
                 onLogin = authViewModel::login,
-                onGoogleLogin = authViewModel::loginWithGoogle,
+                onGoogleLogin = { authViewModel.loginWithGoogle(context) },
                 onForgotPassword = authViewModel::forgotPassword,
                 onCreateAccount = { rootNavController.navigate(Route.Register) },
                 onSuccess = {
@@ -117,7 +118,7 @@ fun AppNavigation(
             CreateAccountScreen(
                 state = authState,
                 onRegister = authViewModel::register,
-                onGoogleLogin = authViewModel::loginWithGoogle,
+                onGoogleLogin = { authViewModel.loginWithGoogle(context) },
                 onLogin = { rootNavController.popBackStack() },
                 onSuccess = {
                     rootNavController.navigate(Route.Main) {
