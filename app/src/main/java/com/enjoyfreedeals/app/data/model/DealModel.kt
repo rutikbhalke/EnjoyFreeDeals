@@ -21,6 +21,7 @@ data class DealModel(
     var isFreeDeal: Boolean = false,
     var isActive: Boolean = true,
     var isFeatured: Boolean = false,
+    var isVerified: Boolean = false,
     var shareCount: Int = 0,
     var savedCount: Int = 0,
     var currentPrice: Double = discountedPrice,

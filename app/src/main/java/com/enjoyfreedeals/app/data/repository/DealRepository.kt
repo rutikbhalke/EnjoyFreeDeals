@@ -1,8 +1,6 @@
 package com.enjoyfreedeals.app.data.repository
 
 import android.content.Context
-import com.enjoyfreedeals.app.data.mock.MockDeals
-import com.enjoyfreedeals.app.data.mock.MockPriceHistory
 import com.enjoyfreedeals.app.data.model.DealModel
 import com.enjoyfreedeals.app.data.model.PricePointModel
 import com.enjoyfreedeals.app.data.model.PriceStatsModel
@@ -20,22 +18,21 @@ class DealRepository(private val context: Context) {
     private val backendClient = BackendClient()
     private val userRepository = UserRepository(context)
 
-    fun getAllActiveDeals(): Flow<List<DealModel>> = flow {
-        emit(loadDeals("/api/deals?limit=100").getOrElse { MockDeals.deals.filter { deal -> deal.isActive } })
+    fun getAllActiveDeals(page: Int = 1, limit: Int = DEFAULT_PAGE_SIZE): Flow<List<DealModel>> = flow {
+        emit(loadDeals("/api/deals?limit=$limit&page=$page").getOrThrow())
     }
 
-    fun getDealsByCategory(categoryId: String): Flow<List<DealModel>> = flow {
-        val endpoint = "/api/deals?limit=100&category=${categoryId.urlEncode()}"
-        emit(loadDeals(endpoint).getOrElse { MockDeals.deals.filter { deal -> deal.categoryId == categoryId && deal.isActive } })
+    fun getDealsByCategory(categoryId: String, page: Int = 1, limit: Int = DEFAULT_PAGE_SIZE): Flow<List<DealModel>> = flow {
+        val endpoint = "/api/deals?limit=$limit&page=$page&category=${categoryId.urlEncode()}"
+        emit(loadDeals(endpoint).getOrThrow())
     }
 
     fun getPriceHistory(dealId: String): Flow<List<PricePointModel>> = flow {
-        val history = runCatching {
+        val history =
             backendClient.get("/api/deals/${dealId.urlEncode()}/price-history", AuthSessionStore.accessToken(context))
                 .dataArray()
                 .toJsonObjects()
                 .map { it.toPricePointModel(dealId) }
-        }.getOrElse { MockPriceHistory.priceHistory[dealId].orEmpty() }
         emit(history)
     }
 
@@ -107,12 +104,15 @@ class DealRepository(private val context: Context) {
             .dataArray()
             .toJsonObjects()
             .map { it.toDealModel() }
+            .filter { it.isActive && it.expiryDate > System.currentTimeMillis() }
     }
 
     private fun String.urlEncode(): String =
         URLEncoder.encode(this, Charsets.UTF_8.name())
 
     companion object {
+        const val DEFAULT_PAGE_SIZE = 20
+
         fun buildPriceHistoryRecord(
             deal: DealModel,
             history: List<PricePointModel> = emptyList(),

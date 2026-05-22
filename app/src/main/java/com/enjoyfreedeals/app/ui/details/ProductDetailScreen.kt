@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.enjoyfreedeals.app.data.model.DealModel
+import com.enjoyfreedeals.app.data.model.PricePointModel
 import com.enjoyfreedeals.app.data.model.StorePriceModel
 import com.enjoyfreedeals.app.data.repository.DealRepository
 import com.enjoyfreedeals.app.theme.AccentYellow
@@ -52,8 +53,9 @@ import com.enjoyfreedeals.app.ui.components.DealCard
 import com.enjoyfreedeals.app.ui.components.EmptyState
 import com.enjoyfreedeals.app.ui.components.PremiumBackground
 import com.enjoyfreedeals.app.ui.components.PriceComparisonCard
+import com.enjoyfreedeals.app.ui.components.PriceTrackingPanel
 import com.enjoyfreedeals.app.ui.components.SectionTitle
-import com.enjoyfreedeals.app.ui.components.formatDate
+import com.enjoyfreedeals.app.ui.components.formatExpiry
 import com.enjoyfreedeals.app.ui.components.formatPrice
 import com.enjoyfreedeals.app.utils.LocalAppStrings
 import java.util.Locale
@@ -66,7 +68,10 @@ fun ProductDetailScreen(
     onSaveDeal: (DealModel) -> Unit,
     onShareDeal: (DealModel) -> Unit,
     onStorePriceClick: (StorePriceModel) -> Unit,
-    onSimilarDealClick: (DealModel) -> Unit
+    onSimilarDealClick: (DealModel) -> Unit,
+    priceHistory: List<PricePointModel> = emptyList(),
+    isPriceAlertEnabled: Boolean = false,
+    onPriceAlertClick: (DealModel) -> Unit = {}
 ) {
     val strings = LocalAppStrings.current
     PremiumBackground {
@@ -78,6 +83,9 @@ fun ProductDetailScreen(
         }
 
         val stats = DealRepository.calculatePriceStats(deal, emptyList())
+        val detailHistory = priceHistory.ifEmpty {
+            listOf(DealRepository.buildPriceHistoryRecord(deal, emptyList(), deal.priceCheckedAt))
+        }
         val similarDeals = allDeals
             .filter { it.dealId != deal.dealId && it.categoryId == deal.categoryId }
             .take(6)
@@ -101,7 +109,11 @@ fun ProductDetailScreen(
                         )
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text(deal.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-                            Text(deal.storeName, color = PrimaryGreen, fontWeight = FontWeight.Bold)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(deal.storeName, color = PrimaryGreen, fontWeight = FontWeight.Bold)
+                                if (deal.isVerified) Badge("Verified", PrimaryGreen, Color.White)
+                                Badge(formatExpiry(deal.expiryDate), SoftYellow, DarkText)
+                            }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(formatPrice(stats.currentPrice), color = PrimaryGreen, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
                                 Spacer(Modifier.size(10.dp))
@@ -138,21 +150,12 @@ fun ProductDetailScreen(
                 PriceComparisonCard(deal = deal, onStoreClick = onStorePriceClick)
             }
             item {
-                Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SectionTitle("Price History", "Graph placeholder ready for real API history")
-                        Surface(
-                            modifier = Modifier.fillMaxWidth().height(120.dp),
-                            color = SoftGreen,
-                            shape = RoundedCornerShape(20.dp)
-                        ) {
-                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.Center) {
-                                Text("Lowest: ${formatPrice(stats.lowestPrice)}", color = PrimaryGreen, fontWeight = FontWeight.Bold)
-                                Text("Last updated: ${formatDate(deal.priceCheckedAt)}", color = GreyText)
-                            }
-                        }
-                    }
-                }
+                PriceTrackingPanel(
+                    deal = deal,
+                    history = detailHistory,
+                    isAlertEnabled = isPriceAlertEnabled,
+                    onToggleAlert = onPriceAlertClick
+                )
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
@@ -164,7 +167,7 @@ fun ProductDetailScreen(
                     ) {
                         Icon(Icons.Outlined.LocalOffer, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(8.dp))
-                        Text(strings.viewDeal, fontWeight = FontWeight.Bold)
+                        Text(if (deal.couponCode.isNotBlank()) "Get Coupon" else strings.viewDeal, fontWeight = FontWeight.Bold)
                     }
                     IconButton(onClick = { onSaveDeal(deal) }) {
                         Icon(Icons.Outlined.FavoriteBorder, contentDescription = strings.saveDeal, tint = PrimaryRed)

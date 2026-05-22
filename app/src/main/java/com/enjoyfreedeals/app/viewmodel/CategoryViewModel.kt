@@ -7,6 +7,8 @@ import com.enjoyfreedeals.app.data.model.CategoryModel
 import com.enjoyfreedeals.app.data.model.DealModel
 import com.enjoyfreedeals.app.data.repository.CategoryRepository
 import com.enjoyfreedeals.app.data.repository.DealRepository
+import com.enjoyfreedeals.app.utils.friendlyMessage
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,7 +21,8 @@ data class CategoryUiState(
     val categoryDeals: List<DealModel> = emptyList(),
     val query: String = "",
     val sortOption: String = "Newest Deals",
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val errorMessage: String? = null
 )
 
 class CategoryViewModel(application: Application) : AndroidViewModel(application) {
@@ -30,30 +33,47 @@ class CategoryViewModel(application: Application) : AndroidViewModel(application
 
     init {
         viewModelScope.launch {
-            categoryRepository.getAllCategories().collect { categories ->
-                _uiState.update { it.copy(categories = categories, isLoading = false) }
-            }
+            categoryRepository.getAllCategories()
+                .catch { error ->
+                    _uiState.update {
+                        it.copy(isLoading = false, errorMessage = error.friendlyMessage("Could not load categories."))
+                    }
+                }
+                .collect { categories ->
+                    _uiState.update { it.copy(categories = categories, isLoading = false, errorMessage = null) }
+                }
         }
     }
 
-    fun selectCategory(category: CategoryModel) {
-        _uiState.update { it.copy(selectedCategory = category, isLoading = true, query = "") }
+    fun selectCategory(category: CategoryModel, resetQuery: Boolean = true) {
+        _uiState.update { it.copy(selectedCategory = category, isLoading = true, query = if (resetQuery) "" else it.query, errorMessage = null) }
         viewModelScope.launch {
-            dealRepository.getDealsByCategory(category.categoryId).collect { deals ->
-                _uiState.update {
-                    it.copy(
-                        categoryDeals = DealRepository.filterAndSortDeals(deals, it.query, "All", it.sortOption),
-                        isLoading = false
-                    )
+            dealRepository.getDealsByCategory(category.categoryId)
+                .catch { error ->
+                    _uiState.update {
+                        it.copy(
+                            categoryDeals = emptyList(),
+                            isLoading = false,
+                            errorMessage = error.friendlyMessage("Could not load category deals.")
+                        )
+                    }
                 }
-            }
+                .collect { deals ->
+                    _uiState.update {
+                        it.copy(
+                            categoryDeals = DealRepository.filterAndSortDeals(deals, it.query, "All", it.sortOption),
+                            isLoading = false,
+                            errorMessage = null
+                        )
+                    }
+                }
         }
     }
 
     fun updateCategorySearch(query: String) {
         val selected = _uiState.value.selectedCategory ?: return
         _uiState.update { it.copy(query = query) }
-        selectCategory(selected)
+        selectCategory(selected, resetQuery = false)
     }
 
     fun updateSort(sort: String) {
@@ -65,4 +85,3 @@ class CategoryViewModel(application: Application) : AndroidViewModel(application
         }
     }
 }
-

@@ -51,6 +51,7 @@ fun JSONObject.toDealModel(): DealModel {
         isFreeDeal = optBooleanValue("isFreeDeal", "is_free_deal"),
         isActive = optBooleanValue("isActive", "is_active", default = true),
         isFeatured = optBooleanValue("isFeatured", "is_featured"),
+        isVerified = optBooleanValue("isVerified", "is_verified"),
         shareCount = optIntValue("shareCount", "share_count"),
         savedCount = optIntValue("savedCount", "saved_count"),
         currentPrice = current,

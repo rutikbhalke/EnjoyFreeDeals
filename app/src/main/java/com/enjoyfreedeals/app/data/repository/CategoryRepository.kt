@@ -1,7 +1,6 @@
 package com.enjoyfreedeals.app.data.repository
 
 import android.content.Context
-import com.enjoyfreedeals.app.data.mock.MockCategories
 import com.enjoyfreedeals.app.data.model.CategoryModel
 import com.enjoyfreedeals.app.data.remote.BackendClient
 import com.enjoyfreedeals.app.data.remote.dataArray
@@ -14,11 +13,11 @@ class CategoryRepository(private val context: Context) {
     private val backendClient = BackendClient()
 
     fun getAllCategories(): Flow<List<CategoryModel>> = flow {
-        emit(loadCategories().getOrElse { MockCategories.categories })
+        emit(loadCategories().getOrThrow())
     }
 
     suspend fun getCategoryById(categoryId: String): CategoryModel? =
-        loadCategories().getOrElse { MockCategories.categories }
+        loadCategories().getOrThrow()
             .firstOrNull { it.categoryId == categoryId }
 
     suspend fun updateCategoryDealCount(categoryId: String, dealCount: Int) {

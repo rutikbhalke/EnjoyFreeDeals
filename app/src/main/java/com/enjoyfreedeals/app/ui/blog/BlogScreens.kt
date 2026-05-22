@@ -41,7 +41,11 @@ fun BlogScreen(
             item {
                 SectionTitle("Blog", "Shopping tips, offer guides and coupon tricks")
             }
-            if (state.blogs.isEmpty()) {
+            if (state.isLoading) {
+                item { EmptyState("Loading blogs.", "Fetching the latest shopping guides.") }
+            } else if (state.errorMessage != null) {
+                item { EmptyState("Blogs unavailable.", state.errorMessage) }
+            } else if (state.blogs.isEmpty()) {
                 item { EmptyState("No blogs found right now.", "Fresh shopping guides will appear here.") }
             } else {
                 items(state.blogs, key = { it.blogId }) { blog ->
@@ -75,7 +79,7 @@ fun BlogDetailScreen(blog: BlogModel?) {
                             Column(Modifier.padding(18.dp)) {
                                 Text(blog.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
                                 Spacer(Modifier.height(6.dp))
-                                Text("${blog.author} • ${formatDate(blog.createdAt)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("${blog.author} - ${formatDate(blog.createdAt)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 Spacer(Modifier.height(16.dp))
                                 Text(blog.fullContent, style = MaterialTheme.typography.bodyLarge)
                             }
@@ -86,4 +90,3 @@ fun BlogDetailScreen(blog: BlogModel?) {
         }
     }
 }
-

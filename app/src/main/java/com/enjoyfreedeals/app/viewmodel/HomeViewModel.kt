@@ -12,6 +12,8 @@ import com.enjoyfreedeals.app.data.repository.DealRepository
 import com.enjoyfreedeals.app.data.repository.NotificationRepository
 import com.enjoyfreedeals.app.data.repository.PriceComparisonRepository
 import com.enjoyfreedeals.app.data.repository.UserRepository
+import com.enjoyfreedeals.app.utils.friendlyMessage
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,19 +46,37 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun load() {
         viewModelScope.launch {
-            dealRepository.getAllActiveDeals().collect { deals ->
-                _uiState.update { it.copy(isLoading = false, deals = deals) }
-            }
+            dealRepository.getAllActiveDeals(limit = 30)
+                .catch { error ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            deals = emptyList(),
+                            errorMessage = error.friendlyMessage("Could not load live deals. Please check the backend connection.")
+                        )
+                    }
+                }
+                .collect { deals ->
+                    _uiState.update { it.copy(isLoading = false, deals = deals, errorMessage = null) }
+                }
         }
         viewModelScope.launch {
-            categoryRepository.getAllCategories().collect { categories ->
-                _uiState.update { it.copy(categories = categories) }
-            }
+            categoryRepository.getAllCategories()
+                .catch { error ->
+                    _uiState.update {
+                        it.copy(errorMessage = error.friendlyMessage("Could not load categories."))
+                    }
+                }
+                .collect { categories ->
+                    _uiState.update { it.copy(categories = categories) }
+                }
         }
         viewModelScope.launch {
-            priceComparisonRepository.getPriceComparisons().collect { comparisons ->
-                _uiState.update { it.copy(priceComparisons = comparisons) }
-            }
+            priceComparisonRepository.getPriceComparisons()
+                .catch { _ -> _uiState.update { it.copy(priceComparisons = emptyList()) } }
+                .collect { comparisons ->
+                    _uiState.update { it.copy(priceComparisons = comparisons) }
+                }
         }
         viewModelScope.launch {
             userRepository.getCurrentUserProfile().collect { user ->
@@ -65,9 +85,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch {
             val userId = userRepository.getCurrentUserId().orEmpty()
-            notificationRepository.getUnreadNotificationCount(userId).collect { count ->
-                _uiState.update { it.copy(unreadCount = count) }
-            }
+            notificationRepository.getUnreadNotificationCount(userId)
+                .catch { _ -> _uiState.update { it.copy(unreadCount = 0) } }
+                .collect { count ->
+                    _uiState.update { it.copy(unreadCount = count) }
+                }
         }
     }
 

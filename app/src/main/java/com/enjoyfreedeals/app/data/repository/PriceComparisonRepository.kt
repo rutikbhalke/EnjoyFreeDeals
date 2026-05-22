@@ -1,7 +1,6 @@
 package com.enjoyfreedeals.app.data.repository
 
 import android.content.Context
-import com.enjoyfreedeals.app.data.mock.MockDeals
 import com.enjoyfreedeals.app.data.model.PriceComparisonProductModel
 import com.enjoyfreedeals.app.data.remote.BackendClient
 import com.enjoyfreedeals.app.data.remote.dataArray
@@ -16,17 +15,13 @@ class PriceComparisonRepository(private val context: Context) {
     private val backendClient = BackendClient()
 
     fun getPriceComparisons(): Flow<List<PriceComparisonProductModel>> = flow {
-        emit(loadComparisons().getOrElse { MockDeals.priceComparisonProducts })
+        emit(loadComparisons().getOrThrow())
     }
 
     suspend fun getComparisonForProduct(productId: String): PriceComparisonProductModel? =
-        runCatching {
-            backendClient.get("/api/price-comparisons/${productId.urlEncode()}", AuthSessionStore.accessToken(context))
-                .dataObject()
-                .toPriceComparisonProductModel()
-        }.getOrElse {
-            MockDeals.priceComparisonProducts.firstOrNull { item -> item.productId == productId }
-        }
+        backendClient.get("/api/price-comparisons/${productId.urlEncode()}", AuthSessionStore.accessToken(context))
+            .dataObject()
+            .toPriceComparisonProductModel()
 
     private suspend fun loadComparisons(): Result<List<PriceComparisonProductModel>> = runCatching {
         backendClient.get("/api/price-comparisons", AuthSessionStore.accessToken(context))

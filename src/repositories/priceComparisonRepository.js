@@ -35,6 +35,7 @@ async function listDealBackedComparisons() {
     .from("deals")
     .select("*, categories(*), stores(*)")
     .eq("status", "active")
+    .or(nonExpiredDealFilter())
     .order("created_at", { ascending: false });
   throwIfSupabaseError(error, "deals");
   return (data || []).map(toDealBackedPriceComparison);
@@ -118,3 +119,7 @@ function toDealBackedPriceComparison(row) {
 }
 
 module.exports = { getPriceComparison, listPriceComparisons };
+
+function nonExpiredDealFilter() {
+  return `expiry_date.is.null,expiry_date.gt.${new Date().toISOString()}`;
+}

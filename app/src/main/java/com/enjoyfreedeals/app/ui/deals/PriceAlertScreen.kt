@@ -169,7 +169,7 @@ fun PriceAlertScreen(
                 ) {
                     Icon(Icons.Outlined.LocalOffer, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.size(8.dp))
-                    Text("View Deal", fontWeight = FontWeight.Bold)
+                    Text(if (deal.couponCode.isNotBlank()) "Get Coupon" else "View Deal", fontWeight = FontWeight.Bold)
                 }
             }
         }

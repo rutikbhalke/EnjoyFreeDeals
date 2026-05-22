@@ -155,9 +155,7 @@ class UserRepository(private val context: Context) {
                 .dataArray()
                 .toJsonObjects()
                 .mapNotNull { it.optJSONObject("deal")?.toDealModel() }
-        }.getOrElse {
-            MockDeals.deals.filter { deal -> mockUser.savedDeals.contains(deal.dealId) }
-        }
+        }.getOrThrow()
 
         mockUser = mockUser.copy(savedDeals = deals.map { it.dealId })
         emit(deals)
@@ -176,7 +174,7 @@ class UserRepository(private val context: Context) {
                     .dataArray()
                     .toJsonObjects()
                     .mapNotNull { it.optJSONObject("deal")?.toDealModel() }
-            }.getOrElse { emptyList() }
+            }.getOrThrow()
 
             mockUser = mockUser.copy(sharedDeals = deals.map { it.dealId })
             emit(deals)

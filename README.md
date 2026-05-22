@@ -87,6 +87,67 @@ The API runs on `http://localhost:5000` by default.
 - Admin roles: `user_roles`
 - Scraper support: `scraper_jobs`, `deal_sources`, `scraped_deal_items`
 
+## Deal Scraper Automation
+
+The smart deal importer runs server-side as a Supabase Edge Function. Android does not call it and never receives scraper credentials or the Supabase service role key.
+
+### Files
+
+- `supabase/functions/import-deals/` contains the hourly importer.
+- `supabase/schedule-import-deals.sql` schedules the function with Supabase Cron.
+- `supabase/schema.sql` contains the required scraper tables and trusted source seed data.
+
+### Behavior
+
+- Reads enabled sources from `deal_sources`.
+- Uses API/feed-first placeholder connectors for Amazon, Flipkart, Myntra, Ajio, Croma, and TataCliq.
+- Normalizes source items into the existing `deals` table.
+- Deduplicates by `dedupe_key`.
+- Writes every attempt into `scraped_deal_items`.
+- Records each run in `scraper_jobs`.
+- Adds `price_history` rows only when a deal is new or the price changes.
+- Auto-publishes only valid high-trust deals with `status='active'`.
+- Stores suspicious or low-trust deals as `status='pending'`, so they do not appear in `GET /api/deals`.
+
+### Edge Function Secrets
+
+Set these in Supabase, not in Android:
+
+```bash
+supabase secrets set IMPORT_DEALS_CRON_SECRET=use_a_long_random_value
+```
+
+Source API keys can be added later using the secret names already stored in `deal_sources`:
+
+```bash
+supabase secrets set AMAZON_PARTNER_API_KEY=your_key
+supabase secrets set FLIPKART_AFFILIATE_API_KEY=your_key
+supabase secrets set MYNTRA_AFFILIATE_API_KEY=your_key
+supabase secrets set AJIO_AFFILIATE_API_KEY=your_key
+supabase secrets set CROMA_AFFILIATE_API_KEY=your_key
+supabase secrets set TATACLIQ_AFFILIATE_API_KEY=your_key
+```
+
+### Deploy And Schedule
+
+Deploy the function from the project root:
+
+```bash
+supabase functions deploy import-deals
+```
+
+Then open `supabase/schedule-import-deals.sql`, replace the placeholders, and run it in the Supabase SQL editor.
+
+Manual test:
+
+```bash
+curl -X POST "https://YOUR_PROJECT_REF.supabase.co/functions/v1/import-deals" \
+  -H "Authorization: Bearer YOUR_FUNCTION_BEARER_TOKEN" \
+  -H "x-import-secret: YOUR_IMPORT_DEALS_CRON_SECRET" \
+  -H "Content-Type: application/json" \
+  -d "{\"force\":true}"
+```
+
 ## Health Check
 
 ```bash

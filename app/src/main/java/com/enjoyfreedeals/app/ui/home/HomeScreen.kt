@@ -50,20 +50,22 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.enjoyfreedeals.app.data.model.CategoryModel
 import com.enjoyfreedeals.app.data.model.DealModel
+import com.enjoyfreedeals.app.data.model.PriceComparisonProductModel
 import com.enjoyfreedeals.app.data.model.PricePointModel
 import com.enjoyfreedeals.app.data.model.StorePriceModel
 import com.enjoyfreedeals.app.theme.AccentYellow
 import com.enjoyfreedeals.app.theme.PrimaryGreen
 import com.enjoyfreedeals.app.theme.PrimaryRed
 import com.enjoyfreedeals.app.theme.SoftGreen
+import com.enjoyfreedeals.app.theme.SoftRed
 import com.enjoyfreedeals.app.ui.components.AppLogo
 import com.enjoyfreedeals.app.ui.components.CategoryCard
 import com.enjoyfreedeals.app.ui.components.DealCard
 import com.enjoyfreedeals.app.ui.components.DealSearchBox
 import com.enjoyfreedeals.app.ui.components.EmptyState
 import com.enjoyfreedeals.app.ui.components.PremiumBackground
-import com.enjoyfreedeals.app.ui.components.PriceComparisonCard
 import com.enjoyfreedeals.app.ui.components.SectionTitle
+import com.enjoyfreedeals.app.ui.components.StorePriceRow
 import com.enjoyfreedeals.app.ui.components.formatPrice
 import com.enjoyfreedeals.app.viewmodel.HomeUiState
 import kotlinx.coroutines.delay
@@ -98,51 +100,69 @@ fun HomeScreen(
             item {
                 DealSearchBox(value = state.query, onValueChange = onQueryChange)
             }
-            item {
-                PullToRefreshHint()
+            if (state.isLoading || state.errorMessage != null) {
+                item {
+                    LiveDataStatus(isLoading = state.isLoading, errorMessage = state.errorMessage)
+                }
             }
-            item {
-                BannerSlider(deals = state.deals.filter { it.isFeatured || it.isHotDeal }.take(6), onViewDeal = onViewDeal)
+            if (state.deals.isNotEmpty()) {
+                item {
+                    BannerSlider(deals = state.deals.filter { it.isFeatured || it.isHotDeal }.take(6), onViewDeal = onViewDeal)
+                }
             }
-            item {
-                SectionTitle("Category Shortcuts", "Explore deals by shopping need")
-                Spacer(Modifier.height(10.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(state.categories.take(8), key = { it.categoryId }) { category ->
-                        CategoryCard(category, onCategoryClick, Modifier.width(170.dp))
+            if (state.categories.isNotEmpty()) {
+                item {
+                    SectionTitle("Category Shortcuts", "Explore deals by shopping need")
+                    Spacer(Modifier.height(10.dp))
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(state.categories.take(8), key = { it.categoryId }) { category ->
+                            CategoryCard(category, onCategoryClick, Modifier.width(170.dp))
+                        }
                     }
                 }
             }
-            item {
-                DealSection("Featured Deals", state.deals.filter { it.isFeatured }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
+            if (state.deals.isEmpty() && !state.isLoading && state.errorMessage == null) {
+                item {
+                    EmptyState("No live deals right now.", "Fresh verified offers will appear here shortly.")
+                }
             }
-            item {
-                DealSection("Hot Deals", state.deals.filter { it.isHotDeal }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
-            }
-            item {
-                PriceComparisonHighlights(state.deals.take(3), onStorePriceClick)
-            }
-            item {
-                DealSection("Free Deals", state.deals.filter { it.isFreeDeal }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
-            }
-            item {
-                DealSection("Today's Deals", state.deals.take(5), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
-            }
-            item {
-                DealSection("Expiring Soon Deals", state.deals.sortedBy { it.expiryDate }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
-            }
-            item {
-                StoreWiseSection(state.deals, onViewDeal)
+            if (state.deals.isNotEmpty()) {
+                item {
+                    DealSection("Featured Deals", state.deals.filter { it.isFeatured }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
+                }
+                item {
+                    DealSection("Hot Deals", state.deals.filter { it.isHotDeal }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
+                }
+                item {
+                    PriceComparisonHighlights(state.priceComparisons, onStorePriceClick)
+                }
+                item {
+                    DealSection("Free Deals", state.deals.filter { it.isFreeDeal }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
+                }
+                item {
+                    DealSection("Today's Deals", state.deals.take(5), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
+                }
+                item {
+                    DealSection("Expiring Soon Deals", state.deals.sortedBy { it.expiryDate }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
+                }
+                item {
+                    StoreWiseSection(state.deals, onViewDeal)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun PullToRefreshHint() {
-    Surface(color = SoftGreen.copy(alpha = 0.72f), contentColor = PrimaryGreen, shape = RoundedCornerShape(18.dp)) {
+private fun LiveDataStatus(isLoading: Boolean, errorMessage: String?) {
+    val isError = errorMessage != null
+    Surface(
+        color = if (isError) SoftRed.copy(alpha = 0.9f) else SoftGreen.copy(alpha = 0.72f),
+        contentColor = if (isError) PrimaryRed else PrimaryGreen,
+        shape = RoundedCornerShape(18.dp)
+    ) {
         Text(
-            "Pull to refresh ready for real-time deal loading",
+            if (isError) errorMessage.orEmpty() else "Loading live deals from trusted stores...",
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Bold
@@ -155,7 +175,7 @@ private fun HomeHeader(name: String, unreadCount: Int, onNotificationClick: () -
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             AppLogo(modifier = Modifier.fillMaxWidth(0.72f), compact = true)
-            Text("Hello, $name 👋", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+            Text("Hello, $name", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
             Text("Fresh savings are waiting today", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         IconButton(
@@ -214,7 +234,7 @@ private fun BannerSlider(deals: List<DealModel>, onViewDeal: (DealModel) -> Unit
                     Text(deal.title, color = Color.White.copy(alpha = 0.92f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Spacer(Modifier.height(10.dp))
                     Button(onClick = { onViewDeal(deal) }, colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = PrimaryGreen), shape = RoundedCornerShape(16.dp)) {
-                        Text("View Deal", fontWeight = FontWeight.Bold)
+                        Text(if (deal.couponCode.isNotBlank()) "Get Coupon" else "View Deal", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -258,16 +278,55 @@ private fun DealSection(
 
 @Composable
 private fun PriceComparisonHighlights(
-    deals: List<DealModel>,
+    comparisons: List<PriceComparisonProductModel>,
     onStorePriceClick: (StorePriceModel) -> Unit
 ) {
+    val liveComparisons = comparisons
+        .filter { comparison -> comparison.ecommercePlatformPrices.count { it.available } > 1 }
+        .take(3)
+    if (liveComparisons.isEmpty()) return
+
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionTitle("Best Price Comparison", "Compare prices across Amazon, Flipkart, Meesho and more")
-        if (deals.isEmpty()) {
-            EmptyState("No comparison data yet.", "Price comparison API data will appear here.")
-        } else {
-            deals.forEach { deal ->
-                PriceComparisonCard(deal = deal, onStoreClick = onStorePriceClick)
+        liveComparisons.forEach { comparison ->
+            PriceComparisonProductCard(comparison, onStorePriceClick)
+        }
+    }
+}
+
+@Composable
+private fun PriceComparisonProductCard(
+    comparison: PriceComparisonProductModel,
+    onStorePriceClick: (StorePriceModel) -> Unit
+) {
+    val lowest = comparison.ecommercePlatformPrices.filter { it.available }.minByOrNull { it.price }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AsyncImage(
+                    model = comparison.imageUrl,
+                    contentDescription = comparison.productName,
+                    modifier = Modifier.size(58.dp).clip(RoundedCornerShape(14.dp)),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(comparison.productName, fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text("Best from ${lowest?.platform ?: comparison.storeName}", color = PrimaryGreen, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                }
+                Text(formatPrice(lowest?.price ?: comparison.lowestPrice), color = PrimaryGreen, fontWeight = FontWeight.Black)
+            }
+            comparison.ecommercePlatformPrices.take(3).forEach { price ->
+                StorePriceRow(
+                    price = price,
+                    isBestPrice = lowest?.platform == price.platform && price.available,
+                    onClick = { onStorePriceClick(price) }
+                )
             }
         }
     }

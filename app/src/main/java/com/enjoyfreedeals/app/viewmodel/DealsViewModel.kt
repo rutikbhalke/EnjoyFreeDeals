@@ -9,6 +9,7 @@ import com.enjoyfreedeals.app.data.repository.DealRepository
 import com.enjoyfreedeals.app.data.repository.UserRepository
 import com.enjoyfreedeals.app.utils.Constants
 import com.enjoyfreedeals.app.utils.friendlyMessage
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +28,10 @@ data class DealsUiState(
     val priceDropAlerts: Set<String> = emptySet(),
     val priceDropTargets: Map<String, Double> = emptyMap(),
     val selectedDeal: DealModel? = null,
+    val errorMessage: String? = null,
+    val canLoadMore: Boolean = false,
+    val isLoadingMore: Boolean = false,
+    val nextPage: Int = 1,
     val message: String? = null
 )
 
@@ -36,6 +41,8 @@ class DealsViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(DealsUiState())
     val uiState: StateFlow<DealsUiState> = _uiState.asStateFlow()
     private val observedPriceHistoryDealIds = mutableSetOf<String>()
+    private val pageSize = DealRepository.DEFAULT_PAGE_SIZE
+    private val priceHistoryPreloadLimit = 6
 
     init {
         loadDeals()
@@ -44,21 +51,64 @@ class DealsViewModel(application: Application) : AndroidViewModel(application) {
 
     fun loadDeals() {
         viewModelScope.launch {
-            repository.getAllActiveDeals().collect { deals ->
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        allDeals = deals,
-                        filteredDeals = DealRepository.filterAndSortDeals(deals, it.query, it.storeFilter, it.sortOption)
-                    )
-                }
-                observePriceHistory(deals)
-                deals.forEach { deal ->
-                    launch {
-                        runCatching { repository.trackLivePriceIfChanged(deal) }
+            _uiState.update { it.copy(isLoading = true, errorMessage = null, nextPage = 1) }
+            repository.getAllActiveDeals(page = 1, limit = pageSize)
+                .catch { error ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            allDeals = emptyList(),
+                            filteredDeals = emptyList(),
+                            canLoadMore = false,
+                            errorMessage = error.friendlyMessage("Could not load live deals. Please check the backend connection.")
+                        )
                     }
                 }
-            }
+                .collect { deals ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            allDeals = deals,
+                            filteredDeals = DealRepository.filterAndSortDeals(deals, it.query, it.storeFilter, it.sortOption),
+                            canLoadMore = deals.size >= pageSize,
+                            nextPage = 2,
+                            errorMessage = null
+                        )
+                    }
+                    observePriceHistory(deals.take(priceHistoryPreloadLimit))
+                }
+        }
+    }
+
+    fun loadMoreDeals() {
+        val state = _uiState.value
+        if (state.isLoading || state.isLoadingMore || !state.canLoadMore) return
+
+        viewModelScope.launch {
+            val page = state.nextPage
+            _uiState.update { it.copy(isLoadingMore = true, message = null) }
+            repository.getAllActiveDeals(page = page, limit = pageSize)
+                .catch { error ->
+                    _uiState.update {
+                        it.copy(
+                            isLoadingMore = false,
+                            message = error.friendlyMessage("Could not load more deals.")
+                        )
+                    }
+                }
+                .collect { nextDeals ->
+                    _uiState.update {
+                        val merged = (it.allDeals + nextDeals).distinctBy { deal -> deal.dealId }
+                        it.copy(
+                            allDeals = merged,
+                            filteredDeals = DealRepository.filterAndSortDeals(merged, it.query, it.storeFilter, it.sortOption),
+                            canLoadMore = nextDeals.size >= pageSize,
+                            isLoadingMore = false,
+                            nextPage = page + 1
+                        )
+                    }
+                    observePriceHistory(nextDeals.take(priceHistoryPreloadLimit))
+                }
         }
     }
 
@@ -79,11 +129,17 @@ class DealsViewModel(application: Application) : AndroidViewModel(application) {
         deals.forEach { deal ->
             if (!observedPriceHistoryDealIds.add(deal.dealId)) return@forEach
             viewModelScope.launch {
-                repository.getPriceHistory(deal.dealId).collect { history ->
-                    _uiState.update { state ->
-                        state.copy(priceHistory = state.priceHistory + (deal.dealId to history))
+                repository.getPriceHistory(deal.dealId)
+                    .catch { error ->
+                        _uiState.update { state ->
+                            state.copy(message = error.friendlyMessage("Could not load price history."))
+                        }
                     }
-                }
+                    .collect { history ->
+                        _uiState.update { state ->
+                            state.copy(priceHistory = state.priceHistory + (deal.dealId to history))
+                        }
+                    }
             }
         }
     }
