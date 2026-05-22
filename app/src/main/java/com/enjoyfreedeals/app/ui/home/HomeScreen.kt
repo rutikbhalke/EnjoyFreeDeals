@@ -85,6 +85,10 @@ fun HomeScreen(
     priceHistory: Map<String, List<PricePointModel>> = emptyMap(),
     priceDropAlerts: Set<String> = emptySet()
 ) {
+    val homeSections = remember(state.deals) {
+        buildHomeDealSections(state.deals)
+    }
+
     PremiumBackground {
         LazyColumn(
             contentPadding = PaddingValues(18.dp),
@@ -127,23 +131,13 @@ fun HomeScreen(
                 }
             }
             if (state.deals.isNotEmpty()) {
-                item {
-                    DealSection("Featured Deals", state.deals.filter { it.isFeatured }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
-                }
-                item {
-                    DealSection("Hot Deals", state.deals.filter { it.isHotDeal }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
+                homeSections.forEach { section ->
+                    item(section.title) {
+                        DealSection(section.title, section.deals, onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
+                    }
                 }
                 item {
                     PriceComparisonHighlights(state.priceComparisons, onStorePriceClick)
-                }
-                item {
-                    DealSection("Free Deals", state.deals.filter { it.isFreeDeal }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
-                }
-                item {
-                    DealSection("Today's Deals", state.deals.take(5), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
-                }
-                item {
-                    DealSection("Expiring Soon Deals", state.deals.sortedBy { it.expiryDate }.take(4), onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
                 }
                 item {
                     StoreWiseSection(state.deals, onViewDeal)
@@ -151,6 +145,35 @@ fun HomeScreen(
             }
         }
     }
+}
+
+private data class HomeDealSection(
+    val title: String,
+    val deals: List<DealModel>
+)
+
+private fun buildHomeDealSections(deals: List<DealModel>): List<HomeDealSection> {
+    val usedDealIds = mutableSetOf<String>()
+    val now = System.currentTimeMillis()
+    val expiringSoonWindow = 3L * 24L * 60L * 60L * 1000L
+
+    fun pick(candidates: List<DealModel>, limit: Int): List<DealModel> =
+        candidates
+            .filterNot { usedDealIds.contains(it.dealId) }
+            .take(limit)
+            .also { selected -> usedDealIds += selected.map { it.dealId } }
+
+    val expiringSoonDeals = deals
+        .filter { it.expiryDate in (now + 1)..(now + expiringSoonWindow) }
+        .sortedBy { it.expiryDate }
+
+    return listOf(
+        HomeDealSection("Featured Deals", pick(deals.filter { it.isFeatured }, 3)),
+        HomeDealSection("Hot Deals", pick(deals.filter { it.isHotDeal }.sortedByDescending { it.discountPercent }, 3)),
+        HomeDealSection("Free Deals", pick(deals.filter { it.isFreeDeal }, 3)),
+        HomeDealSection("Expiring Soon", pick(expiringSoonDeals, 3)),
+        HomeDealSection("Latest Deals", pick(deals.sortedByDescending { it.createdAt }, 4))
+    ).filter { it.deals.isNotEmpty() }
 }
 
 @Composable
@@ -256,22 +279,18 @@ private fun DealSection(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionTitle(title)
-        if (deals.isEmpty()) {
-            EmptyState("No deals found right now.", "Please check again shortly.")
-        } else {
-            deals.forEach { deal ->
-                DealCard(
-                    deal = deal,
-                    isSaved = false,
-                    onViewDeal = onViewDeal,
-                    onSaveDeal = onSaveDeal,
-                    onShareDeal = onShareDeal,
-                    priceHistory = priceHistory[deal.dealId].orEmpty(),
-                    isPriceAlertEnabled = priceDropAlerts.contains(deal.dealId),
-                    onOpenDetails = onOpenDealDetails,
-                    onPriceAlertClick = onPriceAlertClick
-                )
-            }
+        deals.forEach { deal ->
+            DealCard(
+                deal = deal,
+                isSaved = false,
+                onViewDeal = onViewDeal,
+                onSaveDeal = onSaveDeal,
+                onShareDeal = onShareDeal,
+                priceHistory = priceHistory[deal.dealId].orEmpty(),
+                isPriceAlertEnabled = priceDropAlerts.contains(deal.dealId),
+                onOpenDetails = onOpenDealDetails,
+                onPriceAlertClick = onPriceAlertClick
+            )
         }
     }
 }

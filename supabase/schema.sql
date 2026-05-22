@@ -316,6 +316,9 @@ create index if not exists cashback_transactions_user_status_idx on public.cashb
 create index if not exists scraper_jobs_source_status_idx on public.scraper_jobs (source_name, status, created_at desc);
 create index if not exists deal_sources_enabled_idx on public.deal_sources (enabled, source_key);
 create index if not exists scraped_deal_items_status_idx on public.scraped_deal_items (status, created_at desc);
+create unique index if not exists price_comparisons_deal_unique_idx on public.price_comparisons (deal_id);
+create unique index if not exists price_comparison_platform_unique_idx on public.price_comparison_platforms (comparison_id, lower(platform));
+create index if not exists price_comparison_platform_available_price_idx on public.price_comparison_platforms (comparison_id, available, price);
 
 alter table public.profiles enable row level security;
 alter table public.categories enable row level security;

@@ -13,7 +13,9 @@ async function listPriceComparisons() {
     return listDealBackedComparisons();
   }
   throwIfSupabaseError(error, TABLE);
-  return (data || []).map(toApiPriceComparison);
+  return (data || [])
+    .map(toApiPriceComparison)
+    .filter(hasUsefulComparison);
 }
 
 async function getPriceComparison(productId) {
@@ -24,10 +26,12 @@ async function getPriceComparison(productId) {
     .maybeSingle();
   if (isMissingTableError(error)) {
     const comparisons = await listDealBackedComparisons();
-    return comparisons.find((item) => item.productId === productId || item.dealId === productId) || null;
+    return comparisons.find((item) => hasUsefulComparison(item) && (item.productId === productId || item.dealId === productId)) || null;
   }
   throwIfSupabaseError(error, TABLE);
-  return data ? toApiPriceComparison(data) : null;
+  if (!data) return null;
+  const comparison = toApiPriceComparison(data);
+  return hasUsefulComparison(comparison) ? comparison : null;
 }
 
 async function listDealBackedComparisons() {
@@ -38,7 +42,9 @@ async function listDealBackedComparisons() {
     .or(nonExpiredDealFilter())
     .order("created_at", { ascending: false });
   throwIfSupabaseError(error, "deals");
-  return (data || []).map(toDealBackedPriceComparison);
+  return (data || [])
+    .map(toDealBackedPriceComparison)
+    .filter(hasUsefulComparison);
 }
 
 function toApiPriceComparison(row) {
@@ -59,7 +65,9 @@ function toApiPriceComparison(row) {
     isHotDeal: Boolean(row.is_hot_deal),
     isFreeDeal: Boolean(row.is_free_deal),
     lastUpdated: row.last_updated,
-    ecommercePlatformPrices: (row[PLATFORM_TABLE] || []).map(toApiStorePrice)
+    ecommercePlatformPrices: (row[PLATFORM_TABLE] || [])
+      .map(toApiStorePrice)
+      .sort(compareStorePrices)
   };
 }
 
@@ -122,4 +130,21 @@ module.exports = { getPriceComparison, listPriceComparisons };
 
 function nonExpiredDealFilter() {
   return `expiry_date.is.null,expiry_date.gt.${new Date().toISOString()}`;
+}
+
+function hasUsefulComparison(comparison) {
+  const availablePlatforms = new Set(
+    (comparison.ecommercePlatformPrices || [])
+      .filter((price) => price.available && Number(price.price || 0) > 0)
+      .map((price) => String(price.platform || "").trim().toLowerCase())
+      .filter(Boolean)
+  );
+  return availablePlatforms.size >= 2;
+}
+
+function compareStorePrices(a, b) {
+  if (a.available !== b.available) {
+    return a.available ? -1 : 1;
+  }
+  return Number(a.price || 0) - Number(b.price || 0);
 }

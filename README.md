@@ -84,10 +84,17 @@ The API runs on `http://localhost:5000` by default.
 - Blogs: `blog_posts`
 - Wishlist and price alerts: `deal_watchlist`
 - Shared deal history: `shared_deals`
+- Price comparisons: `price_comparisons` joined with `price_comparison_platforms`
 - Profiles: `profiles`
 - Notifications: `notifications`
 - Admin roles: `user_roles`
 - Scraper support: `scraper_jobs`, `deal_sources`, `scraped_deal_items`
+
+## Price Comparison Data
+
+The backend only returns price-comparison groups that have at least two available platforms with valid prices. If the `price_comparisons` table is empty, or a product has only one store price, Android hides the comparison section instead of showing placeholder copy.
+
+To add verified comparison data, ask the Supabase owner to edit and run [supabase/seed-price-comparisons.sql](supabase/seed-price-comparisons.sql) in the Supabase SQL editor after checking prices, URLs, coupons, and availability from trusted sources.
 
 ## Deal Scraper Automation
 
