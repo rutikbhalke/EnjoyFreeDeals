@@ -1,4 +1,6 @@
 -- Schedule the import-deals Edge Function to run once every hour.
+-- Current safe production mode runs the reliable Amazon scraper only.
+-- Add other source keys after a proxy/API connector is configured for them.
 --
 -- Replace these placeholders before running in the Supabase SQL editor:
 --   <PROJECT_REF>              Example: pzgyphnerjatlqlvvvsl
@@ -30,7 +32,9 @@ select cron.schedule(
         'x-import-secret', '<IMPORT_DEALS_CRON_SECRET>'
       ),
       body := jsonb_build_object(
-        'scheduled', true
+        'scheduled', true,
+        'force', true,
+        'sourceKey', 'amazon'
       )
     ) as request_id;
   $$

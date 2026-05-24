@@ -421,12 +421,12 @@ create trigger on_auth_user_created_profile
 
 insert into public.deal_sources (source_key, source_name, source_type, base_url, secret_name, enabled, trust_level, run_interval_minutes)
 values
-  ('amazon', 'Amazon', 'api', 'https://www.amazon.in', 'AMAZON_PARTNER_API_KEY', true, 5, 60),
-  ('flipkart', 'Flipkart', 'api', 'https://www.flipkart.com', 'FLIPKART_AFFILIATE_API_KEY', true, 5, 60),
-  ('myntra', 'Myntra', 'api', 'https://www.myntra.com', 'MYNTRA_AFFILIATE_API_KEY', true, 4, 60),
-  ('ajio', 'Ajio', 'api', 'https://www.ajio.com', 'AJIO_AFFILIATE_API_KEY', true, 4, 60),
-  ('croma', 'Croma', 'api', 'https://www.croma.com', 'CROMA_AFFILIATE_API_KEY', true, 4, 60),
-  ('tatacliq', 'TataCliq', 'api', 'https://www.tatacliq.com', 'TATACLIQ_AFFILIATE_API_KEY', true, 4, 60)
+  ('amazon', 'Amazon', 'scrape', 'https://www.amazon.in', '', true, 4, 60),
+  ('flipkart', 'Flipkart', 'scrape', 'https://www.flipkart.com', '', true, 4, 60),
+  ('myntra', 'Myntra', 'scrape', 'https://www.myntra.com', '', true, 4, 60),
+  ('ajio', 'Ajio', 'scrape', 'https://www.ajio.com', '', true, 4, 60),
+  ('croma', 'Croma', 'scrape', 'https://www.croma.com', '', true, 4, 60),
+  ('tatacliq', 'TataCliq', 'scrape', 'https://www.tatacliq.com', '', true, 4, 60)
 on conflict (source_key) do update set
   source_name = excluded.source_name,
   source_type = excluded.source_type,

@@ -12,7 +12,8 @@ const TRACKING_PARAMS = [
 ];
 
 export function normalizeSourceDeal(source: DealSourceRow, item: SourceDeal): NormalizedDeal {
-  const title = cleanText(item.title);
+  const originalTitle = cleanText(item.title);
+  const title = cleanImportedTitle(originalTitle, source.source_name);
   const sourceUrl = canonicalUrl(item.sourceUrl, source.base_url);
   const affiliateLink = item.affiliateUrl || item.sourceUrl || sourceUrl;
   const originalPrice = money(item.originalPrice);
@@ -32,7 +33,7 @@ export function normalizeSourceDeal(source: DealSourceRow, item: SourceDeal): No
     dedupeKey,
     slug: `${slugify(title)}-${hashString(dedupeKey).slice(0, 8)}`,
     title,
-    description: cleanText(item.description || title),
+    description: cleanImportedDescription(item.description || originalTitle, title, source.source_name),
     storeName: source.source_name,
     storeSlug: slugify(source.source_name),
     storeUrl: canonicalUrl(source.base_url, source.base_url),
@@ -53,6 +54,8 @@ export function normalizeSourceDeal(source: DealSourceRow, item: SourceDeal): No
       sourceKey: source.source_key,
       sourceProductId: item.sourceProductId,
       sourceUrl,
+      originalTitle,
+      comparisonKey: buildComparisonKey(title),
       normalizedAt: new Date().toISOString()
     }
   };
@@ -63,6 +66,7 @@ export function validateDeal(deal: NormalizedDeal, trustLevel: number): Validati
   const reviewReasons: string[] = [];
 
   if (deal.title.length < 4) errors.push("Title is too short.");
+  if (deal.title.length > 96) reviewReasons.push("Title is too long and needs review.");
   if (!isHttpUrl(deal.sourceUrl)) errors.push("Source URL is missing or invalid.");
   if (!isHttpUrl(deal.imageUrl)) reviewReasons.push("Image URL is missing or invalid.");
   if (!deal.sourceProductId && !deal.sourceUrl) errors.push("Source product identity is missing.");
@@ -70,8 +74,14 @@ export function validateDeal(deal: NormalizedDeal, trustLevel: number): Validati
   if (deal.originalPrice > 0 && deal.discountedPrice > deal.originalPrice) {
     reviewReasons.push("Discounted price is higher than original price.");
   }
+  if (deal.originalPrice > 0 && deal.discountedPrice > 0 && deal.discountPercentage <= 0) {
+    reviewReasons.push("No visible discount was detected.");
+  }
   if (deal.discountPercentage >= 90 && deal.discountedPrice > 0) {
     reviewReasons.push("Very high discount needs review.");
+  }
+  if (deal.rawPayload.connectorMode === "html-scrape" && deal.rawPayload.jsonLdFound !== true) {
+    reviewReasons.push("Structured product data was not found.");
   }
   if (deal.discountedPrice === 0 && trustLevel < 5) {
     reviewReasons.push("Free deal requires highest trust source.");
@@ -119,6 +129,56 @@ export function cleanText(value: string): string {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function cleanImportedTitle(value: string, sourceName: string): string {
+  const original = stripMarketplaceSuffix(cleanText(value), sourceName);
+  const color = original.match(/\(([^)]{2,40})\)\s*$/)?.[1] || "";
+  let title = original.split(/\s*,\s*/)[0] || original;
+
+  title = title
+    .replace(/\s+with\s+.*$/i, "")
+    .replace(/\s+(tws|true wireless)\s+.*$/i, "")
+    .replace(/\s+wireless\s+earphones?.*$/i, "")
+    .trim();
+
+  if (/airdopes|earbuds?|ear buds/i.test(original) && !/earbuds?/i.test(title)) {
+    title = `${title} Bluetooth Earbuds`;
+  } else if (/smartwatch|smart watch/i.test(original) && !/smartwatch/i.test(title)) {
+    title = `${title} Smartwatch`;
+  } else if (/speaker/i.test(original) && !/speaker/i.test(title)) {
+    title = `${title} Speaker`;
+  }
+
+  if (color && !title.toLowerCase().includes(color.toLowerCase()) && title.length + color.length < 90) {
+    title = `${title} (${color})`;
+  }
+
+  return truncateClean(title, 96);
+}
+
+function cleanImportedDescription(value: string, fallbackTitle: string, sourceName: string): string {
+  const description = stripMarketplaceSuffix(cleanText(value), sourceName);
+  if (!description || description.length > 220) return fallbackTitle;
+  return description;
+}
+
+function stripMarketplaceSuffix(value: string, sourceName: string): string {
+  const escapedSource = sourceName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return value
+    .replace(/\s*:\s*Amazon\.in\s*:.*$/i, "")
+    .replace(/\s*:\s*Amazon\.in\s*$/i, "")
+    .replace(/\s*\|\s*(Amazon\.in|Flipkart|Croma|Myntra|Ajio|TataCliq).*$/i, "")
+    .replace(new RegExp(`\\s*[-|:]\\s*${escapedSource}\\b.*$`, "i"), "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function truncateClean(value: string, maxLength: number): string {
+  const text = cleanText(value);
+  if (text.length <= maxLength) return text;
+  const truncated = text.slice(0, maxLength + 1);
+  return truncated.slice(0, truncated.lastIndexOf(" ")).trim() || text.slice(0, maxLength).trim();
+}
+
 function calculateDiscount(originalPrice: number, discountedPrice: number): number {
   if (originalPrice <= 0) return discountedPrice === 0 ? 100 : 0;
   const discount = Math.round(((originalPrice - discountedPrice) / originalPrice) * 100);
@@ -160,6 +220,18 @@ function money(value: number): number {
 
 function normalizeForKey(value: string): string {
   return cleanText(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function buildComparisonKey(title: string): string {
+  return cleanText(title)
+    .toLowerCase()
+    .replace(/\b(offer|deal|discount|sale|with|and|the|for|new|latest)\b/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .split(" ")
+    .filter((token) => token.length > 2)
+    .slice(0, 8)
+    .join("-");
 }
 
 function hashString(value: string): string {

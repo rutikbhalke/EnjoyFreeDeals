@@ -70,6 +70,12 @@ The API runs on `http://localhost:5000` by default.
 - `DELETE /api/price-alerts/:userId/:dealId`
 - `GET /api/price-comparisons`
 - `GET /api/price-comparisons/:productId`
+- `GET /api/admin/scraped-deals`
+  - Admin only; query params: `status`, `sourceKey`, `limit`, `page`
+- `POST /api/admin/scraped-deals/:id/approve`
+  - Admin only
+- `POST /api/admin/scraped-deals/:id/reject`
+  - Admin only; body: `reason`
 - `GET /api/profiles/:userId`
 - `PUT /api/profiles/:userId`
 - `GET /api/notifications/:userId`
@@ -109,14 +115,29 @@ The smart deal importer runs server-side as a Supabase Edge Function. Android do
 ### Behavior
 
 - Reads enabled sources from `deal_sources`.
-- Uses API/feed-first placeholder connectors for Amazon, Flipkart, Myntra, Ajio, Croma, and TataCliq.
+- Scrapes configured original source URLs when `deal_sources.source_type='scrape'`.
+- Keeps `affiliate_link` equal to the original product URL until affiliate APIs/links are added later.
 - Normalizes source items into the existing `deals` table.
 - Deduplicates by `dedupe_key`.
 - Writes every attempt into `scraped_deal_items`.
 - Records each run in `scraper_jobs`.
 - Adds `price_history` rows only when a deal is new or the price changes.
+- Builds price-comparison groups only after the same product is found on at least two distinct platforms.
 - Auto-publishes only valid high-trust deals with `status='active'`.
 - Stores suspicious or low-trust deals as `status='pending'`, so they do not appear in `GET /api/deals`.
+
+### Scraping Mode Before Affiliate APIs
+
+For the current no-affiliate phase, run [supabase/enable-scraper-sources.sql](supabase/enable-scraper-sources.sql) in the Supabase SQL editor. Then configure product/listing seed URLs as Edge Function secrets:
+
+```bash
+supabase secrets set SCRAPER_SEED_URLS_AMAZON="https://www.amazon.in/dp/PRODUCT_ID"
+supabase secrets set SCRAPER_SEED_URLS_FLIPKART="https://www.flipkart.com/product/p/itm..."
+```
+
+Use comma-separated URLs for multiple pages. The scraper stores original URLs now; later, affiliate connectors can replace `affiliate_link` while keeping `source_url` as the canonical original URL.
+
+Scraped deals with weak quality signals are stored as `pending` or `needs_review`. Admin users can review them through `/api/admin/scraped-deals` and approve or reject individual items.
 
 ### Edge Function Secrets
 
@@ -136,6 +157,15 @@ supabase secrets set AJIO_AFFILIATE_API_KEY=your_key
 supabase secrets set CROMA_AFFILIATE_API_KEY=your_key
 supabase secrets set TATACLIQ_AFFILIATE_API_KEY=your_key
 ```
+
+For blocked HTML sources such as Flipkart/Croma, configure a server-side scraping proxy service later:
+
+```bash
+supabase secrets set SCRAPER_FETCH_PROXY_URL="https://your-scraper.example.com/fetch?url={url}"
+supabase secrets set SCRAPER_FETCH_PROXY_TOKEN="your_proxy_token"
+```
+
+The proxy secret stays in Supabase only. Android never receives scraper/proxy credentials.
 
 ### Deploy And Schedule
 

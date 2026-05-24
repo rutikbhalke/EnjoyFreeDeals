@@ -1,5 +1,5 @@
 const { supabaseAdmin } = require("../config/supabaseClient");
-const { toApiDeal } = require("../mappers/dealMapper");
+const { isAutomatedScrapedDeal, toApiDeal } = require("../mappers/dealMapper");
 const { throwIfSupabaseError } = require("../utils/supabaseErrors");
 
 const TABLE = "shared_deals";
@@ -39,7 +39,9 @@ async function getSharedDeals(userId) {
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
   throwIfSupabaseError(error, TABLE);
-  return (data || []).map(toApiSharedDeal);
+  return (data || [])
+    .filter((row) => isAutomatedScrapedDeal(row.deals))
+    .map(toApiSharedDeal);
 }
 
 function toApiSharedDeal(row) {

@@ -168,13 +168,15 @@ async function importSource(
         if (!publishNow) counts.needsReview += 1;
 
         await recordPriceHistoryIfNeeded(supabase, upsertResult.dealId, upsertResult.previousPrice, normalized.discountedPrice);
+        await syncPriceComparison(supabase, upsertResult.dealId, normalized);
         await recordScrapedItem(
           supabase,
           jobId,
           source,
           normalized,
           publishNow ? upsertResult.action : "needs_review",
-          validation.reviewReasons.join(" ")
+          validation.reviewReasons.join(" "),
+          upsertResult.dealId
         );
       } catch (error) {
         counts.failed += 1;
@@ -303,13 +305,96 @@ async function recordPriceHistoryIfNeeded(
   if (error) throw tableError(error, "price_history");
 }
 
+async function syncPriceComparison(
+  supabase: SupabaseClient,
+  dealId: string,
+  deal: NormalizedDeal
+): Promise<void> {
+  const comparisonKey = String(deal.rawPayload.comparisonKey || "");
+  if (!comparisonKey) return;
+
+  const { data, error } = await supabase
+    .from("deals")
+    .select("id, title, original_price, discounted_price, discount_percentage, affiliate_link, source_url, coupon_code, image_url, updated_at, stores(name), categories(name)")
+    .eq("status", "active")
+    .or(`expiry_date.is.null,expiry_date.gt.${new Date().toISOString()}`)
+    .limit(250);
+
+  if (error) throw tableError(error, "deals");
+
+  const matches = bestPricePerStore((data || [])
+    .map(toComparableDeal)
+    .filter((candidate) => candidate.price > 0)
+    .filter((candidate) => candidate.id === dealId || titleSimilarity(comparisonKey, candidate.title) >= 0.55));
+
+  const distinctStores = new Set(matches.map((candidate) => candidate.storeName.toLowerCase()).filter(Boolean));
+  if (matches.length < 2 || distinctStores.size < 2) return;
+
+  const canonical = [...matches].sort((a, b) => a.price - b.price)[0];
+  const bestOriginalPrice = Math.max(...matches.map((candidate) => candidate.originalPrice || candidate.price));
+  const lowestPrice = canonical.price;
+  const discountPercentage = calculateDiscount(bestOriginalPrice, lowestPrice);
+
+  const { data: comparison, error: comparisonError } = await supabase
+    .from("price_comparisons")
+    .upsert({
+      deal_id: canonical.id,
+      product_name: canonical.title,
+      image_url: canonical.imageUrl,
+      category: canonical.categoryName,
+      original_price: bestOriginalPrice,
+      lowest_price: lowestPrice,
+      discount_percentage: discountPercentage,
+      product_url: canonical.url,
+      store_name: canonical.storeName,
+      coupon_code: canonical.couponCode,
+      rating: 4.2,
+      is_hot_deal: discountPercentage >= 50,
+      is_free_deal: lowestPrice === 0,
+      last_updated: new Date().toISOString()
+    }, { onConflict: "deal_id" })
+    .select("id")
+    .single();
+
+  if (comparisonError) throw tableError(comparisonError, "price_comparisons");
+
+  const { error: deleteError } = await supabase
+    .from("price_comparison_platforms")
+    .delete()
+    .eq("comparison_id", comparison.id);
+
+  if (deleteError) throw tableError(deleteError, "price_comparison_platforms");
+
+  const platforms = matches
+    .sort((a, b) => a.price - b.price)
+    .map((candidate) => ({
+      comparison_id: comparison.id,
+      platform: candidate.storeName,
+      price: candidate.price,
+      product_url: candidate.url,
+      affiliate_url: candidate.url,
+      available: true,
+      delivery_info: "See store",
+      rating: 4.2,
+      coupon_code: candidate.couponCode,
+      last_updated: new Date().toISOString()
+    }));
+
+  const { error: platformError } = await supabase
+    .from("price_comparison_platforms")
+    .insert(platforms);
+
+  if (platformError) throw tableError(platformError, "price_comparison_platforms");
+}
+
 async function recordScrapedItem(
   supabase: SupabaseClient,
   jobId: string | null,
   source: DealSourceRow,
   deal: NormalizedDeal,
   status: string,
-  errorMessage: string
+  errorMessage: string,
+  matchedDealId: string | null = null
 ): Promise<void> {
   const { error } = await supabase
     .from("scraped_deal_items")
@@ -324,7 +409,8 @@ async function recordScrapedItem(
       normalized_payload: deal as unknown as JsonObject,
       dedupe_key: deal.dedupeKey,
       status,
-      error_message: errorMessage
+      error_message: errorMessage,
+      matched_deal_id: matchedDealId
     });
 
   if (error) throw tableError(error, "scraped_deal_items");
@@ -414,6 +500,69 @@ function summarize(results: SourceImportResult[]): ImportCounts {
     }),
     { imported: 0, updated: 0, skipped: 0, failed: 0, needsReview: 0 }
   );
+}
+
+function toComparableDeal(row: Record<string, unknown>) {
+  const store = row.stores && typeof row.stores === "object" ? row.stores as Record<string, unknown> : {};
+  const category = row.categories && typeof row.categories === "object" ? row.categories as Record<string, unknown> : {};
+  const url = String(row.affiliate_link || row.source_url || "");
+  return {
+    id: String(row.id || ""),
+    title: String(row.title || ""),
+    originalPrice: Number(row.original_price || 0),
+    price: Number(row.discounted_price || 0),
+    discountPercentage: Number(row.discount_percentage || 0),
+    url,
+    couponCode: String(row.coupon_code || ""),
+    imageUrl: String(row.image_url || ""),
+    storeName: String(store.name || ""),
+    categoryName: String(category.name || "")
+  };
+}
+
+function bestPricePerStore(candidates: ReturnType<typeof toComparableDeal>[]): ReturnType<typeof toComparableDeal>[] {
+  const byStore = new Map<string, ReturnType<typeof toComparableDeal>>();
+
+  for (const candidate of candidates) {
+    const key = candidate.storeName.toLowerCase();
+    if (!key) continue;
+    const existing = byStore.get(key);
+    if (!existing || candidate.price < existing.price) {
+      byStore.set(key, candidate);
+    }
+  }
+
+  return [...byStore.values()];
+}
+
+function titleSimilarity(comparisonKey: string, title: string): number {
+  const sourceTokens = tokenSet(comparisonKey);
+  const targetTokens = tokenSet(title);
+  if (sourceTokens.size === 0 || targetTokens.size === 0) return 0;
+
+  let overlap = 0;
+  for (const token of sourceTokens) {
+    if (targetTokens.has(token)) overlap += 1;
+  }
+
+  return overlap / Math.max(sourceTokens.size, targetTokens.size);
+}
+
+function tokenSet(value: string): Set<string> {
+  return new Set(
+    cleanText(value)
+      .toLowerCase()
+      .replace(/\b(offer|deal|discount|sale|with|and|the|for|new|latest)\b/g, " ")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()
+      .split(" ")
+      .filter((token) => token.length > 2)
+  );
+}
+
+function calculateDiscount(originalPrice: number, discountedPrice: number): number {
+  if (originalPrice <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round(((originalPrice - discountedPrice) / originalPrice) * 100)));
 }
 
 function authorizeRequest(request: Request): string | null {

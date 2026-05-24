@@ -48,6 +48,10 @@ async function getDealById(id) {
     .select("*, categories(*), stores(*)")
     .eq("id", id)
     .eq("status", "active")
+    .not("last_scraped_at", "is", null)
+    .not("dedupe_key", "is", null)
+    .neq("source_url", "")
+    .eq("raw_source_payload->>connectorMode", "html-scrape")
     .or(nonExpiredDealFilter())
     .maybeSingle();
   throwIfSupabaseError(error, TABLE);
@@ -93,6 +97,10 @@ function escapeIlike(value) {
 function applyPublicDealVisibility(query) {
   return query
     .eq("status", "active")
+    .not("last_scraped_at", "is", null)
+    .not("dedupe_key", "is", null)
+    .neq("source_url", "")
+    .eq("raw_source_payload->>connectorMode", "html-scrape")
     .or(nonExpiredDealFilter());
 }
 

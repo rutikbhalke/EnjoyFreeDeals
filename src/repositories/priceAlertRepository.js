@@ -1,5 +1,5 @@
 const { supabaseAdmin } = require("../config/supabaseClient");
-const { toApiDeal } = require("../mappers/dealMapper");
+const { isAutomatedScrapedDeal, toApiDeal } = require("../mappers/dealMapper");
 const { throwIfSupabaseError } = require("../utils/supabaseErrors");
 
 const TABLE = "deal_watchlist";
@@ -52,7 +52,9 @@ async function removePriceAlert(userId, dealId) {
     .maybeSingle();
   throwIfSupabaseError(error, TABLE);
 
-  return data ? toApiPriceAlert(data) : { userId, dealId, targetPrice: null, alertStatus: "removed" };
+  return data && isAutomatedScrapedDeal(data.deals)
+    ? toApiPriceAlert(data)
+    : { userId, dealId, targetPrice: null, alertStatus: "removed" };
 }
 
 async function findAlert(userId, dealId) {

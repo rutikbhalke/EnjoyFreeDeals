@@ -50,6 +50,16 @@ function toApiDeal(row) {
   };
 }
 
+function isAutomatedScrapedDeal(row) {
+  return Boolean(
+    row &&
+    row.last_scraped_at &&
+    row.source_url &&
+    row.dedupe_key &&
+    row.raw_source_payload?.connectorMode === "html-scrape"
+  );
+}
+
 function normalizeDealPayload(payload) {
   const normalized = { ...payload };
   mapIfPresent(normalized, "dealId", "id");
@@ -83,4 +93,4 @@ function mapIfPresent(target, from, to) {
   }
 }
 
-module.exports = { normalizeDealPayload, toApiDeal };
+module.exports = { isAutomatedScrapedDeal, normalizeDealPayload, toApiDeal };
