@@ -32,6 +32,7 @@ fun JSONObject.toDealModel(): DealModel {
 
     return DealModel(
         dealId = optStringValue("dealId", "id", "deal_id"),
+        productId = optStringValue("productId", "product_id", "dealId", "id", "deal_id"),
         title = optStringValue("title"),
         description = optStringValue("description"),
         productImage = optStringValue("productImage", "image", "image_url"),
@@ -51,6 +52,7 @@ fun JSONObject.toDealModel(): DealModel {
         isFreeDeal = optBooleanValue("isFreeDeal", "is_free_deal"),
         isActive = optBooleanValue("isActive", "is_active", default = true),
         isFeatured = optBooleanValue("isFeatured", "is_featured"),
+        isVerified = optBooleanValue("isVerified", "is_verified"),
         shareCount = optIntValue("shareCount", "share_count"),
         savedCount = optIntValue("savedCount", "saved_count"),
         currentPrice = current,
@@ -58,7 +60,10 @@ fun JSONObject.toDealModel(): DealModel {
         highestPrice = optDoubleValue("highestPrice", "highest_price", default = original),
         averagePrice = optDoubleValue("averagePrice", "average_price", default = current),
         rating = optDoubleValue("rating", default = 4.3),
+        ratingCount = optIntValue("ratingCount", "rating_count"),
+        reviewCount = optIntValue("reviewCount", "review_count"),
         deliveryInfo = optStringValue("deliveryInfo", "delivery_info", default = "See store"),
+        availability = optStringValue("availability", default = "in_stock"),
         comparisonPrices = comparisonPrices,
         createdAt = optTimestampValue("createdAt", "created_at"),
         updatedAt = optTimestampValue("updatedAt", "updated_at"),
@@ -168,7 +173,11 @@ fun JSONObject.toStorePriceModel(): StorePriceModel =
         available = optBooleanValue("available", default = true),
         deliveryInfo = optStringValue("deliveryInfo", "delivery_info", default = "Free delivery"),
         rating = optDoubleValue("rating", default = 4.2),
+        ratingCount = optIntValue("ratingCount", "rating_count"),
+        reviewCount = optIntValue("reviewCount", "review_count"),
         couponCode = optStringValue("couponCode", "coupon_code"),
+        isLowestPrice = optBooleanValue("isLowestPrice", "is_lowest_price"),
+        storeLogoUrl = optStringValue("storeLogoUrl", "store_logo_url"),
         lastUpdated = optTimestampValue("lastUpdated", "last_updated")
     )
 

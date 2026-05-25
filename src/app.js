@@ -15,6 +15,7 @@ const profileRoutes = require("./routes/profileRoutes");
 const authRoutes = require("./routes/authRoutes");
 const priceComparisonRoutes = require("./routes/priceComparisonRoutes");
 const sharedDealRoutes = require("./routes/sharedDealRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.use("/api/price-comparisons", priceComparisonRoutes);
 app.use("/api/health", healthRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/profiles", profileRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.use((req, res) => {
   res.status(404).json({

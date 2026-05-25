@@ -105,7 +105,7 @@ fun PriceAlertScreen(
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text(deal.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             Text(deal.storeName, color = PrimaryGreen, fontWeight = FontWeight.Bold)
-                            PriceLine("Current Price", formatPrice(stats.currentPrice))
+                            PriceLine(formatPrice(stats.currentPrice))
                         }
                     }
                 }
@@ -169,7 +169,7 @@ fun PriceAlertScreen(
                 ) {
                     Icon(Icons.Outlined.LocalOffer, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.size(8.dp))
-                    Text("View Deal", fontWeight = FontWeight.Bold)
+                    Text(if (deal.couponCode.isNotBlank()) "Get Coupon" else "View Deal", fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -177,9 +177,9 @@ fun PriceAlertScreen(
 }
 
 @Composable
-private fun PriceLine(label: String, value: String) {
+private fun PriceLine(value: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = GreyText)
+        Text("Current Price", color = GreyText)
         Text(value, color = PrimaryGreen, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
     }
 }

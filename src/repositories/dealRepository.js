@@ -10,9 +10,9 @@ async function listDeals(filters) {
   let query = supabaseAdmin
     .from(TABLE)
     .select("*, categories(*), stores(*)", { count: "exact" })
-    .eq("status", "active")
     .order("created_at", { ascending: false })
     .range(from, to);
+  query = applyPublicDealVisibility(query);
 
   if (filters.search) {
     const search = escapeIlike(filters.search.trim());
@@ -47,6 +47,12 @@ async function getDealById(id) {
     .from(TABLE)
     .select("*, categories(*), stores(*)")
     .eq("id", id)
+    .eq("status", "active")
+    .not("last_scraped_at", "is", null)
+    .not("dedupe_key", "is", null)
+    .neq("source_url", "")
+    .eq("raw_source_payload->>connectorMode", "html-scrape")
+    .or(nonExpiredDealFilter())
     .maybeSingle();
   throwIfSupabaseError(error, TABLE);
   return data ? toApiDeal(data) : null;
@@ -86,6 +92,20 @@ async function softDeleteDeal(id) {
 
 function escapeIlike(value) {
   return value.replace(/[%(),]/g, "\\$&");
+}
+
+function applyPublicDealVisibility(query) {
+  return query
+    .eq("status", "active")
+    .not("last_scraped_at", "is", null)
+    .not("dedupe_key", "is", null)
+    .neq("source_url", "")
+    .eq("raw_source_payload->>connectorMode", "html-scrape")
+    .or(nonExpiredDealFilter());
+}
+
+function nonExpiredDealFilter() {
+  return `expiry_date.is.null,expiry_date.gt.${new Date().toISOString()}`;
 }
 
 async function resolveCategoryId(category) {

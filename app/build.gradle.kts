@@ -1,15 +1,50 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
-val backendBaseUrl = providers.gradleProperty("BACKEND_BASE_URL")
-    .orElse(System.getenv("BACKEND_BASE_URL") ?: "http://10.0.2.2:5000")
-    .get()
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.isFile) {
+        localPropertiesFile.inputStream().use(::load)
+    }
+}
+
+fun projectProperty(name: String, defaultValue: String = ""): String =
+    providers.gradleProperty(name)
+        .orElse(providers.environmentVariable(name))
+        .orElse(localProperties.getProperty(name) ?: defaultValue)
+        .get()
+
+val backendBaseUrl = projectProperty("BACKEND_BASE_URL", "http://10.0.2.2:5000")
+val googleWebClientId = projectProperty("GOOGLE_WEB_CLIENT_ID")
+val supabaseUrl = projectProperty("SUPABASE_URL")
+val supabaseAnonKey = projectProperty("SUPABASE_ANON_KEY")
+
+val supabaseProjectId = projectProperty("SUPABASE_PROJECT_ID")
+    .ifBlank {
+        supabaseUrl
+            .removePrefix("https://")
+            .removePrefix("http://")
+            .substringBefore(".supabase.co", "")
+    }
+
+val resolvedSupabaseUrl = supabaseUrl.ifBlank {
+    if (supabaseProjectId.isNotBlank()) "https://$supabaseProjectId.supabase.co" else ""
+}
+
+val resolvedSupabaseAnonKey = supabaseAnonKey
+
+fun String.asBuildConfigString(): String =
+    "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
 android {
     namespace = "com.enjoyfreedeals.app"
     compileSdk {
+        //noinspection GradleDependency
         version = release(36) {
             minorApiLevel = 1
         }
@@ -18,12 +53,16 @@ android {
     defaultConfig {
         applicationId = "com.example.freedeals1"
         minSdk = 24
+        //noinspection OldTargetApi
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "BACKEND_BASE_URL", "\"$backendBaseUrl\"")
+        buildConfigField("String", "BACKEND_BASE_URL", backendBaseUrl.asBuildConfigString())
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", googleWebClientId.asBuildConfigString())
+        buildConfigField("String", "SUPABASE_URL", resolvedSupabaseUrl.asBuildConfigString())
+        buildConfigField("String", "SUPABASE_ANON_KEY", resolvedSupabaseAnonKey.asBuildConfigString())
     }
 
     buildTypes {
@@ -38,6 +77,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
         compose = true
@@ -48,6 +88,7 @@ android {
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(platform(libs.firebase.bom))
+    implementation(platform(libs.supabase.bom))
 
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.activity.ktx)
@@ -59,7 +100,10 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.fragment.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
@@ -67,7 +111,13 @@ dependencies {
     implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.messaging)
+    implementation(libs.googleid)
     implementation(libs.kotlinx.coroutines.play.services)
+    implementation(libs.ktor.client.android)
+    implementation(libs.supabase.auth)
+    implementation(libs.supabase.postgrest)
+    implementation(libs.supabase.realtime)
+    coreLibraryDesugaring(libs.android.desugar.jdk.libs)
 
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)

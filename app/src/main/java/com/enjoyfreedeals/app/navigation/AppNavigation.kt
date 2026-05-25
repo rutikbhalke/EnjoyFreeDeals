@@ -7,12 +7,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.outlined.Category
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LocalOffer
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -28,6 +32,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.NavHost
@@ -79,6 +85,7 @@ fun AppNavigation(
 ) {
     val rootNavController = rememberNavController()
     val authState by authViewModel.uiState.collectAsState()
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         authViewModel.checkSession()
@@ -96,7 +103,7 @@ fun AppNavigation(
             LoginScreen(
                 state = authState,
                 onLogin = authViewModel::login,
-                onGoogleLogin = authViewModel::loginWithGoogle,
+                onGoogleLogin = { authViewModel.loginWithGoogle(context) },
                 onForgotPassword = authViewModel::forgotPassword,
                 onCreateAccount = { rootNavController.navigate(Route.Register) },
                 onSuccess = {
@@ -111,7 +118,7 @@ fun AppNavigation(
             CreateAccountScreen(
                 state = authState,
                 onRegister = authViewModel::register,
-                onGoogleLogin = authViewModel::loginWithGoogle,
+                onGoogleLogin = { authViewModel.loginWithGoogle(context) },
                 onLogin = { rootNavController.popBackStack() },
                 onSuccess = {
                     rootNavController.navigate(Route.Main) {
@@ -141,6 +148,7 @@ fun AppNavigation(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainScaffold(
     homeViewModel: HomeViewModel,
@@ -164,6 +172,23 @@ private fun MainScaffold(
     val profileState by profileViewModel.uiState.collectAsState()
     val settingsState by settingsViewModel.uiState.collectAsState()
     val strings = LocalAppStrings.current
+    val currentRoute = destination?.route
+    val bottomRoutes = bottomTabs.map { it.route }.toSet()
+    val showBottomBar = currentRoute != null && currentRoute in bottomRoutes
+    val nestedTitle = when (currentRoute) {
+        Route.CategoryDeals -> categoryState.selectedCategory?.categoryName ?: "Category Deals"
+        Route.BlogDetail -> "Article"
+        Route.Notifications -> "Notifications"
+        Route.SavedDeals -> "Saved Deals"
+        Route.SharedDeals -> "Shared Deals"
+        Route.Settings -> "Settings"
+        Route.LanguageSettings -> "Language"
+        Route.About -> "About"
+        Route.ProductDetail -> "Deal Details"
+        Route.ProductPriceHistory -> "Price History"
+        Route.PriceAlert -> "Price Alert"
+        else -> "EnjoyFreeDeals"
+    }
 
     fun viewDeal(deal: DealModel) {
         CustomTabsHelper.openDealUrl(context, deal.redirectUrl) { message ->
@@ -182,40 +207,61 @@ private fun MainScaffold(
     }
 
     Scaffold(
-        bottomBar = {
-            Surface(
-                shadowElevation = 10.dp,
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-            ) {
-                NavigationBar(
-                    modifier = Modifier.clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
-                    containerColor = MaterialTheme.colorScheme.surface
-                ) {
-                    bottomTabs.forEach { tab ->
-                        val selected = destination?.hierarchy?.any { it.route == tab.route } == true
-                        val scale by animateFloatAsState(if (selected) 1.16f else 1f, label = "${tab.route}-scale")
-                        val label = tab.label(strings)
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = {
-                                navController.navigate(tab.route) {
-                                    popUpTo(Route.Home) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = {
-                                Icon(
-                                    tab.icon,
-                                    contentDescription = label,
-                                    modifier = Modifier.graphicsLayer {
-                                        scaleX = scale
-                                        scaleY = scale
-                                    }
-                                )
-                            },
-                            label = { Text(label) }
+        topBar = {
+            if (!showBottomBar && currentRoute != null) {
+                CenterAlignedTopAppBar(
+                    title = {
+                        Text(
+                            nestedTitle,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            fontWeight = FontWeight.Bold
                         )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                        }
+                    }
+                )
+            }
+        },
+        bottomBar = {
+            if (showBottomBar && destination != null) {
+                Surface(
+                    shadowElevation = 10.dp,
+                    shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+                ) {
+                    NavigationBar(
+                        modifier = Modifier.clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ) {
+                        bottomTabs.forEach { tab ->
+                            val selected = destination.hierarchy.any { it.route == tab.route }
+                            val scale by animateFloatAsState(if (selected) 1.16f else 1f, label = "${tab.route}-scale")
+                            val label = tab.label(strings)
+                            NavigationBarItem(
+                                selected = selected,
+                                onClick = {
+                                    navController.navigate(tab.route) {
+                                        popUpTo(Route.Home) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                },
+                                icon = {
+                                    Icon(
+                                        tab.icon,
+                                        contentDescription = label,
+                                        modifier = Modifier.graphicsLayer {
+                                            scaleX = scale
+                                            scaleY = scale
+                                        }
+                                    )
+                                },
+                                label = { Text(label) }
+                            )
+                        }
                     }
                 }
             }
@@ -259,6 +305,7 @@ private fun MainScaffold(
                         onTogglePriceAlert = dealsViewModel::togglePriceDropAlert,
                         onOpenDealDetails = ::openDealDetails,
                         onPriceAlertClick = ::openPriceAlert,
+                        onLoadMore = dealsViewModel::loadMoreDeals,
                         onMessageShown = dealsViewModel::clearMessage
                     )
                 }
@@ -387,7 +434,10 @@ private fun MainScaffold(
                                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                             }
                         },
-                        onSimilarDealClick = ::openDealDetails
+                        onSimilarDealClick = ::openDealDetails,
+                        priceHistory = selectedDeal?.let { dealsState.priceHistory[it.dealId] }.orEmpty(),
+                        isPriceAlertEnabled = selectedDeal?.let { dealsState.priceDropAlerts.contains(it.dealId) } == true,
+                        onPriceAlertClick = ::openPriceAlert
                     )
                 }
                 composable(Route.PriceAlert) {

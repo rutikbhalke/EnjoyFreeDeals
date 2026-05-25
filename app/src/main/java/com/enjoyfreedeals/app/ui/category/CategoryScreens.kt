@@ -39,10 +39,20 @@ fun CategoryScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                SectionTitle("Categories", "Tap a category to view matching deals")
+                SectionTitle("Categories", subtitle = "Tap a category to view matching deals")
             }
-            items(state.categories, key = { it.categoryId }) { category ->
-                CategoryCard(category = category, onClick = onCategoryClick)
+            if (state.isLoading) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    EmptyState("Loading categories.", "Fetching live shopping categories.")
+                }
+            } else if (state.errorMessage != null) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    EmptyState("Categories unavailable.", state.errorMessage)
+                }
+            } else {
+                items(state.categories, key = { it.categoryId }) { category ->
+                    CategoryCard(category = category, onClick = onCategoryClick)
+                }
             }
         }
     }
@@ -78,7 +88,15 @@ fun CategoryDealsScreen(
             item {
                 FilterRow(Constants.sortOptions, state.sortOption, onSort)
             }
-            if (state.categoryDeals.isEmpty()) {
+            if (state.isLoading) {
+                item {
+                    EmptyState("Loading category deals.", "Fetching live offers.")
+                }
+            } else if (state.errorMessage != null) {
+                item {
+                    EmptyState("Category deals unavailable.", state.errorMessage)
+                }
+            } else if (state.categoryDeals.isEmpty()) {
                 item {
                     EmptyState("No deals available in this category right now.", "Please check another category.")
                 }

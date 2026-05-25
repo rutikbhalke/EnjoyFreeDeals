@@ -316,6 +316,9 @@ create index if not exists cashback_transactions_user_status_idx on public.cashb
 create index if not exists scraper_jobs_source_status_idx on public.scraper_jobs (source_name, status, created_at desc);
 create index if not exists deal_sources_enabled_idx on public.deal_sources (enabled, source_key);
 create index if not exists scraped_deal_items_status_idx on public.scraped_deal_items (status, created_at desc);
+create unique index if not exists price_comparisons_deal_unique_idx on public.price_comparisons (deal_id);
+create unique index if not exists price_comparison_platform_unique_idx on public.price_comparison_platforms (comparison_id, lower(platform));
+create index if not exists price_comparison_platform_available_price_idx on public.price_comparison_platforms (comparison_id, available, price);
 
 alter table public.profiles enable row level security;
 alter table public.categories enable row level security;
@@ -416,18 +419,20 @@ create trigger on_auth_user_created_profile
   after insert on auth.users
   for each row execute function public.handle_new_auth_profile();
 
-insert into public.deal_sources (source_key, source_name, source_type, base_url, secret_name, enabled)
+insert into public.deal_sources (source_key, source_name, source_type, base_url, secret_name, enabled, trust_level, run_interval_minutes)
 values
-  ('amazon', 'Amazon', 'api', 'https://www.amazon.in', 'AMAZON_PARTNER_API_KEY', true),
-  ('flipkart', 'Flipkart', 'api', 'https://www.flipkart.com', 'FLIPKART_AFFILIATE_API_KEY', true),
-  ('myntra', 'Myntra', 'api', 'https://www.myntra.com', 'MYNTRA_AFFILIATE_API_KEY', true),
-  ('ajio', 'Ajio', 'api', 'https://www.ajio.com', 'AJIO_AFFILIATE_API_KEY', true),
-  ('croma', 'Croma', 'api', 'https://www.croma.com', 'CROMA_AFFILIATE_API_KEY', true),
-  ('tatacliq', 'TataCliq', 'api', 'https://www.tatacliq.com', 'TATACLIQ_AFFILIATE_API_KEY', true)
+  ('amazon', 'Amazon', 'scrape', 'https://www.amazon.in', '', true, 4, 60),
+  ('flipkart', 'Flipkart', 'scrape', 'https://www.flipkart.com', '', true, 4, 60),
+  ('myntra', 'Myntra', 'scrape', 'https://www.myntra.com', '', true, 4, 60),
+  ('ajio', 'Ajio', 'scrape', 'https://www.ajio.com', '', true, 4, 60),
+  ('croma', 'Croma', 'scrape', 'https://www.croma.com', '', true, 4, 60),
+  ('tatacliq', 'TataCliq', 'scrape', 'https://www.tatacliq.com', '', true, 4, 60)
 on conflict (source_key) do update set
   source_name = excluded.source_name,
   source_type = excluded.source_type,
   base_url = excluded.base_url,
   secret_name = excluded.secret_name,
   enabled = excluded.enabled,
+  trust_level = greatest(public.deal_sources.trust_level, excluded.trust_level),
+  run_interval_minutes = excluded.run_interval_minutes,
   updated_at = now();

@@ -1,7 +1,6 @@
 package com.enjoyfreedeals.app.data.repository
 
 import android.content.Context
-import com.enjoyfreedeals.app.data.mock.MockBlogs
 import com.enjoyfreedeals.app.data.model.BlogModel
 import com.enjoyfreedeals.app.data.remote.BackendClient
 import com.enjoyfreedeals.app.data.remote.dataArray
@@ -14,11 +13,7 @@ class BlogRepository(private val context: Context) {
     private val backendClient = BackendClient()
 
     fun getPublishedBlogs(): Flow<List<BlogModel>> = flow {
-        emit(loadBlogs().getOrElse { MockBlogs.blogs })
-    }
-
-    fun getBlogById(blogId: String): Flow<BlogModel?> = flow {
-        emit(loadBlogs().getOrElse { MockBlogs.blogs }.firstOrNull { it.blogId == blogId })
+        emit(loadBlogs().getOrThrow())
     }
 
     private suspend fun loadBlogs(): Result<List<BlogModel>> = runCatching {

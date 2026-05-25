@@ -1,5 +1,5 @@
 const { supabaseAdmin } = require("../config/supabaseClient");
-const { toApiDeal } = require("../mappers/dealMapper");
+const { isAutomatedScrapedDeal, toApiDeal } = require("../mappers/dealMapper");
 const { throwIfSupabaseError } = require("../utils/supabaseErrors");
 
 const TABLE = "deal_watchlist";
@@ -39,7 +39,9 @@ async function getWishlist(userId) {
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
   throwIfSupabaseError(error, TABLE);
-  return (data || []).map(toApiWatchlistItem);
+  return (data || [])
+    .filter((row) => isAutomatedScrapedDeal(row.deals))
+    .map(toApiWatchlistItem);
 }
 
 async function removeFromWishlist(userId, dealId) {
@@ -67,7 +69,7 @@ async function findWatchlistItem(userId, dealId) {
     .eq("deal_id", dealId)
     .maybeSingle();
   throwIfSupabaseError(error, TABLE);
-  return data;
+  return data && isAutomatedScrapedDeal(data.deals) ? data : null;
 }
 
 function toApiWatchlistItem(row) {

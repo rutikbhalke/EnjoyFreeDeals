@@ -7,6 +7,8 @@ import com.enjoyfreedeals.app.data.model.DealModel
 import com.enjoyfreedeals.app.data.model.UserModel
 import com.enjoyfreedeals.app.data.repository.DealRepository
 import com.enjoyfreedeals.app.data.repository.UserRepository
+import com.enjoyfreedeals.app.utils.friendlyMessage
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,14 +35,22 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
             }
         }
         viewModelScope.launch {
-            dealRepository.getSavedDeals().collect { saved ->
-                _uiState.update { it.copy(savedDeals = saved) }
-            }
+            dealRepository.getSavedDeals()
+                .catch { error ->
+                    _uiState.update { it.copy(savedDeals = emptyList(), message = error.friendlyMessage("Could not load saved deals.")) }
+                }
+                .collect { saved ->
+                    _uiState.update { it.copy(savedDeals = saved) }
+                }
         }
         viewModelScope.launch {
-            dealRepository.getSharedDeals().collect { shared ->
-                _uiState.update { it.copy(sharedDeals = shared) }
-            }
+            dealRepository.getSharedDeals()
+                .catch { error ->
+                    _uiState.update { it.copy(sharedDeals = emptyList(), message = error.friendlyMessage("Could not load shared deals.")) }
+                }
+                .collect { shared ->
+                    _uiState.update { it.copy(sharedDeals = shared) }
+                }
         }
     }
 

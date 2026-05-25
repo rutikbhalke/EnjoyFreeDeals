@@ -55,7 +55,7 @@ fun NotificationScreen(
         ) {
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    SectionTitle("Notifications", "${state.unreadCount} unread alerts", Modifier.weight(1f))
+                    SectionTitle("Notifications", Modifier.weight(1f), "${state.unreadCount} unread alerts")
                     TextButton(onClick = onMarkAllRead) { Text("Mark all read") }
                 }
             }
@@ -107,4 +107,3 @@ private fun NotificationCard(notification: NotificationModel, onOpen: (Notificat
         }
     }
 }
-

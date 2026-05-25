@@ -1,6 +1,6 @@
 package com.enjoyfreedeals.app.ui.deals
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -21,7 +21,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.TrendingDown
-import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.LocalOffer
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Storefront
@@ -145,7 +144,7 @@ fun ProductPriceHistoryScreen(
                     ) {
                         Icon(Icons.Outlined.LocalOffer, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.size(8.dp))
-                        Text("View Deal", fontWeight = FontWeight.Bold)
+                        Text(if (deal.couponCode.isNotBlank()) "Get Coupon" else "View Deal", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -249,16 +248,12 @@ private fun BubblePriceHistoryGraph(
     storeName: String,
     modifier: Modifier = Modifier
 ) {
-    var started by remember { mutableStateOf(false) }
     var selectedPoint by remember(history) { mutableStateOf<PricePointModel?>(null) }
-    val progress by animateFloatAsState(
-        targetValue = if (started) 1f else 0f,
-        animationSpec = tween(700),
-        label = "bubble-graph-progress"
-    )
+    val progress = remember(history) { Animatable(0f) }
 
     LaunchedEffect(history) {
-        started = true
+        progress.snapTo(0f)
+        progress.animateTo(1f, tween(700))
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -296,7 +291,7 @@ private fun BubblePriceHistoryGraph(
             }
 
             nodes.forEach { node ->
-                val animatedRadius = node.radius * progress
+                val animatedRadius = node.radius * progress.value
                 drawCircle(node.color.copy(alpha = 0.18f), radius = animatedRadius * 1.55f, center = node.center)
                 drawCircle(node.color, radius = animatedRadius, center = node.center)
                 drawCircle(Color.White.copy(alpha = 0.92f), radius = animatedRadius * 0.34f, center = node.center)

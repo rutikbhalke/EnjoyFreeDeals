@@ -7,6 +7,7 @@ import com.enjoyfreedeals.app.data.model.NotificationModel
 import com.enjoyfreedeals.app.data.repository.NotificationRepository
 import com.enjoyfreedeals.app.data.repository.UserRepository
 import com.enjoyfreedeals.app.utils.friendlyMessage
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,17 +32,28 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun loadNotifications() {
-        val userId = userRepository.getCurrentUserId().orEmpty()
+        val userId = userRepository.getCurrentUserId()
         viewModelScope.launch {
-            repository.getUserNotifications(userId).collect { notifications ->
-                _uiState.update {
-                    it.copy(
-                        notifications = notifications,
-                        unreadCount = notifications.count { notification -> !notification.isRead },
-                        isLoading = false
-                    )
+            repository.getUserNotifications(userId)
+                .catch { error ->
+                    _uiState.update {
+                        it.copy(
+                            notifications = emptyList(),
+                            unreadCount = 0,
+                            isLoading = false,
+                            message = error.friendlyMessage("Could not load notifications.")
+                        )
+                    }
                 }
-            }
+                .collect { notifications ->
+                    _uiState.update {
+                        it.copy(
+                            notifications = notifications,
+                            unreadCount = notifications.count { notification -> !notification.isRead },
+                            isLoading = false
+                        )
+                    }
+                }
         }
     }
 
@@ -60,7 +72,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun markAllAsRead() {
-        val userId = userRepository.getCurrentUserId().orEmpty()
+        val userId = userRepository.getCurrentUserId()
         viewModelScope.launch {
             repository.markAllNotificationsAsRead(userId)
             _uiState.update {
@@ -70,7 +82,7 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun saveFcmToken() {
-        val userId = userRepository.getCurrentUserId().orEmpty()
+        val userId = userRepository.getCurrentUserId()
         viewModelScope.launch {
             runCatching { repository.getAndSaveFcmToken(userId) }
                 .onSuccess { _uiState.update { state -> state.copy(message = "Notifications enabled.") } }
@@ -78,4 +90,3 @@ class NotificationViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 }
-

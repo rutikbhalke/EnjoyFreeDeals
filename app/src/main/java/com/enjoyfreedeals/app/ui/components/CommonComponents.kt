@@ -101,7 +101,6 @@ import com.enjoyfreedeals.app.theme.GreyText
 import com.enjoyfreedeals.app.theme.PrimaryGreen
 import com.enjoyfreedeals.app.theme.PrimaryRed
 import com.enjoyfreedeals.app.theme.SoftGreen
-import com.enjoyfreedeals.app.theme.SoftRed
 import com.enjoyfreedeals.app.theme.SoftYellow
 import com.enjoyfreedeals.app.utils.LocalAppStrings
 import java.text.SimpleDateFormat
@@ -186,7 +185,7 @@ fun AppLogo(modifier: Modifier = Modifier, compact: Boolean = false) {
 }
 
 @Composable
-fun SectionTitle(title: String, subtitle: String? = null, modifier: Modifier = Modifier) {
+fun SectionTitle(title: String, modifier: Modifier = Modifier, subtitle: String? = null) {
     Column(modifier = modifier.fillMaxWidth()) {
         Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
         if (!subtitle.isNullOrBlank()) {
@@ -243,12 +242,12 @@ fun DealCard(
     onViewDeal: (DealModel) -> Unit,
     onSaveDeal: (DealModel) -> Unit,
     onShareDeal: (DealModel) -> Unit,
+    modifier: Modifier = Modifier,
     priceHistory: List<PricePointModel> = emptyList(),
     isPriceAlertEnabled: Boolean = false,
     onTogglePriceAlert: ((DealModel) -> Unit)? = null,
     onOpenDetails: ((DealModel) -> Unit)? = null,
-    onPriceAlertClick: ((DealModel) -> Unit)? = null,
-    modifier: Modifier = Modifier
+    onPriceAlertClick: ((DealModel) -> Unit)? = null
 ) {
     val effectiveHistory = priceHistory.ifEmpty {
         listOf(DealRepository.buildPriceHistoryRecord(deal, emptyList(), deal.priceCheckedAt))
@@ -292,15 +291,22 @@ fun DealCard(
                 ) {
                     BadgeText("${deal.discountPercent}% OFF", AccentYellow, DarkText)
                     if (deal.isHotDeal) BadgeText("HOT", PrimaryRed, Color.White)
-                    if (stats.isLowestPriceNow) BadgeText("Lowest Price", PrimaryGreen, Color.White)
                 }
             }
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     StorePill(deal.storeName)
+                    if (deal.isVerified) {
+                        Spacer(Modifier.width(6.dp))
+                        BadgeText("Verified", PrimaryGreen, Color.White)
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    BadgeText(formatExpiry(deal.expiryDate), SoftYellow, DarkText)
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(deal.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(4.dp))
+                Text(deal.dealType.toDisplayLabel(), color = GreyText, style = MaterialTheme.typography.labelMedium)
                 Spacer(Modifier.height(6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -334,7 +340,7 @@ fun DealCard(
                     ) {
                         Icon(Icons.Outlined.LocalOffer, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(strings.viewDeal, fontWeight = FontWeight.Bold)
+                        Text(if (deal.couponCode.isNotBlank()) "Get Coupon" else strings.viewDeal, fontWeight = FontWeight.Bold)
                     }
                     Button(
                         onClick = { onOpenDetails?.invoke(deal) },
@@ -407,6 +413,8 @@ fun PriceComparisonCard(
 ) {
     val strings = LocalAppStrings.current
     val prices = deal.comparisonPrices
+    if (prices.isEmpty()) return
+
     val lowest = prices.filter { it.available }.minByOrNull { it.price }
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -415,17 +423,13 @@ fun PriceComparisonCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SectionTitle(strings.priceComparison, "Last updated ${formatDate(deal.priceCheckedAt)}")
-            if (prices.isEmpty()) {
-                EmptyState("No price comparison available.", "Live API prices can be connected here.")
-            } else {
-                prices.forEach { price ->
-                    StorePriceRow(
-                        price = price,
-                        isBestPrice = lowest?.platform == price.platform && price.available,
-                        onClick = { onStoreClick(price) }
-                    )
-                }
+            SectionTitle(strings.priceComparison, subtitle = "Last updated ${formatDate(deal.priceCheckedAt)}")
+            prices.forEach { price ->
+                StorePriceRow(
+                    price = price,
+                    isBestPrice = lowest?.platform == price.platform && price.available,
+                    onClick = { onStoreClick(price) }
+                )
             }
         }
     }
@@ -684,7 +688,7 @@ fun BlogCard(blog: BlogModel, onReadMore: (BlogModel) -> Unit) {
                 Text(blog.shortDescription, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Text("${blog.author} • ${formatDate(blog.createdAt)}", style = MaterialTheme.typography.labelMedium, color = GreyText)
+                    Text("${blog.author} - ${formatDate(blog.createdAt)}", style = MaterialTheme.typography.labelMedium, color = GreyText)
                     Button(onClick = { onReadMore(blog) }, colors = ButtonDefaults.buttonColors(containerColor = PrimaryRed), shape = RoundedCornerShape(14.dp)) {
                         Text("Read More", fontWeight = FontWeight.Bold)
                     }
@@ -746,6 +750,24 @@ fun formatPrice(price: Double): String =
 
 fun formatDate(timestamp: Long): String =
     SimpleDateFormat("dd MMM yyyy", Locale.US).format(Date(timestamp))
+
+fun formatExpiry(timestamp: Long): String {
+    val remaining = timestamp - System.currentTimeMillis()
+    if (remaining <= 0L) return "Expired"
+    val hours = remaining / (60L * 60L * 1000L)
+    val days = hours / 24L
+    return when {
+        days >= 2L -> "Ends in ${days}d"
+        days == 1L -> "Ends tomorrow"
+        hours >= 1L -> "Ends in ${hours}h"
+        else -> "Ends soon"
+    }
+}
+
+private fun String.toDisplayLabel(): String =
+    lowercase(Locale.US)
+        .replace("_", " ")
+        .replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString() }
 
 private fun parseColor(value: String, fallback: Color): Color =
     runCatching { Color(android.graphics.Color.parseColor(value)) }.getOrDefault(fallback)

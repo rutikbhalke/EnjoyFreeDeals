@@ -5,12 +5,16 @@ import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -24,6 +28,7 @@ import com.enjoyfreedeals.app.ui.components.EmptyState
 import com.enjoyfreedeals.app.ui.components.FilterRow
 import com.enjoyfreedeals.app.ui.components.PremiumBackground
 import com.enjoyfreedeals.app.ui.components.SectionTitle
+import com.enjoyfreedeals.app.theme.PrimaryGreen
 import com.enjoyfreedeals.app.utils.Constants
 import com.enjoyfreedeals.app.viewmodel.DealsUiState
 
@@ -40,6 +45,7 @@ fun DealsScreen(
     onTogglePriceAlert: (DealModel) -> Unit,
     onOpenDealDetails: (DealModel) -> Unit,
     onPriceAlertClick: (DealModel) -> Unit,
+    onLoadMore: () -> Unit,
     onMessageShown: () -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -58,7 +64,7 @@ fun DealsScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             item {
-                SectionTitle("All Deals", "Real-time active deals from Firestore with local mock fallback")
+                SectionTitle("All Deals", subtitle = "Live active deals from the EnjoyFreeDeals backend")
             }
             item {
                 DealSearchBox(state.query, onSearch)
@@ -69,7 +75,15 @@ fun DealsScreen(
             item {
                 FilterRow(Constants.sortOptions, state.sortOption, onSort)
             }
-            if (state.filteredDeals.isEmpty()) {
+            if (state.isLoading) {
+                item {
+                    EmptyState("Loading live deals.", "Fetching fresh offers from the backend.")
+                }
+            } else if (state.errorMessage != null) {
+                item {
+                    EmptyState("Live deals unavailable.", state.errorMessage)
+                }
+            } else if (state.filteredDeals.isEmpty()) {
                 item {
                     EmptyState("No deals found.", "Try another keyword.")
                 }
@@ -92,6 +106,18 @@ fun DealsScreen(
                         onOpenDetails = onOpenDealDetails,
                         onPriceAlertClick = onPriceAlertClick
                     )
+                }
+                if (state.canLoadMore) {
+                    item {
+                        Button(
+                            onClick = onLoadMore,
+                            enabled = !state.isLoadingMore,
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (state.isLoadingMore) "Loading..." else "Load More Deals")
+                        }
+                    }
                 }
             }
             item { Spacer(Modifier.height(12.dp)) }

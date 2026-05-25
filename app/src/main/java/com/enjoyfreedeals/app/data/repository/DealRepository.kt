@@ -1,16 +1,20 @@
 package com.enjoyfreedeals.app.data.repository
 
 import android.content.Context
-import com.enjoyfreedeals.app.data.mock.MockDeals
-import com.enjoyfreedeals.app.data.mock.MockPriceHistory
 import com.enjoyfreedeals.app.data.model.DealModel
 import com.enjoyfreedeals.app.data.model.PricePointModel
 import com.enjoyfreedeals.app.data.model.PriceStatsModel
+import com.enjoyfreedeals.app.data.model.StorePriceModel
+import com.enjoyfreedeals.app.data.model.supabase.toDealModel
+import com.enjoyfreedeals.app.data.model.supabase.toStorePriceModel
 import com.enjoyfreedeals.app.data.remote.BackendClient
 import com.enjoyfreedeals.app.data.remote.dataArray
+import com.enjoyfreedeals.app.data.remote.dataObject
 import com.enjoyfreedeals.app.data.remote.toDealModel
 import com.enjoyfreedeals.app.data.remote.toJsonObjects
 import com.enjoyfreedeals.app.data.remote.toPricePointModel
+import com.enjoyfreedeals.app.data.supabase.SupabaseConfig
+import com.enjoyfreedeals.app.data.supabase.SupabaseDealDataSource
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import org.json.JSONObject
@@ -18,35 +22,45 @@ import java.net.URLEncoder
 
 class DealRepository(private val context: Context) {
     private val backendClient = BackendClient()
+    private val supabase = SupabaseDealDataSource()
     private val userRepository = UserRepository(context)
 
-    fun getAllActiveDeals(): Flow<List<DealModel>> = flow {
-        emit(loadDeals("/api/deals?limit=100").getOrElse { MockDeals.deals.filter { deal -> deal.isActive } })
+    fun getAllActiveDeals(page: Int = 1, limit: Int = DEFAULT_PAGE_SIZE): Flow<List<DealModel>> = flow {
+        emit(loadDeals("/api/deals?limit=$limit&page=$page").getOrThrow())
     }
 
-    fun getDealsByCategory(categoryId: String): Flow<List<DealModel>> = flow {
-        val endpoint = "/api/deals?limit=100&category=${categoryId.urlEncode()}"
-        emit(loadDeals(endpoint).getOrElse { MockDeals.deals.filter { deal -> deal.categoryId == categoryId && deal.isActive } })
+    fun getDealsByCategory(categoryId: String, page: Int = 1, limit: Int = DEFAULT_PAGE_SIZE): Flow<List<DealModel>> = flow {
+        val endpoint = "/api/deals?limit=$limit&page=$page&category=${categoryId.urlEncode()}"
+        emit(loadDeals(endpoint).getOrThrow())
+    }
+
+    fun getActiveDeals(): Flow<List<DealModel>> = flow {
+        emit(refreshDeals())
+    }
+
+    suspend fun refreshDeals(): List<DealModel> =
+        loadSupabaseDeals().getOrElse {
+            loadDeals("/api/deals?limit=$DEFAULT_PAGE_SIZE&page=1").getOrThrow()
+        }
+
+    suspend fun getDealByOfferId(offerId: String): DealModel? {
+        val safeOfferId = offerId.trim()
+        if (safeOfferId.isBlank()) return null
+
+        return loadSupabaseDeals().getOrNull()
+            ?.firstOrNull { deal ->
+                deal.dealId == safeOfferId || deal.productId == safeOfferId
+            }
+            ?: loadDeal(safeOfferId).getOrNull()
     }
 
     fun getPriceHistory(dealId: String): Flow<List<PricePointModel>> = flow {
-        val history = runCatching {
+        val history =
             backendClient.get("/api/deals/${dealId.urlEncode()}/price-history", AuthSessionStore.accessToken(context))
                 .dataArray()
                 .toJsonObjects()
                 .map { it.toPricePointModel(dealId) }
-        }.getOrElse { MockPriceHistory.priceHistory[dealId].orEmpty() }
         emit(history)
-    }
-
-    suspend fun trackLivePriceIfChanged(deal: DealModel): PriceStatsModel {
-        val history = runCatching {
-            backendClient.get("/api/deals/${deal.dealId.urlEncode()}/price-history", AuthSessionStore.accessToken(context))
-                .dataArray()
-                .toJsonObjects()
-                .map { it.toPricePointModel(deal.dealId) }
-        }.getOrDefault(emptyList())
-        return calculatePriceStats(deal, history.ifEmpty { listOf(buildPriceHistoryRecord(deal)) })
     }
 
     fun getSavedDeals(): Flow<List<DealModel>> = userRepository.getSavedDeals()
@@ -66,7 +80,7 @@ class DealRepository(private val context: Context) {
     }
 
     suspend fun enablePriceDropAlert(deal: DealModel, targetPrice: Double) {
-        val userId = userRepository.getCurrentUserId() ?: return
+        val userId = userRepository.getCurrentUserId()
         backendClient.post(
             "/api/price-alerts",
             JSONObject()
@@ -80,7 +94,7 @@ class DealRepository(private val context: Context) {
 
     suspend fun disablePriceDropAlert(dealId: String) {
         val userId = userRepository.getCurrentUserId()
-        if (!userId.isNullOrBlank()) {
+        if (userId.isNotBlank()) {
             runCatching {
                 backendClient.delete(
                     "/api/price-alerts/${userId.urlEncode()}/${dealId.urlEncode()}",
@@ -91,28 +105,57 @@ class DealRepository(private val context: Context) {
         userRepository.removePriceDropAlert(dealId)
     }
 
-    suspend fun createPriceDropNotificationIfNeeded(
+    fun createPriceDropNotificationIfNeeded(
         deal: DealModel,
         history: List<PricePointModel>,
         targetPrice: Double
     ): Boolean =
         shouldCreatePriceDropNotification(deal, history, targetPrice)
 
-    suspend fun incrementDealCounter(dealId: String, field: String) {
-        // Public counter mutation is intentionally server-owned in the Supabase backend.
-    }
-
     private suspend fun loadDeals(endpoint: String): Result<List<DealModel>> = runCatching {
         backendClient.get(endpoint, AuthSessionStore.accessToken(context))
             .dataArray()
             .toJsonObjects()
             .map { it.toDealModel() }
+            .filter { it.isActive && it.expiryDate > System.currentTimeMillis() }
+    }
+
+    private suspend fun loadDeal(dealId: String): Result<DealModel?> = runCatching {
+        backendClient.get("/api/deals/${dealId.urlEncode()}", AuthSessionStore.accessToken(context))
+            .dataObject()
+            .takeIf { it.length() > 0 }
+            ?.toDealModel()
+            ?.takeIf { it.isActive && it.expiryDate > System.currentTimeMillis() }
+    }
+
+    private suspend fun loadSupabaseDeals(): Result<List<DealModel>> = runCatching {
+        if (!SupabaseConfig.isConfigured) error("Supabase is not configured")
+
+        val comparisonsByProduct = supabase.priceComparison()
+            .groupBy { it.productId }
+            .mapValues { (_, comparisons) ->
+                comparisons.map { it.toStorePriceModel() }
+                    .sortedWith(compareBy<StorePriceModel> { !it.available }.thenBy { it.price })
+            }
+        val statsByProduct = supabase.productPriceStats().associateBy { it.productId }
+
+        supabase.activeDeals()
+            .map { deal ->
+                val productId = deal.productId.ifBlank { deal.offerId }
+                deal.toDealModel(
+                    comparisonPrices = comparisonsByProduct[productId].orEmpty(),
+                    priceStats = statsByProduct[productId]
+                )
+            }
+            .filter { it.isActive && it.expiryDate > System.currentTimeMillis() }
     }
 
     private fun String.urlEncode(): String =
         URLEncoder.encode(this, Charsets.UTF_8.name())
 
     companion object {
+        const val DEFAULT_PAGE_SIZE = 20
+
         fun buildPriceHistoryRecord(
             deal: DealModel,
             history: List<PricePointModel> = emptyList(),
@@ -121,7 +164,7 @@ class DealRepository(private val context: Context) {
             val previousPrice = history.maxByOrNull { it.recordedAt }?.price ?: deal.effectivePrice
             val provisional = PricePointModel(
                 id = "${deal.dealId}-$checkedAt",
-                productId = deal.dealId,
+                productId = deal.productId.ifBlank { deal.dealId },
                 storeName = deal.storeName,
                 productUrl = deal.productUrl,
                 affiliateUrl = deal.redirectUrl,

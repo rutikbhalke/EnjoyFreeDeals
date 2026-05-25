@@ -1,9 +1,7 @@
 package com.enjoyfreedeals.app.data.repository
 
 import android.content.Context
-import com.enjoyfreedeals.app.data.mock.MockDeals
 import com.enjoyfreedeals.app.data.model.NotificationModel
-import com.enjoyfreedeals.app.data.model.NotificationType
 import com.enjoyfreedeals.app.data.remote.BackendClient
 import com.enjoyfreedeals.app.data.remote.dataArray
 import com.enjoyfreedeals.app.data.remote.toJsonObjects
@@ -27,12 +25,10 @@ class NotificationRepository(private val context: Context) {
             return@flow
         }
 
-        val notifications = runCatching {
-            backendClient.get("/api/notifications/${userId.urlEncode()}", AuthSessionStore.accessToken(context))
-                .dataArray()
-                .toJsonObjects()
-                .map { it.toNotificationModel() }
-        }.getOrElse { mockNotifications(userId) }
+        val notifications = backendClient.get("/api/notifications/${userId.urlEncode()}", AuthSessionStore.accessToken(context))
+            .dataArray()
+            .toJsonObjects()
+            .map { it.toNotificationModel() }
 
         emit(notifications)
     }
@@ -61,7 +57,8 @@ class NotificationRepository(private val context: Context) {
         )
     }
 
-    suspend fun saveFcmToken(userId: String, token: String) {
+    fun saveFcmToken(userId: String, token: String) {
+        if (userId.isBlank()) return
         UserRepository.mockUser = UserRepository.mockUser.copy(fcmToken = token)
     }
 
@@ -74,20 +71,6 @@ class NotificationRepository(private val context: Context) {
         saveFcmToken(userId, token)
         return token
     }
-
-    private fun mockNotifications(userId: String): List<NotificationModel> = listOf(
-        NotificationModel(
-            notificationId = "hot-amazon",
-            title = "Hot deal alert",
-            message = "boAt Bluetooth Earbuds are now 60% off.",
-            image = MockDeals.deals.first().productImage,
-            dealId = "amazon-boat-earbuds",
-            targetUrl = MockDeals.deals.first().redirectUrl,
-            notificationType = NotificationType.HOT_DEAL.name,
-            isRead = false,
-            userId = userId
-        )
-    )
 
     private fun String.urlEncode(): String =
         URLEncoder.encode(this, Charsets.UTF_8.name())

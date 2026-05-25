@@ -2,6 +2,7 @@ package com.enjoyfreedeals.app.data.model
 
 data class DealModel(
     var dealId: String = "",
+    var productId: String = dealId,
     var title: String = "",
     var description: String = "",
     var productImage: String = "",
@@ -21,6 +22,7 @@ data class DealModel(
     var isFreeDeal: Boolean = false,
     var isActive: Boolean = true,
     var isFeatured: Boolean = false,
+    var isVerified: Boolean = false,
     var shareCount: Int = 0,
     var savedCount: Int = 0,
     var currentPrice: Double = discountedPrice,
@@ -29,7 +31,10 @@ data class DealModel(
     var averagePrice: Double = currentPrice,
     var priceCheckedAt: Long = System.currentTimeMillis(),
     var rating: Double = 4.3,
+    var ratingCount: Int = 0,
+    var reviewCount: Int = 0,
     var deliveryInfo: String = "Free delivery",
+    var availability: String = "in_stock",
     var comparisonPrices: List<StorePriceModel> = emptyList(),
     var createdAt: Long = System.currentTimeMillis(),
     var updatedAt: Long = System.currentTimeMillis(),
@@ -57,7 +62,11 @@ data class StorePriceModel(
     var available: Boolean = true,
     var deliveryInfo: String = "Free delivery",
     var rating: Double = 4.2,
+    var ratingCount: Int = 0,
+    var reviewCount: Int = 0,
     var couponCode: String = "",
+    var isLowestPrice: Boolean = false,
+    var storeLogoUrl: String = "",
     var lastUpdated: Long = System.currentTimeMillis()
 ) {
     val redirectUrl: String

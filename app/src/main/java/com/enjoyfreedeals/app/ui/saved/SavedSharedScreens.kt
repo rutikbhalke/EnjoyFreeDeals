@@ -30,7 +30,7 @@ fun SavedDealsScreen(
     val context = LocalContext.current
     PremiumBackground {
         LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            item { SectionTitle("Saved Deals", "Deals you bookmarked for later") }
+            item { SectionTitle("Saved Deals", subtitle = "Deals you bookmarked for later") }
             if (deals.isEmpty()) {
                 item { EmptyState("You have not saved any deals yet.", "Tap the heart on a deal to save it.") }
             } else {
@@ -68,7 +68,7 @@ fun SharedDealsScreen(
     val context = LocalContext.current
     PremiumBackground {
         LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            item { SectionTitle("Shared Deals", "Deals you have already shared") }
+            item { SectionTitle("Shared Deals", subtitle = "Deals you have already shared") }
             if (deals.isEmpty()) {
                 item { EmptyState("You have not shared any deals yet.", "Share a deal with friends to see it here.") }
             } else {

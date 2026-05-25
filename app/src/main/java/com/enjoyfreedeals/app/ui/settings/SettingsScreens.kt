@@ -55,7 +55,7 @@ fun SettingsScreen(
     val strings = LocalAppStrings.current
     PremiumBackground {
         LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            item { SectionTitle(strings.settings, "Manage app preferences and support") }
+            item { SectionTitle(strings.settings, subtitle = "Manage app preferences and support") }
             item {
                 Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Column(Modifier.padding(8.dp)) {
@@ -86,7 +86,7 @@ fun LanguageSettingsScreen(
     val strings = LocalAppStrings.current
     PremiumBackground {
         LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { SectionTitle(strings.language, "Choose the app language") }
+            item { SectionTitle(strings.language, subtitle = "Choose the app language") }
             items(Localization.supportedLanguages, key = { it.code }) { language ->
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { onSelectLanguage(language.code) },

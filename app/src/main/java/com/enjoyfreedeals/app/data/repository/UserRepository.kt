@@ -23,7 +23,7 @@ import java.net.URLEncoder
 class UserRepository(private val context: Context) {
     private val backendClient = BackendClient()
 
-    fun getCurrentUserId(): String? =
+    fun getCurrentUserId(): String =
         AuthSessionStore.currentUserId(context) ?: mockUser.userId
 
     fun getCurrentUserProfile(): Flow<UserModel> = callbackFlow {
@@ -55,10 +55,6 @@ class UserRepository(private val context: Context) {
         }
     }
 
-    suspend fun saveUserProfile(user: UserModel) {
-        updateUserProfile(user)
-    }
-
     suspend fun updateUserProfile(user: UserModel) {
         val updated = user.copy(updatedAt = System.currentTimeMillis())
         val payload = JSONObject()
@@ -78,18 +74,18 @@ class UserRepository(private val context: Context) {
         AuthSessionStore.updateUser(context, mockUser)
     }
 
-    suspend fun updateNotificationPreference(enabled: Boolean) {
+    fun updateNotificationPreference(enabled: Boolean) {
         mockUser = mockUser.copy(notificationEnabled = enabled, updatedAt = System.currentTimeMillis())
         AuthSessionStore.updateUser(context, mockUser)
     }
 
-    suspend fun updateDarkModePreference(enabled: Boolean) {
+    fun updateDarkModePreference(enabled: Boolean) {
         mockUser = mockUser.copy(darkModeEnabled = enabled, updatedAt = System.currentTimeMillis())
         AuthSessionStore.updateUser(context, mockUser)
     }
 
     suspend fun addSavedDeal(dealId: String) {
-        val userId = getCurrentUserId() ?: return
+        val userId = getCurrentUserId()
         backendClient.post(
             "/api/wishlist",
             JSONObject()
@@ -103,7 +99,7 @@ class UserRepository(private val context: Context) {
     }
 
     suspend fun removeSavedDeal(dealId: String) {
-        val userId = getCurrentUserId() ?: return
+        val userId = getCurrentUserId()
         runCatching {
             backendClient.delete(
                 "/api/wishlist/${userId.urlEncode()}/${dealId.urlEncode()}",
@@ -114,7 +110,7 @@ class UserRepository(private val context: Context) {
     }
 
     suspend fun addSharedDeal(dealId: String) {
-        val userId = getCurrentUserId() ?: return
+        val userId = getCurrentUserId()
         backendClient.post(
             "/api/shared-deals",
             JSONObject()
@@ -126,7 +122,7 @@ class UserRepository(private val context: Context) {
         mockUser = mockUser.copy(sharedDeals = (mockUser.sharedDeals + dealId).distinct())
     }
 
-    suspend fun addPriceDropAlert(dealId: String, targetPrice: Double) {
+    fun addPriceDropAlert(dealId: String, targetPrice: Double) {
         val targets = mockUser.priceDropTargetPrices + (dealId to targetPrice)
         if (!mockUser.priceDropAlerts.contains(dealId)) {
             mockUser = mockUser.copy(priceDropAlerts = mockUser.priceDropAlerts + dealId)
@@ -135,7 +131,7 @@ class UserRepository(private val context: Context) {
         AuthSessionStore.updateUser(context, mockUser)
     }
 
-    suspend fun removePriceDropAlert(dealId: String) {
+    fun removePriceDropAlert(dealId: String) {
         mockUser = mockUser.copy(
             priceDropAlerts = mockUser.priceDropAlerts - dealId,
             priceDropTargetPrices = mockUser.priceDropTargetPrices - dealId
@@ -145,7 +141,7 @@ class UserRepository(private val context: Context) {
 
     fun getSavedDeals(): Flow<List<DealModel>> = flow {
         val userId = getCurrentUserId()
-        if (userId.isNullOrBlank() || userId == Constants.MOCK_USER_ID) {
+        if (userId == Constants.MOCK_USER_ID) {
             emit(MockDeals.deals.filter { mockUser.savedDeals.contains(it.dealId) })
             return@flow
         }
@@ -155,9 +151,7 @@ class UserRepository(private val context: Context) {
                 .dataArray()
                 .toJsonObjects()
                 .mapNotNull { it.optJSONObject("deal")?.toDealModel() }
-        }.getOrElse {
-            MockDeals.deals.filter { deal -> mockUser.savedDeals.contains(deal.dealId) }
-        }
+        }.getOrThrow()
 
         mockUser = mockUser.copy(savedDeals = deals.map { it.dealId })
         emit(deals)
@@ -166,7 +160,7 @@ class UserRepository(private val context: Context) {
     fun getSharedDeals(): Flow<List<DealModel>> =
         flow {
             val userId = getCurrentUserId()
-            if (userId.isNullOrBlank() || userId == Constants.MOCK_USER_ID) {
+            if (userId == Constants.MOCK_USER_ID) {
                 emit(emptyList())
                 return@flow
             }
@@ -176,7 +170,7 @@ class UserRepository(private val context: Context) {
                     .dataArray()
                     .toJsonObjects()
                     .mapNotNull { it.optJSONObject("deal")?.toDealModel() }
-            }.getOrElse { emptyList() }
+            }.getOrThrow()
 
             mockUser = mockUser.copy(sharedDeals = deals.map { it.dealId })
             emit(deals)
