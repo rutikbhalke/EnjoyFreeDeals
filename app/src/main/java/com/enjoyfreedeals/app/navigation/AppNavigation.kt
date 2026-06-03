@@ -42,7 +42,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.enjoyfreedeals.app.data.model.DealModel
 import com.enjoyfreedeals.app.ui.about.AboutScreen
-import com.enjoyfreedeals.app.ui.auth.CreateAccountScreen
 import com.enjoyfreedeals.app.ui.auth.LoginScreen
 import com.enjoyfreedeals.app.ui.blog.BlogDetailScreen
 import com.enjoyfreedeals.app.ui.blog.BlogScreen
@@ -85,7 +84,6 @@ fun AppNavigation(
 ) {
     val rootNavController = rememberNavController()
     val authState by authViewModel.uiState.collectAsState()
-    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         authViewModel.checkSession()
@@ -102,24 +100,8 @@ fun AppNavigation(
         composable(Route.Login) {
             LoginScreen(
                 state = authState,
-                onLogin = authViewModel::login,
-                onGoogleLogin = { authViewModel.loginWithGoogle(context) },
-                onForgotPassword = authViewModel::forgotPassword,
-                onCreateAccount = { rootNavController.navigate(Route.Register) },
-                onSuccess = {
-                    rootNavController.navigate(Route.Main) {
-                        popUpTo(Route.Login) { inclusive = true }
-                    }
-                },
-                onMessageShown = authViewModel::clearMessage
-            )
-        }
-        composable(Route.Register) {
-            CreateAccountScreen(
-                state = authState,
-                onRegister = authViewModel::register,
-                onGoogleLogin = { authViewModel.loginWithGoogle(context) },
-                onLogin = { rootNavController.popBackStack() },
+                onRequestOtp = authViewModel::requestLoginOtp,
+                onVerifyOtp = authViewModel::verifyLoginOtp,
                 onSuccess = {
                     rootNavController.navigate(Route.Main) {
                         popUpTo(Route.Login) { inclusive = true }
@@ -174,7 +156,8 @@ private fun MainScaffold(
     val strings = LocalAppStrings.current
     val currentRoute = destination?.route
     val bottomRoutes = bottomTabs.map { it.route }.toSet()
-    val showBottomBar = currentRoute != null && currentRoute in bottomRoutes
+    val bottomBarDestination = destination?.takeIf { it.route in bottomRoutes }
+    val showBottomBar = bottomBarDestination != null
     val nestedTitle = when (currentRoute) {
         Route.CategoryDeals -> categoryState.selectedCategory?.categoryName ?: "Category Deals"
         Route.BlogDetail -> "Article"
@@ -227,7 +210,7 @@ private fun MainScaffold(
             }
         },
         bottomBar = {
-            if (showBottomBar && destination != null) {
+            if (bottomBarDestination != null) {
                 Surface(
                     shadowElevation = 10.dp,
                     shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
@@ -237,7 +220,7 @@ private fun MainScaffold(
                         containerColor = MaterialTheme.colorScheme.surface
                     ) {
                         bottomTabs.forEach { tab ->
-                            val selected = destination.hierarchy.any { it.route == tab.route }
+                            val selected = bottomBarDestination.hierarchy.any { it.route == tab.route }
                             val scale by animateFloatAsState(if (selected) 1.16f else 1f, label = "${tab.route}-scale")
                             val label = tab.label(strings)
                             NavigationBarItem(
@@ -466,7 +449,6 @@ private fun MainScaffold(
 private object Route {
     const val Splash = "splash"
     const val Login = "login"
-    const val Register = "register"
     const val Main = "main"
     const val Home = "home"
     const val Deals = "deals"

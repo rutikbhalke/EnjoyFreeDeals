@@ -39,7 +39,6 @@ import androidx.compose.material.icons.outlined.Devices
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.ImageNotSupported
 import androidx.compose.material.icons.outlined.LocalGroceryStore
 import androidx.compose.material.icons.outlined.LocalOffer
 import androidx.compose.material.icons.outlined.NotificationsActive
@@ -68,6 +67,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.core.graphics.toColorInt
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -278,7 +278,14 @@ fun DealCard(
                     contentScale = ContentScale.Crop,
                     error = {
                         Box(Modifier.fillMaxSize().background(SoftGreen), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Outlined.ImageNotSupported, contentDescription = null, tint = PrimaryGreen)
+                            Image(
+                                painter = painterResource(R.drawable.enjoyfreedeals_logo),
+                                contentDescription = deal.title,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(18.dp),
+                                contentScale = ContentScale.Fit
+                            )
                         }
                     },
                     loading = { ShimmerBlock(Modifier.fillMaxSize()) }
@@ -770,7 +777,7 @@ private fun String.toDisplayLabel(): String =
         .replaceFirstChar { char -> if (char.isLowerCase()) char.titlecase(Locale.US) else char.toString() }
 
 private fun parseColor(value: String, fallback: Color): Color =
-    runCatching { Color(android.graphics.Color.parseColor(value)) }.getOrDefault(fallback)
+    runCatching { Color(value.toColorInt()) }.getOrDefault(fallback)
 
 fun categoryIcon(id: String): ImageVector = when (id) {
     "electronics" -> Icons.Outlined.Devices

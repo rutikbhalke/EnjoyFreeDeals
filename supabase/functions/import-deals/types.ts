@@ -7,6 +7,7 @@ export type DealSourceRow = {
   source_type: string;
   base_url: string;
   secret_name: string;
+  config?: JsonObject | null;
   enabled: boolean;
   trust_level: number;
   run_interval_minutes: number;

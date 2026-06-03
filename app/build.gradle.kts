@@ -20,7 +20,6 @@ fun projectProperty(name: String, defaultValue: String = ""): String =
         .get()
 
 val backendBaseUrl = projectProperty("BACKEND_BASE_URL", "http://10.0.2.2:5000")
-val googleWebClientId = projectProperty("GOOGLE_WEB_CLIENT_ID")
 val supabaseUrl = projectProperty("SUPABASE_URL")
 val supabaseAnonKey = projectProperty("SUPABASE_ANON_KEY")
 
@@ -60,7 +59,6 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "BACKEND_BASE_URL", backendBaseUrl.asBuildConfigString())
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", googleWebClientId.asBuildConfigString())
         buildConfigField("String", "SUPABASE_URL", resolvedSupabaseUrl.asBuildConfigString())
         buildConfigField("String", "SUPABASE_ANON_KEY", resolvedSupabaseAnonKey.asBuildConfigString())
     }
@@ -100,21 +98,16 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.credentials)
-    implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.fragment.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.coil.compose)
-    implementation(libs.firebase.auth)
     implementation(libs.firebase.firestore)
     implementation(libs.firebase.messaging)
-    implementation(libs.googleid)
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.ktor.client.android)
-    implementation(libs.supabase.auth)
     implementation(libs.supabase.postgrest)
     implementation(libs.supabase.realtime)
     coreLibraryDesugaring(libs.android.desugar.jdk.libs)

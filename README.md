@@ -39,14 +39,10 @@ The API runs on `http://localhost:5000` by default.
 
 ## API Routes
 
-- `POST /api/auth/register`
-  - Body: `name`, `email`, `mobile`, `password`
-- `POST /api/auth/login`
-  - Body: `email`, `password`
-- `POST /api/auth/google`
-  - Body: `idToken`; optional `accessToken`, `nonce`
-- `POST /api/auth/password-reset`
-  - Body: `email`
+- `POST /api/auth/whatsapp/request-otp`
+  - Body: `mobile`
+- `POST /api/auth/whatsapp/verify-otp`
+  - Body: `mobile`, `otp`; optional `name`, `email`
 - `GET /api/auth/me`
   - Requires `Authorization: Bearer <accessToken>`
 - `GET /api/deals`
@@ -116,6 +112,7 @@ The smart deal importer runs server-side as a Supabase Edge Function. Android do
 
 - Reads enabled sources from `deal_sources`.
 - Scrapes configured original source URLs when `deal_sources.source_type='scrape'`.
+- Polls Telegram channel posts when `deal_sources.source_type='telegram'`.
 - Keeps `affiliate_link` equal to the original product URL until affiliate APIs/links are added later.
 - Normalizes source items into the existing `deals` table.
 - Deduplicates by `dedupe_key`.
@@ -139,12 +136,86 @@ Use comma-separated URLs for multiple pages. The scraper stores original URLs no
 
 Scraped deals with weak quality signals are stored as `pending` or `needs_review`. Admin users can review them through `/api/admin/scraped-deals` and approve or reject individual items.
 
+### Telegram Channel Imports
+
+Telegram channel imports are server-side only. Do not put the bot token in Android.
+
+1. If the bot token was shared in chat or screenshots, rotate it in BotFather first.
+2. Add `@EnjoyFreeDeal_bot` to the Telegram channel as an admin so the bot receives future channel posts.
+3. Run [supabase/configure-telegram-source.sql](supabase/configure-telegram-source.sql) in the Supabase SQL editor to add the `telegram_enjoyfreedeals` source for `https://t.me/+X925uAMEGvgwOWY1`.
+4. Set the new bot token as an Edge Function secret:
+
+```bash
+supabase secrets set TELEGRAM_BOT_TOKEN=your_new_bot_token
+```
+
+The Bot API cannot fetch private-channel history from an invite link. It can import new posts after the bot is added to the channel. After the first imported post, the raw payload includes `telegramChatId`; place that value in `deal_sources.config.channelId` or `TELEGRAM_ALLOWED_CHAT_IDS` to strictly filter the selected channel.
+
+This importer uses Telegram `getUpdates` polling. If a webhook was previously set on the bot, remove it before deploying this importer.
+
+For local backend testing, set `TELEGRAM_BOT_TOKEN` in `.env`, restart the backend, add the bot as a channel admin, post a fresh deal message, then open:
+
+```text
+http://127.0.0.1:5000/api/admin/import-telegram
+```
+
+The endpoint returns `updateCount` and `dealCount`. `updateCount: 0` means Telegram has not delivered any new posts to the bot yet. Imported Telegram deals appear in `GET /api/deals`.
+
+For public Telegram preview pages, the backend can scrape `t.me/s/...` pages directly. The Genie Loot invite link is private, so the default scraper uses the public preview page discovered for Genie Loot-related deal posts:
+
+```text
+http://127.0.0.1:5000/api/admin/scrape-genie-loot?maxPages=25
+```
+
+By default the local backend now scrapes these public Telegram channels together:
+
+```text
+https://t.me/s/India_loot_deals
+https://t.me/s/king_deal_1
+https://t.me/s/icoolzTricks
+```
+
+Set `GENIE_LOOT_PAGE_URLS` to change that list. The scraper ranks all parsed posts and imports only the best third by highest discount, then lowest deal price, so the app feed focuses on the cheapest high-value deals instead of every Telegram post. This is a permanent backend filter: every future sync marks non-selected Telegram-page deals as `rejected`, and `GET /api/deals` only serves active deals.
+
+For Vercel, set the same environment variables in the Vercel project settings:
+
+```bash
+GENIE_LOOT_PAGE_URLS=https://t.me/s/India_loot_deals,https://t.me/s/king_deal_1,https://t.me/s/icoolzTricks
+GENIE_LOOT_BEST_DEAL_FRACTION=0.3333333333
+GENIE_LOOT_CHEAP_PRICE_LIMIT=999
+GENIE_LOOT_REJECT_UNSELECTED=true
+GENIE_LOOT_STALE_SCAN_LIMIT=5000
+```
+
+After the Telegram posts are imported, resolve their product links and pull merchant details, images, and structured prices where the product site exposes them:
+
+```text
+http://127.0.0.1:5000/api/admin/enrich-genie-loot?limit=1000&concurrency=5
+```
+
+For a browser-fast all-entry run, start the scrape/enrichment as a background job:
+
+```text
+http://127.0.0.1:5000/api/admin/sync-genie-loot?fast=1&quick=1&maxPages=100&limit=1000&concurrency=20&timeoutMs=2000
+```
+
+To override the channel list in one request, pass comma-separated public preview URLs:
+
+```text
+http://127.0.0.1:5000/api/admin/sync-genie-loot?fast=1&quick=1&urls=https://t.me/s/India_loot_deals,https://t.me/s/king_deal_1,https://t.me/s/icoolzTricks&maxPages=100&limit=1000&concurrency=20&timeoutMs=2000
+```
+
+The response includes a `statusUrl` that can be opened to see whether the job is still running or complete.
+
+Use `url=https://t.me/s/channel_name` to target another public Telegram channel preview. Private `https://t.me/+...` invite links still cannot expose old post history.
+
 ### Edge Function Secrets
 
 Set these in Supabase, not in Android:
 
 ```bash
 supabase secrets set IMPORT_DEALS_CRON_SECRET=use_a_long_random_value
+supabase secrets set TELEGRAM_BOT_TOKEN=your_new_bot_token
 ```
 
 Source API keys can be added later using the secret names already stored in `deal_sources`:
@@ -203,28 +274,36 @@ If Supabase tables are missing, the API returns:
 }
 ```
 
-## Google OAuth Setup
+## WhatsApp OTP Setup
 
-Google login uses the native Android ID-token flow. Android gets a Google ID token, sends it to `POST /api/auth/google`, and the backend exchanges it with Supabase Auth. Android never receives a Supabase service-role key or a Google client secret.
+WhatsApp login uses the backend OTP endpoints. Android sends the mobile number to `POST /api/auth/whatsapp/request-otp`, then verifies the code with `POST /api/auth/whatsapp/verify-otp`. MyOperator credentials stay on the backend only and are never included in the Android build.
 
-Manual setup required:
+Set these values in the backend environment:
 
-1. In Google Cloud, configure the OAuth consent screen.
-2. Create a Web OAuth Client ID. This value is used as `GOOGLE_WEB_CLIENT_ID` in Android builds.
-3. Create an Android OAuth client for package `com.example.freedeals1` with the debug/release SHA fingerprints.
-4. In Supabase Dashboard, enable Auth Provider: Google, then add the Web Client ID and Web Client Secret.
-
-Build Android with the Web Client ID:
-
-```powershell
-.\gradlew :app:assembleDebug -PGOOGLE_WEB_CLIENT_ID="your-web-client-id.apps.googleusercontent.com"
+```bash
+APP_ENV=development
+MYOPERATOR_BASE_URL=https://publicapi.myoperator.co
+MYOPERATOR_SEND_PATH=/chat/messages
+MYOPERATOR_API_TOKEN=your_myoperator_whatsapp_auth_token_here
+MYOPERATOR_COMPANY_ID=your_myoperator_company_id_here
+MYOPERATOR_PHONE_NUMBER_ID=your_myoperator_phone_number_id_here
+MYOPERATOR_WHATSAPP_TEMPLATE_NAME=otp_verify
+MYOPERATOR_WHATSAPP_TEMPLATE_LANGUAGE=en
+SAMPLE_LOGIN_MOBILE=9699353648
+SAMPLE_LOGIN_OTP=123456
+FIXED_LOGIN_MOBILE=9699353648
+FIXED_LOGIN_OTP=123456
+WHATSAPP_OTP_SECRET=change_this_to_a_long_random_value
+WHATSAPP_OTP_PASSWORD_SECRET=change_this_to_a_different_long_random_value
 ```
 
-The Google Web Client ID is safe to include in Android. The Google Client Secret is not safe for Android and must stay in Google/Supabase provider configuration only.
+For local testing without sending real WhatsApp messages, set `APP_ENV=development`. In development only, OTP `123456` is accepted by the backend for valid Indian mobile numbers. In non-development environments, OTPs must come from MyOperator.
+
+For local testing, [supabase/seed.sql](supabase/seed.sql) adds mobile `9699353648` with OTP `123456` to `sample_whatsapp_otp_logins`. The backend reads that table through the normal WhatsApp OTP endpoints, with the `FIXED_LOGIN_*` env values as a fallback before the seed is applied.
 
 ## Android Notes
 
-The Android app is Kotlin-based and calls this backend for email/password and Google auth.
+The Android app is Kotlin-based and calls this backend for authentication and deal data.
 
 - Keep Supabase service credentials out of Android.
 - The default Android backend URL is `http://10.0.2.2:5000`, which works for the Android emulator when the backend runs on your machine.

@@ -51,7 +51,7 @@ async function getDealById(id) {
     .not("last_scraped_at", "is", null)
     .not("dedupe_key", "is", null)
     .neq("source_url", "")
-    .eq("raw_source_payload->>connectorMode", "html-scrape")
+    .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "direct-platform-fetch"])
     .or(nonExpiredDealFilter())
     .maybeSingle();
   throwIfSupabaseError(error, TABLE);
@@ -100,7 +100,7 @@ function applyPublicDealVisibility(query) {
     .not("last_scraped_at", "is", null)
     .not("dedupe_key", "is", null)
     .neq("source_url", "")
-    .eq("raw_source_payload->>connectorMode", "html-scrape")
+    .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "direct-platform-fetch"])
     .or(nonExpiredDealFilter());
 }
 

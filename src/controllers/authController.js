@@ -1,37 +1,19 @@
 const authRepository = require("../repositories/authRepository");
-const { sendCreated, sendSuccess } = require("../utils/responses");
+const { sendSuccess } = require("../utils/responses");
 
-async function register(req, res, next) {
+async function requestWhatsAppOtp(req, res, next) {
   try {
-    const authResult = await authRepository.register(req.body);
-    return sendCreated(res, authResult);
-  } catch (error) {
-    next(error);
-  }
-}
-
-async function login(req, res, next) {
-  try {
-    const authResult = await authRepository.login(req.body);
-    return sendSuccess(res, authResult);
-  } catch (error) {
-    next(error);
-  }
-}
-
-async function googleLogin(req, res, next) {
-  try {
-    const authResult = await authRepository.loginWithGoogle(req.body);
-    return sendSuccess(res, authResult);
-  } catch (error) {
-    next(error);
-  }
-}
-
-async function sendPasswordReset(req, res, next) {
-  try {
-    const result = await authRepository.sendPasswordReset(req.body);
+    const result = await authRepository.requestWhatsAppOtp(req.body);
     return sendSuccess(res, result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function verifyWhatsAppOtp(req, res, next) {
+  try {
+    const authResult = await authRepository.verifyWhatsAppOtp(req.body);
+    return sendSuccess(res, authResult);
   } catch (error) {
     next(error);
   }
@@ -53,4 +35,4 @@ function getBearerToken(req) {
   return match ? match[1] : "";
 }
 
-module.exports = { register, login, googleLogin, sendPasswordReset, me };
+module.exports = { requestWhatsAppOtp, verifyWhatsAppOtp, me };

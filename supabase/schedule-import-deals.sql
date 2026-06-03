@@ -1,6 +1,6 @@
 -- Schedule the import-deals Edge Function to run once every hour.
--- Current safe production mode runs the reliable Amazon scraper only.
--- Add other source keys after a proxy/API connector is configured for them.
+-- Production mode runs all enabled sources that are due, including Telegram
+-- sources configured in public.deal_sources.
 --
 -- Replace these placeholders before running in the Supabase SQL editor:
 --   <PROJECT_REF>              Example: pzgyphnerjatlqlvvvsl
@@ -33,8 +33,7 @@ select cron.schedule(
       ),
       body := jsonb_build_object(
         'scheduled', true,
-        'force', true,
-        'sourceKey', 'amazon'
+        'force', false
       )
     ) as request_id;
   $$

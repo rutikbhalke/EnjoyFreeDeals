@@ -3,6 +3,8 @@ package com.enjoyfreedeals.app.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.enjoyfreedeals.app.data.local.LocalSampleData
+import com.enjoyfreedeals.app.data.mock.MockCategories
 import com.enjoyfreedeals.app.data.model.CategoryModel
 import com.enjoyfreedeals.app.data.model.DealModel
 import com.enjoyfreedeals.app.data.model.PriceComparisonProductModel
@@ -48,11 +50,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             dealRepository.getAllActiveDeals(limit = 30)
                 .catch { error ->
+                    val fallbackDeals = LocalSampleData.deals
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            deals = emptyList(),
-                            errorMessage = error.friendlyMessage("Could not load live deals. Please check the backend connection.")
+                            deals = fallbackDeals,
+                            errorMessage = if (fallbackDeals.isEmpty()) {
+                                error.friendlyMessage("Could not load live deals. Please check the backend connection.")
+                            } else {
+                                null
+                            }
                         )
                     }
                 }
@@ -62,9 +69,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch {
             categoryRepository.getAllCategories()
-                .catch { error ->
+                .catch { _ ->
                     _uiState.update {
-                        it.copy(errorMessage = error.friendlyMessage("Could not load categories."))
+                        it.copy(categories = MockCategories.categories)
                     }
                 }
                 .collect { categories ->
@@ -73,7 +80,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
         viewModelScope.launch {
             priceComparisonRepository.getPriceComparisons()
-                .catch { _ -> _uiState.update { it.copy(priceComparisons = emptyList()) } }
+                .catch { _ -> _uiState.update { it.copy(priceComparisons = LocalSampleData.priceComparisonProducts) } }
                 .collect { comparisons ->
                     _uiState.update { it.copy(priceComparisons = comparisons) }
                 }

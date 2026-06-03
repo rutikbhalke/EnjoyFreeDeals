@@ -55,25 +55,6 @@ class UserRepository(private val context: Context) {
         }
     }
 
-    suspend fun updateUserProfile(user: UserModel) {
-        val updated = user.copy(updatedAt = System.currentTimeMillis())
-        val payload = JSONObject()
-            .put("fullName", updated.name)
-            .put("email", updated.email)
-            .put("avatarUrl", updated.profileImage)
-
-        val saved = runCatching {
-            backendClient.put(
-                "/api/profiles/${updated.userId.urlEncode()}",
-                payload,
-                AuthSessionStore.accessToken(context)
-            ).dataObject().toUserModel(updated)
-        }.getOrElse { updated }
-
-        mockUser = mergeLocalUserState(saved)
-        AuthSessionStore.updateUser(context, mockUser)
-    }
-
     fun updateNotificationPreference(enabled: Boolean) {
         mockUser = mockUser.copy(notificationEnabled = enabled, updatedAt = System.currentTimeMillis())
         AuthSessionStore.updateUser(context, mockUser)

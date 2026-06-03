@@ -3,6 +3,7 @@ package com.enjoyfreedeals.app.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.enjoyfreedeals.app.data.local.LocalSampleData
 import com.enjoyfreedeals.app.data.model.DealModel
 import com.enjoyfreedeals.app.data.model.PricePointModel
 import com.enjoyfreedeals.app.data.repository.DealRepository
@@ -55,14 +56,25 @@ class DealsViewModel(application: Application) : AndroidViewModel(application) {
             repository.getAllActiveDeals(page = 1, limit = pageSize)
                 .catch { error ->
                     _uiState.update {
+                        val fallbackDeals = LocalSampleData.deals
                         it.copy(
                             isLoading = false,
-                            allDeals = emptyList(),
-                            filteredDeals = emptyList(),
+                            allDeals = fallbackDeals,
+                            filteredDeals = DealRepository.filterAndSortDeals(
+                                fallbackDeals,
+                                it.query,
+                                it.storeFilter,
+                                it.sortOption
+                            ),
                             canLoadMore = false,
-                            errorMessage = error.friendlyMessage("Could not load live deals. Please check the backend connection.")
+                            errorMessage = if (fallbackDeals.isEmpty()) {
+                                error.friendlyMessage("Could not load live deals. Please check the backend connection.")
+                            } else {
+                                null
+                            }
                         )
                     }
+                    observePriceHistory(LocalSampleData.deals.take(priceHistoryPreloadLimit))
                 }
                 .collect { deals ->
                     _uiState.update {
@@ -88,11 +100,11 @@ class DealsViewModel(application: Application) : AndroidViewModel(application) {
             val page = state.nextPage
             _uiState.update { it.copy(isLoadingMore = true, message = null) }
             repository.getAllActiveDeals(page = page, limit = pageSize)
-                .catch { error ->
+                .catch { _ ->
                     _uiState.update {
                         it.copy(
                             isLoadingMore = false,
-                            message = error.friendlyMessage("Could not load more deals.")
+                            message = null
                         )
                     }
                 }
@@ -130,9 +142,13 @@ class DealsViewModel(application: Application) : AndroidViewModel(application) {
             if (!observedPriceHistoryDealIds.add(deal.dealId)) return@forEach
             viewModelScope.launch {
                 repository.getPriceHistory(deal.dealId)
-                    .catch { error ->
+                    .catch { _ ->
                         _uiState.update { state ->
-                            state.copy(message = error.friendlyMessage("Could not load price history."))
+                            state.copy(
+                                priceHistory = state.priceHistory + (
+                                    deal.dealId to listOf(DealRepository.buildPriceHistoryRecord(deal))
+                                )
+                            )
                         }
                     }
                     .collect { history ->

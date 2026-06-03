@@ -9,6 +9,12 @@ object ValidationUtils {
         else -> null
     }
 
+    fun validateOptionalEmail(email: String): String? = when {
+        email.isBlank() -> null
+        !emailRegex.matches(email.trim()) -> "Please enter a valid email address."
+        else -> null
+    }
+
     fun validatePassword(password: String): String? = when {
         password.isBlank() -> "Password cannot be empty."
         password.length < 6 -> "Password must be at least 6 characters."
@@ -28,7 +34,14 @@ object ValidationUtils {
     }
 
     fun normalizedMobile(mobile: String): String =
-        mobile.filter { it.isDigit() }.take(10)
+        mobile.filter { it.isDigit() }.let { digits ->
+            if (digits.length > 10 && digits.startsWith("91")) digits.takeLast(10) else digits.take(10)
+        }
+
+    fun validateOtp(otp: String): String? = when {
+        otp.filter { it.isDigit() }.length !in 4..8 -> "Enter the WhatsApp OTP."
+        else -> null
+    }
 
     fun validateConfirmPassword(password: String, confirmPassword: String): String? = when {
         confirmPassword.isBlank() -> "Confirm password cannot be empty."

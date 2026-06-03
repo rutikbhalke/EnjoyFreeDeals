@@ -1,4 +1,5 @@
 import type { DealSourceRow, JsonObject, SourceDeal } from "./types.ts";
+import { fetchTelegramDeals } from "./telegram.ts";
 
 type SourceTemplate = Omit<SourceDeal, "raw">;
 
@@ -12,6 +13,10 @@ export async function fetchSourceDeals(source: DealSourceRow): Promise<SourceDea
   }
 
   const sourceType = String(source.source_type || "").toLowerCase();
+  if (sourceType === "telegram") {
+    return fetchTelegramDeals(source);
+  }
+
   if (sourceType === "api") {
     return [];
   }

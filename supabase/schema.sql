@@ -19,6 +19,15 @@ create table if not exists public.profiles (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.sample_whatsapp_otp_logins (
+  mobile text primary key,
+  otp_code text not null,
+  display_name text not null default 'WhatsApp User',
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.categories (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -41,6 +50,8 @@ create table if not exists public.stores (
   is_active boolean not null default true,
   created_at timestamptz not null default now()
 );
+
+alter table public.stores add column if not exists last_synced_at timestamptz;
 
 create table if not exists public.deals (
   id uuid primary key default gen_random_uuid(),
@@ -73,6 +84,340 @@ alter table public.deals add column if not exists source_url text not null defau
 alter table public.deals add column if not exists dedupe_key text;
 alter table public.deals add column if not exists last_scraped_at timestamptz;
 alter table public.deals add column if not exists raw_source_payload jsonb not null default '{}'::jsonb;
+
+create table if not exists public.products (
+  id uuid primary key default gen_random_uuid(),
+  external_product_id text not null unique,
+  product_group_key text not null default '',
+  title text not null,
+  description text not null default '',
+  image_url text not null default '',
+  brand text,
+  model text,
+  category_slug text not null default 'general',
+  category_name text not null default 'General',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.product_offers (
+  id uuid primary key default gen_random_uuid(),
+  product_id uuid not null references public.products(id) on delete cascade,
+  store_slug text not null,
+  product_url text not null default '',
+  affiliate_url text not null default '',
+  image_url text not null default '',
+  original_price numeric not null default 0,
+  current_price numeric not null default 0,
+  discount_percent integer not null default 0,
+  coupon_code text,
+  delivery_info text,
+  availability text not null default 'in_stock',
+  status text not null default 'active',
+  rating numeric,
+  rating_count integer not null default 0,
+  review_count integer not null default 0,
+  is_hot_deal boolean not null default false,
+  expires_at timestamptz,
+  last_checked_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(product_id, store_slug)
+);
+
+create table if not exists public.fetch_runs (
+  id uuid primary key default gen_random_uuid(),
+  started_at timestamptz not null default now(),
+  finished_at timestamptz,
+  fetched_count integer not null default 0,
+  upserted_count integer not null default 0,
+  error_count integer not null default 0,
+  errors text[] not null default '{}'::text[]
+);
+
+create or replace function public.fallback_deal_image(
+  title text,
+  category_name text default '',
+  store_name text default ''
+)
+returns text
+language sql
+immutable
+as $$
+  select case
+    when lower(coalesce(title, '') || ' ' || coalesce(category_name, '') || ' ' || coalesce(store_name, '')) ~ '(phone|mobile|smartphone)' then 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=80'
+    when lower(coalesce(title, '') || ' ' || coalesce(category_name, '') || ' ' || coalesce(store_name, '')) ~ '(shoe|sneaker|footwear)' then 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80'
+    when lower(coalesce(title, '') || ' ' || coalesce(category_name, '') || ' ' || coalesce(store_name, '')) ~ '(shirt|t-shirt|kurti|dress|fashion|jeans|saree)' then 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=80'
+    when lower(coalesce(title, '') || ' ' || coalesce(category_name, '') || ' ' || coalesce(store_name, '')) ~ '(grocery|fruit|food|snack|tea|coffee)' then 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=900&q=80'
+    when lower(coalesce(title, '') || ' ' || coalesce(category_name, '') || ' ' || coalesce(store_name, '')) ~ '(beauty|skin|makeup|cosmetic)' then 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=900&q=80'
+    when lower(coalesce(title, '') || ' ' || coalesce(category_name, '') || ' ' || coalesce(store_name, '')) ~ '(kitchen|home|storage|container)' then 'https://images.unsplash.com/photo-1556909212-d5b604d0c90d?auto=format&fit=crop&w=900&q=80'
+    when lower(coalesce(title, '') || ' ' || coalesce(category_name, '') || ' ' || coalesce(store_name, '')) ~ '(laptop|student|backpack|bag)' then 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=900&q=80'
+    when lower(coalesce(title, '') || ' ' || coalesce(category_name, '') || ' ' || coalesce(store_name, '')) ~ '(earbud|speaker|watch|charger|camera|tablet|headphone)' then 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=900&q=80'
+    else 'https://images.unsplash.com/photo-1607082349566-187342175e2f?auto=format&fit=crop&w=900&q=80'
+  end
+$$;
+
+create or replace view public.active_deals as
+select
+  d.id::text as offer_id,
+  coalesce(nullif(d.source_product_id, ''), d.id::text) as product_id,
+  d.title as product_name,
+  ''::text as brand,
+  ''::text as model,
+  coalesce(c.name, 'General') as category_name,
+  coalesce(c.slug, 'general') as category_slug,
+  coalesce(s.name, 'Store') as store_name,
+  coalesce(s.slug, 'store') as store_slug,
+  coalesce(s.logo_url, '') as store_logo_url,
+  coalesce(
+    nullif(d.image_url, ''),
+    nullif(d.raw_source_payload ->> 'imageUrl', ''),
+    nullif(d.raw_source_payload ->> 'image_url', ''),
+    nullif(d.raw_source_payload ->> 'productImage', ''),
+    nullif(d.raw_source_payload ->> 'product_image', ''),
+    nullif(d.raw_source_payload ->> 'photoUrl', ''),
+    nullif(d.raw_source_payload ->> 'photo_url', ''),
+    nullif(d.raw_source_payload ->> 'thumbnailUrl', ''),
+    nullif(d.raw_source_payload ->> 'thumbnail_url', ''),
+    nullif(d.raw_source_payload ->> 'thumbnail', ''),
+    public.fallback_deal_image(d.title, c.name, s.name)
+  ) as image_url,
+  d.title,
+  coalesce(nullif(d.source_url, ''), d.affiliate_link) as product_url,
+  d.affiliate_link as affiliate_url,
+  d.original_price,
+  d.discounted_price as lowest_price,
+  d.discount_percentage::integer as discount_percent,
+  d.coupon_code,
+  'See store'::text as delivery_info,
+  4.3::numeric as rating,
+  0::integer as rating_count,
+  0::integer as review_count,
+  (d.discount_percentage >= 50 or d.is_featured) as is_hot_deal,
+  (d.discounted_price = 0) as is_free_deal,
+  false as is_lowest_price,
+  case when d.status = 'active' then 'in_stock' else d.status end as availability,
+  d.updated_at as last_updated,
+  d.expiry_date as expires_at
+from public.deals d
+left join public.stores s on s.id = d.store_id
+left join public.categories c on c.id = d.category_id
+where d.status = 'active'
+union all
+select
+  po.id::text as offer_id,
+  p.id::text as product_id,
+  p.title as product_name,
+  p.brand,
+  p.model,
+  coalesce(nullif(p.category_name, ''), 'General') as category_name,
+  coalesce(nullif(p.category_slug, ''), 'general') as category_slug,
+  coalesce(s.name, initcap(replace(po.store_slug, '-', ' ')), 'Store') as store_name,
+  po.store_slug,
+  coalesce(s.logo_url, '') as store_logo_url,
+  coalesce(
+    nullif(po.image_url, ''),
+    nullif(p.image_url, ''),
+    public.fallback_deal_image(p.title, p.category_name, coalesce(s.name, po.store_slug))
+  ) as image_url,
+  p.title,
+  po.product_url,
+  po.affiliate_url,
+  po.original_price,
+  po.current_price as lowest_price,
+  po.discount_percent,
+  po.coupon_code,
+  coalesce(po.delivery_info, 'See store') as delivery_info,
+  po.rating,
+  po.rating_count,
+  po.review_count,
+  po.is_hot_deal,
+  (po.current_price = 0) as is_free_deal,
+  po.current_price <= min(po.current_price) over (partition by po.product_id) as is_lowest_price,
+  po.availability,
+  coalesce(po.last_checked_at, po.updated_at) as last_updated,
+  po.expires_at
+from public.product_offers po
+join public.products p on p.id = po.product_id
+left join public.stores s on s.slug = po.store_slug
+where po.status = 'active'
+  and (po.expires_at is null or po.expires_at > now())
+  and not exists (
+    select 1
+    from public.deals mirrored
+    where mirrored.status = 'active'
+      and mirrored.source_product_id = p.external_product_id
+      and mirrored.raw_source_payload ->> 'connectorMode' = 'direct-platform-fetch'
+      and mirrored.raw_source_payload ->> 'provider' = po.store_slug
+  );
+
+create or replace function public.cleanup_expired_deals()
+returns void
+language sql
+as $$
+  update public.deals
+  set status = 'expired', updated_at = now()
+  where status = 'active'
+    and expiry_date is not null
+    and expiry_date <= now();
+
+  update public.product_offers
+  set status = 'expired', availability = 'out_of_stock', updated_at = now()
+  where status = 'active'
+    and expires_at is not null
+    and expires_at <= now();
+$$;
+
+update public.deals d
+set
+  image_url = public.fallback_deal_image(
+    d.title,
+    (select c.name from public.categories c where c.id = d.category_id),
+    (select s.name from public.stores s where s.id = d.store_id)
+  ),
+  updated_at = now()
+where nullif(d.image_url, '') is null;
+
+with source_categories as (
+  select distinct
+    coalesce(nullif(p.category_name, ''), 'General') as name,
+    coalesce(nullif(p.category_slug, ''), 'general') as slug
+  from public.products p
+),
+upsert_categories as (
+  insert into public.categories (name, slug, is_active)
+  select name, slug, true
+  from source_categories
+  on conflict (slug) do update set
+    name = excluded.name,
+    is_active = true
+  returning id, slug
+),
+source_stores as (
+  select distinct
+    po.store_slug as slug,
+    initcap(replace(po.store_slug, '-', ' ')) as name
+  from public.product_offers po
+  where po.store_slug <> ''
+),
+upsert_stores as (
+  insert into public.stores (name, slug, is_active)
+  select name, slug, true
+  from source_stores
+  on conflict (slug) do update set
+    name = excluded.name,
+    is_active = true
+  returning id, slug
+),
+direct_platform_deals as (
+  select
+    p.title,
+    trim(both '-' from lower(regexp_replace(po.store_slug || '-' || p.external_product_id, '[^a-zA-Z0-9]+', '-', 'g'))) as slug,
+    p.description,
+    us.id as store_id,
+    uc.id as category_id,
+    po.original_price,
+    po.current_price as discounted_price,
+    po.discount_percent as discount_percentage,
+    coalesce(po.coupon_code, '') as coupon_code,
+    po.affiliate_url,
+    coalesce(
+      nullif(po.image_url, ''),
+      nullif(p.image_url, ''),
+      public.fallback_deal_image(p.title, p.category_name, po.store_slug)
+    ) as image_url,
+    po.expires_at as expiry_date,
+    po.status,
+    po.is_hot_deal,
+    p.external_product_id as source_product_id,
+    po.product_url,
+    po.store_slug,
+    coalesce(nullif(p.category_name, ''), 'General') as category_name,
+    coalesce(po.last_checked_at, po.updated_at, now()) as last_scraped_at
+  from public.product_offers po
+  join public.products p on p.id = po.product_id
+  left join upsert_stores us on us.slug = po.store_slug
+  left join upsert_categories uc on uc.slug = coalesce(nullif(p.category_slug, ''), 'general')
+  where po.product_url <> ''
+)
+insert into public.deals (
+  title,
+  slug,
+  description,
+  store_id,
+  category_id,
+  original_price,
+  discounted_price,
+  discount_percentage,
+  coupon_code,
+  cashback_percentage,
+  affiliate_link,
+  image_url,
+  expiry_date,
+  status,
+  is_featured,
+  is_verified,
+  source,
+  source_product_id,
+  source_url,
+  dedupe_key,
+  last_scraped_at,
+  raw_source_payload
+)
+select
+  title,
+  slug,
+  description,
+  store_id,
+  category_id,
+  original_price,
+  discounted_price,
+  discount_percentage,
+  coupon_code,
+  0,
+  affiliate_url,
+  image_url,
+  expiry_date,
+  status,
+  is_hot_deal,
+  true,
+  case when discounted_price = 0 then 'FREE_DEAL' when coupon_code <> '' then 'COUPON' else 'DISCOUNT' end,
+  source_product_id,
+  product_url,
+  'direct-platform:' || store_slug || ':' || source_product_id,
+  last_scraped_at,
+  jsonb_build_object(
+    'connectorMode', 'direct-platform-fetch',
+    'provider', store_slug,
+    'categoryName', category_name,
+    'imageUrl', image_url,
+    'productUrl', product_url,
+    'normalizedAt', now()
+  )
+from direct_platform_deals
+where slug <> ''
+on conflict (slug) do update set
+  title = excluded.title,
+  description = excluded.description,
+  store_id = excluded.store_id,
+  category_id = excluded.category_id,
+  original_price = excluded.original_price,
+  discounted_price = excluded.discounted_price,
+  discount_percentage = excluded.discount_percentage,
+  coupon_code = excluded.coupon_code,
+  affiliate_link = excluded.affiliate_link,
+  image_url = excluded.image_url,
+  expiry_date = excluded.expiry_date,
+  status = excluded.status,
+  is_featured = excluded.is_featured,
+  is_verified = excluded.is_verified,
+  source = excluded.source,
+  source_product_id = excluded.source_product_id,
+  source_url = excluded.source_url,
+  dedupe_key = excluded.dedupe_key,
+  last_scraped_at = excluded.last_scraped_at,
+  raw_source_payload = excluded.raw_source_payload,
+  updated_at = now();
 
 create table if not exists public.blog_posts (
   id uuid primary key default gen_random_uuid(),
@@ -274,6 +619,7 @@ create table if not exists public.deal_sources (
   source_type text not null default 'api',
   base_url text not null default '',
   secret_name text not null default '',
+  config jsonb not null default '{}'::jsonb,
   enabled boolean not null default true,
   trust_level integer not null default 1,
   run_interval_minutes integer not null default 60,
@@ -281,6 +627,8 @@ create table if not exists public.deal_sources (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.deal_sources add column if not exists config jsonb not null default '{}'::jsonb;
 
 create table if not exists public.scraped_deal_items (
   id uuid primary key default gen_random_uuid(),
@@ -306,6 +654,9 @@ create index if not exists stores_active_name_idx on public.stores (is_active, n
 create index if not exists deals_status_created_idx on public.deals (status, created_at desc);
 create index if not exists deals_category_status_idx on public.deals (category_id, status);
 create index if not exists deals_store_status_idx on public.deals (store_id, status);
+create index if not exists products_category_updated_idx on public.products (category_slug, updated_at desc);
+create index if not exists product_offers_status_updated_idx on public.product_offers (status, updated_at desc);
+create index if not exists product_offers_product_price_idx on public.product_offers (product_id, status, current_price);
 create index if not exists blog_posts_status_published_idx on public.blog_posts (status, published_at desc);
 create index if not exists deal_watchlist_user_created_idx on public.deal_watchlist (user_id, created_at desc);
 create index if not exists shared_deals_user_created_idx on public.shared_deals (user_id, created_at desc);
@@ -321,9 +672,13 @@ create unique index if not exists price_comparison_platform_unique_idx on public
 create index if not exists price_comparison_platform_available_price_idx on public.price_comparison_platforms (comparison_id, available, price);
 
 alter table public.profiles enable row level security;
+alter table public.sample_whatsapp_otp_logins enable row level security;
 alter table public.categories enable row level security;
 alter table public.stores enable row level security;
 alter table public.deals enable row level security;
+alter table public.products enable row level security;
+alter table public.product_offers enable row level security;
+alter table public.fetch_runs enable row level security;
 alter table public.blog_posts enable row level security;
 alter table public.deal_watchlist enable row level security;
 alter table public.shared_deals enable row level security;
@@ -354,6 +709,14 @@ create policy "Public can read active stores" on public.stores
 
 drop policy if exists "Public can read active deals" on public.deals;
 create policy "Public can read active deals" on public.deals
+  for select to anon, authenticated using (status = 'active');
+
+drop policy if exists "Public can read products" on public.products;
+create policy "Public can read products" on public.products
+  for select to anon, authenticated using (true);
+
+drop policy if exists "Public can read active product offers" on public.product_offers;
+create policy "Public can read active product offers" on public.product_offers
   for select to anon, authenticated using (status = 'active');
 
 drop policy if exists "Public can read published blog posts" on public.blog_posts;
@@ -419,19 +782,20 @@ create trigger on_auth_user_created_profile
   after insert on auth.users
   for each row execute function public.handle_new_auth_profile();
 
-insert into public.deal_sources (source_key, source_name, source_type, base_url, secret_name, enabled, trust_level, run_interval_minutes)
+insert into public.deal_sources (source_key, source_name, source_type, base_url, secret_name, config, enabled, trust_level, run_interval_minutes)
 values
-  ('amazon', 'Amazon', 'scrape', 'https://www.amazon.in', '', true, 4, 60),
-  ('flipkart', 'Flipkart', 'scrape', 'https://www.flipkart.com', '', true, 4, 60),
-  ('myntra', 'Myntra', 'scrape', 'https://www.myntra.com', '', true, 4, 60),
-  ('ajio', 'Ajio', 'scrape', 'https://www.ajio.com', '', true, 4, 60),
-  ('croma', 'Croma', 'scrape', 'https://www.croma.com', '', true, 4, 60),
-  ('tatacliq', 'TataCliq', 'scrape', 'https://www.tatacliq.com', '', true, 4, 60)
+  ('amazon', 'Amazon', 'scrape', 'https://www.amazon.in', '', '{}'::jsonb, true, 4, 60),
+  ('flipkart', 'Flipkart', 'scrape', 'https://www.flipkart.com', '', '{}'::jsonb, true, 4, 60),
+  ('myntra', 'Myntra', 'scrape', 'https://www.myntra.com', '', '{}'::jsonb, true, 4, 60),
+  ('ajio', 'Ajio', 'scrape', 'https://www.ajio.com', '', '{}'::jsonb, true, 4, 60),
+  ('croma', 'Croma', 'scrape', 'https://www.croma.com', '', '{}'::jsonb, true, 4, 60),
+  ('tatacliq', 'TataCliq', 'scrape', 'https://www.tatacliq.com', '', '{}'::jsonb, true, 4, 60)
 on conflict (source_key) do update set
   source_name = excluded.source_name,
   source_type = excluded.source_type,
   base_url = excluded.base_url,
   secret_name = excluded.secret_name,
+  config = public.deal_sources.config || excluded.config,
   enabled = excluded.enabled,
   trust_level = greatest(public.deal_sources.trust_level, excluded.trust_level),
   run_interval_minutes = excluded.run_interval_minutes,

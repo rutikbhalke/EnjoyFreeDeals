@@ -2,6 +2,7 @@ package com.enjoyfreedeals.app.data.remote
 
 import com.enjoyfreedeals.app.data.model.BlogModel
 import com.enjoyfreedeals.app.data.model.CategoryModel
+import com.enjoyfreedeals.app.data.model.DealImageFallbacks
 import com.enjoyfreedeals.app.data.model.DealModel
 import com.enjoyfreedeals.app.data.model.NotificationModel
 import com.enjoyfreedeals.app.data.model.PriceComparisonProductModel
@@ -25,6 +26,21 @@ fun JSONObject.dataObject(): JSONObject =
 fun JSONObject.toDealModel(): DealModel {
     val current = optDoubleValue("currentPrice", "discountedPrice", "current_price", "discounted_price")
     val original = optDoubleValue("originalPrice", "original_price", default = current)
+    val title = optStringValue("title")
+    val storeName = optStringValue("storeName", "store_name")
+    val categoryName = optStringValue("categoryName", "category_name", "categorySlug")
+    val productImage = optStringValue(
+        "productImage",
+        "imageUrl",
+        "image",
+        "image_url",
+        "product_image",
+        "photo",
+        "photo_url",
+        "thumbnail",
+        "thumbnail_url",
+        "picture_url"
+    )
     val comparisonPrices = optJSONArray("comparisonPrices")
         ?.toJsonObjects()
         ?.map { it.toStorePriceModel() }
@@ -33,16 +49,16 @@ fun JSONObject.toDealModel(): DealModel {
     return DealModel(
         dealId = optStringValue("dealId", "id", "deal_id"),
         productId = optStringValue("productId", "product_id", "dealId", "id", "deal_id"),
-        title = optStringValue("title"),
+        title = title,
         description = optStringValue("description"),
-        productImage = optStringValue("productImage", "image", "image_url"),
+        productImage = productImage.ifBlank { DealImageFallbacks.forDeal(title, categoryName, storeName) },
         originalPrice = original,
         discountedPrice = optDoubleValue("discountedPrice", "discounted_price", default = current),
         discountPercent = optIntValue("discountPercent", "discount_percentage"),
-        storeName = optStringValue("storeName", "store_name"),
+        storeName = storeName,
         storeLogo = optStringValue("storeLogo", "store_logo"),
         categoryId = optStringValue("categoryId", "category_id"),
-        categoryName = optStringValue("categoryName", "category_name", "categorySlug"),
+        categoryName = categoryName,
         dealType = optStringValue("dealType", "source", default = "manual"),
         dealUrl = optStringValue("dealUrl", "deal_url"),
         productUrl = optStringValue("productUrl", "product_url", "dealUrl"),
@@ -142,12 +158,26 @@ fun JSONObject.toPricePointModel(fallbackDealId: String = ""): PricePointModel =
         source = optStringValue("source", default = "backend")
     )
 
-fun JSONObject.toPriceComparisonProductModel(): PriceComparisonProductModel =
-    PriceComparisonProductModel(
+fun JSONObject.toPriceComparisonProductModel(): PriceComparisonProductModel {
+    val productName = optStringValue("productName", "product_name", "title")
+    val category = optStringValue("category", "categoryName")
+    val storeName = optStringValue("storeName", "store_name")
+    val imageUrl = optStringValue(
+        "imageUrl",
+        "image_url",
+        "productImage",
+        "product_image",
+        "photo",
+        "photo_url",
+        "thumbnail",
+        "thumbnail_url",
+        "picture_url"
+    )
+    return PriceComparisonProductModel(
         productId = optStringValue("productId", "dealId", "deal_id", "id"),
-        productName = optStringValue("productName", "product_name", "title"),
-        imageUrl = optStringValue("imageUrl", "image_url", "productImage"),
-        category = optStringValue("category", "categoryName"),
+        productName = productName,
+        imageUrl = imageUrl.ifBlank { DealImageFallbacks.forDeal(productName, category, storeName) },
+        category = category,
         originalPrice = optDoubleValue("originalPrice", "original_price"),
         lowestPrice = optDoubleValue("lowestPrice", "lowest_price", "currentPrice"),
         discountPercent = optIntValue("discountPercent", "discount_percentage"),
@@ -156,13 +186,14 @@ fun JSONObject.toPriceComparisonProductModel(): PriceComparisonProductModel =
             ?.map { it.toStorePriceModel() }
             .orEmpty(),
         productUrl = optStringValue("productUrl", "product_url"),
-        storeName = optStringValue("storeName", "store_name"),
+        storeName = storeName,
         couponCode = optStringValue("couponCode", "coupon_code"),
         rating = optDoubleValue("rating"),
         isHotDeal = optBooleanValue("isHotDeal", "is_hot_deal"),
         isFreeDeal = optBooleanValue("isFreeDeal", "is_free_deal"),
         lastUpdated = optTimestampValue("lastUpdated", "last_updated")
     )
+}
 
 fun JSONObject.toStorePriceModel(): StorePriceModel =
     StorePriceModel(
