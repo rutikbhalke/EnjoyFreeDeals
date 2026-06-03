@@ -23,6 +23,68 @@ app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 app.use(envValidator);
 
+app.get("/", (_req, res) => {
+  res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EnjoyFreeDeals API</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: Arial, sans-serif;
+      background: #f7faf7;
+      color: #172016;
+    }
+    main {
+      width: min(720px, calc(100% - 32px));
+      padding: 32px;
+      border: 1px solid #dce7dc;
+      border-radius: 8px;
+      background: white;
+      box-shadow: 0 18px 45px rgba(20, 45, 20, 0.12);
+    }
+    h1 {
+      margin: 0 0 10px;
+      color: #087b33;
+      font-size: 32px;
+    }
+    p {
+      margin: 0 0 22px;
+      line-height: 1.5;
+      color: #4b5a4d;
+    }
+    a {
+      display: inline-block;
+      margin: 0 10px 10px 0;
+      padding: 12px 16px;
+      border-radius: 6px;
+      background: #087b33;
+      color: white;
+      text-decoration: none;
+      font-weight: 700;
+    }
+    a.secondary {
+      background: #eef6ef;
+      color: #087b33;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>EnjoyFreeDeals API</h1>
+    <p>The backend is live. Use the Android app or the API endpoints below to fetch deals.</p>
+    <a href="/api/deals?limit=10">View Deals API</a>
+    <a class="secondary" href="/api/health">Check Health</a>
+  </main>
+</body>
+</html>`);
+});
+
 app.get("/api/health", (_req, res) => {
   res.json({ success: true, data: { status: "ok" } });
 });
