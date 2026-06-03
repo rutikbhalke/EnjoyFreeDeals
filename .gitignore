@@ -18,3 +18,4 @@ local.properties
 node_modules/
 .mcp.json
 supabase/.temp/
+.vercel
