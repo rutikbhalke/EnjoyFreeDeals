@@ -175,13 +175,13 @@ https://t.me/s/king_deal_1
 https://t.me/s/icoolzTricks
 ```
 
-Set `GENIE_LOOT_PAGE_URLS` to change that list. The scraper ranks all parsed posts and imports only the best third by highest discount, then lowest deal price, so the app feed focuses on the cheapest high-value deals instead of every Telegram post. This is a permanent backend filter: every future sync marks non-selected Telegram-page deals as `rejected`, and `GET /api/deals` only serves active deals.
+Set `GENIE_LOOT_PAGE_URLS` to change that list. The scraper ranks all parsed posts and imports only the best 3 out of every 10 candidates by highest discount, then lowest deal price, so the app feed focuses on the cheapest high-value deals instead of every Telegram post. This is a permanent backend filter: every future sync marks non-selected Telegram-page deals as `rejected`, and `GET /api/deals` only serves active deals.
 
 For Vercel, set the same environment variables in the Vercel project settings:
 
 ```bash
 GENIE_LOOT_PAGE_URLS=https://t.me/s/India_loot_deals,https://t.me/s/king_deal_1,https://t.me/s/icoolzTricks
-GENIE_LOOT_BEST_DEAL_FRACTION=0.3333333333
+GENIE_LOOT_BEST_DEAL_FRACTION=0.3
 GENIE_LOOT_CHEAP_PRICE_LIMIT=999
 GENIE_LOOT_REJECT_UNSELECTED=true
 GENIE_LOOT_STALE_SCAN_LIMIT=5000

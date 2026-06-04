@@ -12,7 +12,7 @@ const DEFAULT_GENIE_LOOT_PAGE_URLS = [
   "https://t.me/s/king_deal_1",
   "https://t.me/s/icoolzTricks"
 ];
-const DEFAULT_BEST_DEAL_FRACTION = 1 / 3;
+const DEFAULT_BEST_DEAL_FRACTION = 0.3;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const FALLBACK_DEAL_IMAGES = {
   electronics: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=900&q=80",
@@ -483,7 +483,7 @@ function selectBestDeals(deals, fraction = DEFAULT_BEST_DEAL_FRACTION) {
   const uniqueDeals = uniqueBy(deals, (deal) => deal.dedupeKey || deal.sourceProductId);
   if (uniqueDeals.length <= 1) return uniqueDeals;
 
-  const keepCount = Math.max(1, Math.ceil(uniqueDeals.length * fraction));
+  const keepCount = Math.max(1, Math.floor(uniqueDeals.length * fraction));
   return uniqueDeals
     .map((deal) => ({ deal, score: dealQualityScore(deal) }))
     .filter((item) => item.score.isQualified)
@@ -499,7 +499,7 @@ function selectBestDeals(deals, fraction = DEFAULT_BEST_DEAL_FRACTION) {
       rawPayload: {
         ...item.deal.rawPayload,
         bestDealFilter: {
-          mode: "top-third-highest-discount-lowest-price",
+          mode: "top-30-percent-highest-discount-lowest-price",
           priceRank: item.score.priceRank,
           discountRank: item.score.discountRank,
           detailRank: item.score.detailRank,
