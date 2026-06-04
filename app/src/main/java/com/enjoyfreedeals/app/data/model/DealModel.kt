@@ -38,6 +38,9 @@ data class DealModel(
     var comparisonPrices: List<StorePriceModel> = emptyList(),
     var createdAt: Long = System.currentTimeMillis(),
     var updatedAt: Long = System.currentTimeMillis(),
+    var lastScrapedAt: Long = updatedAt,
+    var scrapeExpiresAt: Long = lastScrapedAt + SCRAPE_VALID_WINDOW,
+    var scrapeValidHours: Int = 24,
     var expiryDate: Long = System.currentTimeMillis() + DEFAULT_EXPIRY_WINDOW
 ) {
     val effectivePrice: Double
@@ -51,6 +54,7 @@ data class DealModel(
 
     companion object {
         const val DEFAULT_EXPIRY_WINDOW: Long = 7L * 24L * 60L * 60L * 1000L
+        const val SCRAPE_VALID_WINDOW: Long = 24L * 60L * 60L * 1000L
     }
 }
 

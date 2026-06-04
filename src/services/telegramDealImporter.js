@@ -744,7 +744,7 @@ function telegramMessageToDeal(update, message, source) {
     cashbackPercentage: 0,
     affiliateLink: productUrl,
     imageUrl: process.env.TELEGRAM_DEFAULT_IMAGE_URL || "",
-    expiryDate: daysFromNow(Number(process.env.TELEGRAM_EXPIRY_DAYS || 7)),
+    expiryDate: daysFromNow(Number(process.env.TELEGRAM_EXPIRY_DAYS || 1)),
     isFeatured: discountedPrice === 0 || calculateDiscount(originalPrice, discountedPrice) >= 50,
     rawPayload: {
       connectorMode: "telegram-bot",

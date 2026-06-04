@@ -6,6 +6,10 @@ function toApiDeal(row) {
   const discountPercent = Number(row.discount_percentage || 0);
   const productImage = resolveDealImage(row);
   const dealUrl = resolveDealUrl(row);
+  const lastScrapedAt = row.last_scraped_at || row.updated_at || row.created_at || null;
+  const scrapeExpiresAt = lastScrapedAt
+    ? new Date(new Date(lastScrapedAt).getTime() + 24 * 60 * 60 * 1000).toISOString()
+    : row.expiry_date;
 
   return {
     dealId: row.id,
@@ -49,7 +53,11 @@ function toApiDeal(row) {
     source: row.source || "manual",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    expiryDate: row.expiry_date
+    lastScrapedAt,
+    scrapedAt: lastScrapedAt,
+    scrapeExpiresAt,
+    scrapeValidHours: 24,
+    expiryDate: row.expiry_date || scrapeExpiresAt
   };
 }
 

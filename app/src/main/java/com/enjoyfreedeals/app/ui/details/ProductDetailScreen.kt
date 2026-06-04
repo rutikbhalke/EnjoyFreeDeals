@@ -55,6 +55,8 @@ import com.enjoyfreedeals.app.ui.components.PriceTrackingPanel
 import com.enjoyfreedeals.app.ui.components.SectionTitle
 import com.enjoyfreedeals.app.ui.components.formatExpiry
 import com.enjoyfreedeals.app.ui.components.formatPrice
+import com.enjoyfreedeals.app.ui.components.formatScrapeValidity
+import com.enjoyfreedeals.app.ui.components.formatScrapedAt
 import com.enjoyfreedeals.app.utils.LocalAppStrings
 import java.util.Locale
 
@@ -126,6 +128,11 @@ fun ProductDetailScreen(
                                 Spacer(Modifier.size(14.dp))
                                 Text(deal.deliveryInfo, color = GreyText)
                             }
+                            Text(
+                                "Scraped ${formatScrapedAt(deal.lastScrapedAt)} - ${formatScrapeValidity(deal.scrapeExpiresAt)} / ${deal.scrapeValidHours}h",
+                                color = GreyText,
+                                style = MaterialTheme.typography.labelMedium
+                            )
                             Text(deal.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }

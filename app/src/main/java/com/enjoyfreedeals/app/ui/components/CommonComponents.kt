@@ -310,6 +310,14 @@ fun DealCard(
                     Spacer(Modifier.width(6.dp))
                     BadgeText(formatExpiry(deal.expiryDate), SoftYellow, DarkText)
                 }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Scraped ${formatScrapedAt(deal.lastScrapedAt)} - ${formatScrapeValidity(deal.scrapeExpiresAt)} / ${deal.scrapeValidHours}h",
+                    color = GreyText,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 Spacer(Modifier.height(8.dp))
                 Text(deal.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.height(4.dp))
@@ -757,6 +765,17 @@ fun formatPrice(price: Double): String =
 
 fun formatDate(timestamp: Long): String =
     SimpleDateFormat("dd MMM yyyy", Locale.US).format(Date(timestamp))
+
+fun formatScrapedAt(timestamp: Long): String =
+    SimpleDateFormat("dd MMM, hh:mm a", Locale.US).format(Date(timestamp))
+
+fun formatScrapeValidity(timestamp: Long): String {
+    val remaining = timestamp - System.currentTimeMillis()
+    if (remaining <= 0L) return "Expired"
+    val hours = remaining / (60L * 60L * 1000L)
+    val minutes = (remaining % (60L * 60L * 1000L)) / (60L * 1000L)
+    return if (hours >= 1L) "valid ${hours}h ${minutes}m" else "valid ${minutes.coerceAtLeast(1L)}m"
+}
 
 fun formatExpiry(timestamp: Long): String {
     val remaining = timestamp - System.currentTimeMillis()

@@ -83,6 +83,9 @@ fun JSONObject.toDealModel(): DealModel {
         comparisonPrices = comparisonPrices,
         createdAt = optTimestampValue("createdAt", "created_at"),
         updatedAt = optTimestampValue("updatedAt", "updated_at"),
+        lastScrapedAt = optTimestampValue("lastScrapedAt", "last_scraped_at", "scrapedAt", "scraped_at", default = optTimestampValue("updatedAt", "updated_at")),
+        scrapeExpiresAt = optTimestampValue("scrapeExpiresAt", "scrape_expires_at", default = optTimestampValue("lastScrapedAt", "last_scraped_at", "scrapedAt", "scraped_at", default = optTimestampValue("updatedAt", "updated_at")) + DealModel.SCRAPE_VALID_WINDOW),
+        scrapeValidHours = optIntValue("scrapeValidHours", "scrape_valid_hours", default = 24),
         expiryDate = optTimestampValue("expiryDate", "expiry_date", default = System.currentTimeMillis() + DealModel.DEFAULT_EXPIRY_WINDOW)
     )
 }

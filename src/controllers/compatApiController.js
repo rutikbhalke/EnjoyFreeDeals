@@ -135,7 +135,7 @@ function toCurrentDealRow(deal) {
     coupon_code: deal.couponCode || "",
     affiliate_link: deal.productUrl,
     image_url: deal.imageUrl || "",
-    expiry_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    expiry_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     status: "active",
     is_featured: deal.isHotDeal || deal.isSuperHotDeal,
     is_verified: true,

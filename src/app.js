@@ -219,6 +219,12 @@ app.get("/deals", async (req, res, next) => {
       color: #5b685d;
       font-size: 13px;
     }
+    .time {
+      margin: -6px 0 14px;
+      color: #6c786d;
+      font-size: 12px;
+      line-height: 1.4;
+    }
     .open {
       display: block;
       width: 100%;
@@ -310,6 +316,8 @@ function renderDealCard(deal) {
   const storeName = escapeHtml(deal.storeName || "Store");
   const discount = Number(deal.discountPercent || 0);
   const discountText = discount > 0 ? `${Math.round(discount)}% off` : "Live deal";
+  const scrapedText = formatDateTime(deal.lastScrapedAt || deal.scrapedAt || deal.updatedAt || deal.createdAt);
+  const validText = formatTimeLeft(deal.scrapeExpiresAt || deal.expiryDate);
 
   return `<article class="card">
     ${imageUrl ? `<img class="image" src="${imageUrl}" alt="${title}" loading="lazy">` : '<div class="image"></div>'}
@@ -320,6 +328,7 @@ function renderDealCard(deal) {
         ${deal.originalPrice && deal.originalPrice !== deal.discountedPrice ? `<span class="original">${formatPrice(deal.originalPrice)}</span>` : ""}
       </div>
       <p class="meta">${escapeHtml(discountText)} - ${storeName}</p>
+      <p class="time">Scraped: ${escapeHtml(scrapedText)}<br>Valid: ${escapeHtml(validText)} / 24h</p>
       <a class="open" href="${dealUrl}" target="_blank" rel="noopener noreferrer">Open Deal</a>
     </div>
   </article>`;
@@ -329,6 +338,30 @@ function formatPrice(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return "Price not set";
   return `Rs. ${numeric.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+}
+
+function formatDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Not available";
+  return date.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Asia/Kolkata"
+  });
+}
+
+function formatTimeLeft(value) {
+  const expiresAt = new Date(value).getTime();
+  if (!Number.isFinite(expiresAt)) return "24h";
+  const remainingMs = expiresAt - Date.now();
+  if (remainingMs <= 0) return "Expired";
+  const hours = Math.floor(remainingMs / (60 * 60 * 1000));
+  const minutes = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
+  if (hours >= 1) return `${hours}h ${minutes}m left`;
+  return `${Math.max(1, minutes)}m left`;
 }
 
 function escapeHtml(value) {

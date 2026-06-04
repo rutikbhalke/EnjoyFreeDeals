@@ -185,7 +185,10 @@ GENIE_LOOT_BEST_DEAL_FRACTION=0.3
 GENIE_LOOT_CHEAP_PRICE_LIMIT=999
 GENIE_LOOT_REJECT_UNSELECTED=true
 GENIE_LOOT_STALE_SCAN_LIMIT=5000
+TELEGRAM_EXPIRY_DAYS=1
 ```
+
+Telegram scraped deals are treated as fresh for 24 hours by default. API responses include `lastScrapedAt`, `scrapedAt`, `scrapeExpiresAt`, and `scrapeValidHours` so the web page and Android app can show when the deal was scraped and how long it remains valid.
 
 After the Telegram posts are imported, resolve their product links and pull merchant details, images, and structured prices where the product site exposes them:
 
