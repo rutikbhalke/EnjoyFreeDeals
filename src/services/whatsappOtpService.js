@@ -115,7 +115,7 @@ function whatsappConfig() {
     wabaId: cleanEnv("MYOPERATOR_WHATSAPP_WABA_ID") || cleanEnv("WHATSAPP_WABA_ID"),
     businessName: cleanEnv("MYOPERATOR_WHATSAPP_BUSINESS_NAME") || cleanEnv("WHATSAPP_BUSINESS_NAME"),
     businessPhone: cleanEnv("MYOPERATOR_WHATSAPP_BUSINESS_PHONE") || cleanEnv("WHATSAPP_BUSINESS_PHONE"),
-    templateName: cleanEnv("MYOPERATOR_WHATSAPP_TEMPLATE_NAME"),
+    templateName: cleanEnv("MYOPERATOR_WHATSAPP_TEMPLATE_NAME") || cleanEnv("MYOPERATOR_TEMPLATE_ID"),
     templateLanguage: cleanEnv("MYOPERATOR_WHATSAPP_TEMPLATE_LANGUAGE") || "en",
     payloadTemplate: cleanEnv("MYOPERATOR_WHATSAPP_PAYLOAD_TEMPLATE"),
     devMode: isDevelopment() || /^true$/i.test(cleanEnv("MYOPERATOR_WHATSAPP_DEV_MODE") || "")

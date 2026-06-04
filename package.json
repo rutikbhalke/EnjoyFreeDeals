@@ -6,8 +6,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
+    "build": "npm run check:deploy",
     "check": "node --check src/server.js",
-    "check:deploy": "node --check src/server.js && node --check api/index.js && node --check scripts/sync-genie-loot.js",
+    "check:deploy": "node --check src/server.js && node --check src/app.js && node --check src/controllers/compatApiController.js && node --check api/index.js && node --check scripts/sync-genie-loot.js",
     "sync:genie-loot": "node scripts/sync-genie-loot.js",
     "pm2:start": "pm2 start ecosystem.config.cjs",
     "pm2:restart": "pm2 restart enjoyfreedeals-api",

@@ -40,8 +40,10 @@ curl https://YOUR-VERCEL-DOMAIN.vercel.app/api/deals?limit=10
 Use the Vercel URL in Android `local.properties`:
 
 ```properties
-BACKEND_BASE_URL=https://YOUR-VERCEL-DOMAIN.vercel.app
+BACKEND_BASE_URL=https://enjoyfreedeals.vercel.app
 ```
+
+Do not use `http://192.168.1.3:5000` for installed APKs. That address only works on the same local Wi-Fi while the backend is running on the development PC.
 
 Vercel functions are serverless. For long Telegram scraping jobs, prefer the VPS sync below so the job is not stopped when a serverless function ends.
 

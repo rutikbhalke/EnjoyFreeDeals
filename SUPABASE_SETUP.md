@@ -5,8 +5,9 @@
 Add these values to `local.properties`:
 
 ```properties
-SUPABASE_URL=https://pzgyphnerjatlqlvvvsl.supabase.co
-SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB6Z3lwaG5lcmphdGxxbHZ2dnNsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1ODAyODIsImV4cCI6MjA4NzE1NjI4Mn0.DJjMdi_LMo6iKX8JRRlxtgKl8Abfeb-9qcd9gJG5ijE
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+BACKEND_BASE_URL=https://enjoyfreedeals.vercel.app
 ```
 
 Only the anon key belongs in Android. Keep the service role key out of the app.

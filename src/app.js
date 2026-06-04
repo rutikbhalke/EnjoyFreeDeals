@@ -18,6 +18,7 @@ const priceComparisonRoutes = require("./routes/priceComparisonRoutes");
 const sharedDealRoutes = require("./routes/sharedDealRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const dealRepository = require("./repositories/dealRepository");
+const compatApiRoutes = require("./routes/compatApiRoutes");
 
 const app = express();
 
@@ -89,7 +90,19 @@ app.get("/", (_req, res) => {
 <body>
   <main>
     <img class="logo" src="/logo.png" alt="EnjoyFreeDeals">
-    <p>The backend is live. Open the deals page below or use the Android app to browse offers.</p>
+    <p><strong>EnjoyFreeDeals API is Live</strong></p>
+    <p>Backend status: Running<br>Environment: Production</p>
+    <p>This is the backend API for EnjoyFreeDeals Android app.</p>
+    <p>Available API routes:</p>
+    <ul>
+      <li>/api/health</li>
+      <li>/api/deals</li>
+      <li>/api/filter-telegram-deals</li>
+      <li>/api/compare-price</li>
+      <li>/api/send-whatsapp-otp</li>
+      <li>/api/verify-whatsapp-otp</li>
+      <li>/api/saved-deals</li>
+    </ul>
     <a href="/deals">View Deals</a>
     <a class="secondary" href="/api/health">Check Health</a>
   </main>
@@ -258,9 +271,16 @@ app.get("/deals", async (req, res, next) => {
 });
 
 app.get("/api/health", (_req, res) => {
-  res.json({ success: true, data: { status: "ok" } });
+  res.json({
+    success: true,
+    message: "EnjoyFreeDeals API is running",
+    status: "ok",
+    service: "EnjoyFreeDeals Backend",
+    version: "1.0.0"
+  });
 });
 
+app.use("/api", compatApiRoutes);
 app.use("/api/deals", dealRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/categories", categoryRoutes);

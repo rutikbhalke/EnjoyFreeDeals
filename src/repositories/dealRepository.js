@@ -28,16 +28,31 @@ async function listDeals(filters) {
     query = query.eq("source", filters.dealType);
   }
 
+  if (String(filters.hot || "").toLowerCase() === "true") {
+    query = query.eq("is_featured", true);
+  }
+
+  if (filters.sort === "discount" || filters.sort === "score") {
+    query = query.order("discount_percentage", { ascending: false });
+  } else if (filters.sort === "price") {
+    query = query.order("discounted_price", { ascending: true });
+  } else if (filters.sort === "newest") {
+    query = query.order("created_at", { ascending: false });
+  }
+
   const { data, error, count } = await query;
   throwIfSupabaseError(error, TABLE);
+  const mappedDeals = (data || [])
+    .map(toApiDeal)
+    .filter((deal) => filterByPlatform(deal, filters.platform));
 
   return {
-    deals: (data || []).map(toApiDeal),
+    deals: mappedDeals,
     pagination: {
       page,
       limit,
-      total: count || 0,
-      totalPages: Math.ceil((count || 0) / limit)
+      total: filters.platform ? mappedDeals.length : count || 0,
+      totalPages: Math.ceil((filters.platform ? mappedDeals.length : count || 0) / limit)
     }
   };
 }
@@ -121,6 +136,13 @@ async function resolveCategoryId(category) {
     String(item.name || "").toLowerCase() === normalized
   );
   return match?.id || null;
+}
+
+function filterByPlatform(deal, platform) {
+  if (!platform) return true;
+  const expected = String(platform).trim().toLowerCase();
+  return String(deal.storeName || "").toLowerCase().includes(expected) ||
+    String(deal.rawSourcePayload?.platform || "").toLowerCase().includes(expected);
 }
 
 module.exports = {
