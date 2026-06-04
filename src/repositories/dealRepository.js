@@ -113,6 +113,7 @@ function applyPublicDealVisibility(query) {
   return query
     .eq("status", "active")
     .not("last_scraped_at", "is", null)
+    .gt("last_scraped_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
     .not("dedupe_key", "is", null)
     .neq("source_url", "")
     .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "direct-platform-fetch"])

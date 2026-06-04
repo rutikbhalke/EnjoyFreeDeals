@@ -57,7 +57,7 @@ function toApiDeal(row) {
     scrapedAt: lastScrapedAt,
     scrapeExpiresAt,
     scrapeValidHours: 24,
-    expiryDate: row.expiry_date || scrapeExpiresAt
+    expiryDate: lastScrapedAt ? scrapeExpiresAt : row.expiry_date
   };
 }
 
