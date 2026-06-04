@@ -247,12 +247,14 @@ async function findSampleOtpLogin(mobile) {
 }
 
 function fallbackSampleOtpLogin(mobile) {
-  if (!isDevelopment()) {
+  if (!isDevelopment() && !isTestOtpEnabled()) {
     return null;
   }
 
   const fallbackOtp = String(process.env.SAMPLE_LOGIN_OTP || process.env.FIXED_LOGIN_OTP || "123456").replace(/\D/g, "");
   if (fallbackOtp.length < 4) return null;
+  const sampleMobile = normalizeMobile(process.env.SAMPLE_LOGIN_MOBILE || process.env.FIXED_LOGIN_MOBILE || "9699353648");
+  if (sampleMobile && mobile !== sampleMobile) return null;
 
   return {
     mobile,
@@ -323,6 +325,10 @@ function whatsappPassword(mobile) {
 
 function isDevelopment() {
   return /^development$/i.test(process.env.APP_ENV || process.env.NODE_ENV || "");
+}
+
+function isTestOtpEnabled() {
+  return /^true$/i.test(String(process.env.USE_TEST_OTP || ""));
 }
 
 function throwBadRequest(message) {
