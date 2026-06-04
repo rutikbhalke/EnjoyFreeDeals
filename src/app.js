@@ -16,6 +16,7 @@ const authRoutes = require("./routes/authRoutes");
 const priceComparisonRoutes = require("./routes/priceComparisonRoutes");
 const sharedDealRoutes = require("./routes/sharedDealRoutes");
 const adminRoutes = require("./routes/adminRoutes");
+const dealRepository = require("./repositories/dealRepository");
 
 const app = express();
 
@@ -29,7 +30,7 @@ app.get("/", (_req, res) => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>EnjoyFreeDeals API</title>
+  <title>EnjoyFreeDeals</title>
   <style>
     body {
       margin: 0;
@@ -76,13 +77,167 @@ app.get("/", (_req, res) => {
 </head>
 <body>
   <main>
-    <h1>EnjoyFreeDeals API</h1>
-    <p>The backend is live. Use the Android app or the API endpoints below to fetch deals.</p>
-    <a href="/api/deals?limit=10">View Deals API</a>
+    <h1>EnjoyFreeDeals</h1>
+    <p>The backend is live. Open the deals page below or use the Android app to browse offers.</p>
+    <a href="/deals">View Deals</a>
     <a class="secondary" href="/api/health">Check Health</a>
   </main>
 </body>
 </html>`);
+});
+
+app.get("/deals", async (req, res, next) => {
+  try {
+    const result = await dealRepository.listDeals({ ...req.query, limit: req.query.limit || 24 });
+    const cards = result.deals.map(renderDealCard).join("");
+
+    res.type("html").send(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EnjoyFreeDeals - Live Deals</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f5f8f4;
+      color: #172016;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: rgba(255, 255, 255, 0.96);
+      border-bottom: 1px solid #dce7dc;
+      backdrop-filter: blur(8px);
+    }
+    .bar {
+      width: min(1180px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 18px 0;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+    }
+    h1 {
+      margin: 0;
+      color: #087b33;
+      font-size: 28px;
+    }
+    .api-link {
+      padding: 10px 14px;
+      border-radius: 6px;
+      background: #eef6ef;
+      color: #087b33;
+      text-decoration: none;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    main {
+      width: min(1180px, calc(100% - 28px));
+      margin: 24px auto 40px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 18px;
+    }
+    .card {
+      overflow: hidden;
+      border: 1px solid #dce7dc;
+      border-radius: 8px;
+      background: white;
+      box-shadow: 0 12px 30px rgba(20, 45, 20, 0.08);
+    }
+    .image {
+      width: 100%;
+      aspect-ratio: 1.2;
+      object-fit: cover;
+      background: #eef6ef;
+      display: block;
+    }
+    .content {
+      padding: 14px;
+    }
+    h2 {
+      min-height: 42px;
+      margin: 0 0 10px;
+      font-size: 16px;
+      line-height: 1.3;
+    }
+    .price {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .current {
+      color: #087b33;
+      font-size: 20px;
+      font-weight: 800;
+    }
+    .original {
+      color: #6c786d;
+      text-decoration: line-through;
+    }
+    .meta {
+      margin: 0 0 14px;
+      color: #5b685d;
+      font-size: 13px;
+    }
+    .open {
+      display: block;
+      width: 100%;
+      padding: 11px 12px;
+      border-radius: 6px;
+      background: #087b33;
+      color: white;
+      text-align: center;
+      text-decoration: none;
+      font-weight: 700;
+    }
+    .empty {
+      padding: 28px;
+      border: 1px solid #dce7dc;
+      border-radius: 8px;
+      background: white;
+    }
+    @media (max-width: 560px) {
+      .bar {
+        display: block;
+      }
+      .api-link {
+        margin-top: 12px;
+        display: inline-block;
+      }
+      h1 {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="bar">
+      <h1>EnjoyFreeDeals</h1>
+      <a class="api-link" href="/api/deals?limit=10">Raw API</a>
+    </div>
+  </header>
+  <main>
+    <div class="grid">
+      ${cards || '<div class="empty">No active deals found.</div>'}
+    </div>
+  </main>
+</body>
+</html>`);
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.get("/api/health", (_req, res) => {
@@ -110,5 +265,42 @@ app.use((req, res) => {
 });
 
 app.use(errorHandler);
+
+function renderDealCard(deal) {
+  const imageUrl = escapeHtml(deal.imageUrl || deal.productImage || "");
+  const dealUrl = escapeHtml(deal.dealUrl || deal.productUrl || "#");
+  const title = escapeHtml(deal.title || "Deal");
+  const storeName = escapeHtml(deal.storeName || "Store");
+  const discount = Number(deal.discountPercent || 0);
+  const discountText = discount > 0 ? `${Math.round(discount)}% off` : "Live deal";
+
+  return `<article class="card">
+    ${imageUrl ? `<img class="image" src="${imageUrl}" alt="${title}" loading="lazy">` : '<div class="image"></div>'}
+    <div class="content">
+      <h2>${title}</h2>
+      <div class="price">
+        <span class="current">${formatPrice(deal.discountedPrice || deal.currentPrice || deal.originalPrice)}</span>
+        ${deal.originalPrice && deal.originalPrice !== deal.discountedPrice ? `<span class="original">${formatPrice(deal.originalPrice)}</span>` : ""}
+      </div>
+      <p class="meta">${escapeHtml(discountText)} - ${storeName}</p>
+      <a class="open" href="${dealUrl}" target="_blank" rel="noopener noreferrer">Open Deal</a>
+    </div>
+  </article>`;
+}
+
+function formatPrice(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return "Price not set";
+  return `Rs. ${numeric.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 
 module.exports = app;
