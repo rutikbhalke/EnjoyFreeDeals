@@ -1,5 +1,6 @@
 require("dotenv").config();
 
+const path = require("path");
 const express = require("express");
 const cors = require("cors");
 const { envValidator } = require("./middleware/envValidator");
@@ -23,6 +24,10 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 app.use(envValidator);
+
+app.get("/logo.png", (_req, res) => {
+  res.sendFile(path.join(__dirname, "..", "app", "src", "main", "res", "drawable", "enjoyfreedeals_logo.png"));
+});
 
 app.get("/", (_req, res) => {
   res.type("html").send(`<!doctype html>
@@ -54,6 +59,12 @@ app.get("/", (_req, res) => {
       color: #087b33;
       font-size: 32px;
     }
+    .logo {
+      width: min(520px, 100%);
+      height: auto;
+      margin-bottom: 18px;
+      display: block;
+    }
     p {
       margin: 0 0 22px;
       line-height: 1.5;
@@ -77,7 +88,7 @@ app.get("/", (_req, res) => {
 </head>
 <body>
   <main>
-    <h1>EnjoyFreeDeals</h1>
+    <img class="logo" src="/logo.png" alt="EnjoyFreeDeals">
     <p>The backend is live. Open the deals page below or use the Android app to browse offers.</p>
     <a href="/deals">View Deals</a>
     <a class="secondary" href="/api/health">Check Health</a>
@@ -128,6 +139,11 @@ app.get("/deals", async (req, res, next) => {
       margin: 0;
       color: #087b33;
       font-size: 28px;
+    }
+    .brand-logo {
+      width: min(360px, 64vw);
+      height: auto;
+      display: block;
     }
     .api-link {
       padding: 10px 14px;
@@ -215,8 +231,9 @@ app.get("/deals", async (req, res, next) => {
         margin-top: 12px;
         display: inline-block;
       }
-      h1 {
-        font-size: 24px;
+      .brand-logo {
+        width: 100%;
+        max-width: 320px;
       }
     }
   </style>
@@ -224,7 +241,7 @@ app.get("/deals", async (req, res, next) => {
 <body>
   <header>
     <div class="bar">
-      <h1>EnjoyFreeDeals</h1>
+      <img class="brand-logo" src="/logo.png" alt="EnjoyFreeDeals">
       <a class="api-link" href="/api/deals?limit=10">Raw API</a>
     </div>
   </header>
