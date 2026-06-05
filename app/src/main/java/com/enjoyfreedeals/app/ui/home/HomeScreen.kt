@@ -44,10 +44,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.enjoyfreedeals.app.R
 import com.enjoyfreedeals.app.data.model.CategoryModel
 import com.enjoyfreedeals.app.data.model.DealModel
 import com.enjoyfreedeals.app.data.model.PriceComparisonProductModel
@@ -83,7 +85,8 @@ fun HomeScreen(
     onStorePriceClick: (StorePriceModel) -> Unit,
     onPriceAlertClick: (DealModel) -> Unit,
     priceHistory: Map<String, List<PricePointModel>> = emptyMap(),
-    priceDropAlerts: Set<String> = emptySet()
+    priceDropAlerts: Set<String> = emptySet(),
+    savedDeals: Set<String> = emptySet()
 ) {
     val homeSections = remember(state.deals) {
         buildHomeDealSections(state.deals)
@@ -133,7 +136,7 @@ fun HomeScreen(
             if (state.deals.isNotEmpty()) {
                 homeSections.forEach { section ->
                     item(section.title) {
-                        DealSection(section.title, section.deals, onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts)
+                        DealSection(section.title, section.deals, onViewDeal, onSaveDeal, onShareDeal, onOpenDealDetails, onPriceAlertClick, priceHistory, priceDropAlerts, savedDeals)
                     }
                 }
                 item {
@@ -154,8 +157,6 @@ private data class HomeDealSection(
 
 private fun buildHomeDealSections(deals: List<DealModel>): List<HomeDealSection> {
     val usedDealIds = mutableSetOf<String>()
-    val now = System.currentTimeMillis()
-    val expiringSoonWindow = 3L * 24L * 60L * 60L * 1000L
 
     fun pick(candidates: List<DealModel>, limit: Int): List<DealModel> =
         candidates
@@ -163,15 +164,10 @@ private fun buildHomeDealSections(deals: List<DealModel>): List<HomeDealSection>
             .take(limit)
             .also { selected -> usedDealIds += selected.map { it.dealId } }
 
-    val expiringSoonDeals = deals
-        .filter { it.expiryDate in (now + 1)..(now + expiringSoonWindow) }
-        .sortedBy { it.expiryDate }
-
     return listOf(
         HomeDealSection("Featured Deals", pick(deals.filter { it.isFeatured }, 3)),
         HomeDealSection("Hot Deals", pick(deals.filter { it.isHotDeal }.sortedByDescending { it.discountPercent }, 3)),
         HomeDealSection("Free Deals", pick(deals.filter { it.isFreeDeal }, 3)),
-        HomeDealSection("Expiring Soon", pick(expiringSoonDeals, 3)),
         HomeDealSection("Latest Deals", pick(deals.sortedByDescending { it.createdAt }, 4))
     ).filter { it.deals.isNotEmpty() }
 }
@@ -243,10 +239,12 @@ private fun BannerSlider(deals: List<DealModel>, onViewDeal: (DealModel) -> Unit
                     .padding(18.dp)
             ) {
                 AsyncImage(
-                    model = deal.productImage,
+                    model = deal.displayImageUrl,
                     contentDescription = deal.title,
                     modifier = Modifier.align(Alignment.CenterEnd).size(122.dp).clip(RoundedCornerShape(24.dp)),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Fit,
+                    placeholder = painterResource(R.drawable.enjoyfreedeals_logo),
+                    error = painterResource(R.drawable.enjoyfreedeals_logo)
                 )
                 Column(Modifier.align(Alignment.CenterStart).fillMaxWidth(0.62f)) {
                     Surface(color = Color.White.copy(alpha = 0.18f), contentColor = Color.White, shape = RoundedCornerShape(50)) {
@@ -275,14 +273,15 @@ private fun DealSection(
     onOpenDealDetails: (DealModel) -> Unit,
     onPriceAlertClick: (DealModel) -> Unit,
     priceHistory: Map<String, List<PricePointModel>>,
-    priceDropAlerts: Set<String>
+    priceDropAlerts: Set<String>,
+    savedDeals: Set<String>
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionTitle(title)
         deals.forEach { deal ->
             DealCard(
                 deal = deal,
-                isSaved = false,
+                isSaved = savedDeals.contains(deal.dealId),
                 onViewDeal = onViewDeal,
                 onSaveDeal = onSaveDeal,
                 onShareDeal = onShareDeal,

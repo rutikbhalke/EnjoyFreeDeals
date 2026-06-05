@@ -16,6 +16,7 @@ const profileRoutes = require("./routes/profileRoutes");
 const authRoutes = require("./routes/authRoutes");
 const priceComparisonRoutes = require("./routes/priceComparisonRoutes");
 const sharedDealRoutes = require("./routes/sharedDealRoutes");
+const recentlyViewedRoutes = require("./routes/recentlyViewedRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const dealRepository = require("./repositories/dealRepository");
 const compatApiRoutes = require("./routes/compatApiRoutes");
@@ -293,6 +294,7 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/blogs", blogRoutes);
 app.use("/api/wishlist", wishlistRoutes);
 app.use("/api/shared-deals", sharedDealRoutes);
+app.use("/api/recently-viewed", recentlyViewedRoutes);
 app.use("/api/price-alerts", priceAlertRoutes);
 app.use("/api/price-comparisons", priceComparisonRoutes);
 app.use("/api/health", healthRoutes);
@@ -316,8 +318,7 @@ function renderDealCard(deal) {
   const storeName = escapeHtml(deal.storeName || "Store");
   const discount = Number(deal.discountPercent || 0);
   const discountText = discount > 0 ? `${Math.round(discount)}% off` : "Live deal";
-  const scrapedText = formatDateTime(deal.lastScrapedAt || deal.scrapedAt || deal.updatedAt || deal.createdAt);
-  const validText = formatTimeLeft(deal.scrapeExpiresAt || deal.expiryDate);
+  const updatedText = formatTimeAgo(deal.sourceUpdatedAt || deal.lastCheckedAt || deal.fetchedAt || deal.lastScrapedAt || deal.updatedAt || deal.createdAt);
 
   return `<article class="card">
     ${imageUrl ? `<img class="image" src="${imageUrl}" alt="${title}" loading="lazy">` : '<div class="image"></div>'}
@@ -328,7 +329,7 @@ function renderDealCard(deal) {
         ${deal.originalPrice && deal.originalPrice !== deal.discountedPrice ? `<span class="original">${formatPrice(deal.originalPrice)}</span>` : ""}
       </div>
       <p class="meta">${escapeHtml(discountText)} - ${storeName}</p>
-      <p class="time">Scraped: ${escapeHtml(scrapedText)}<br>Valid: ${escapeHtml(validText)} / 24h</p>
+      <p class="time">Updated ${escapeHtml(updatedText)}</p>
       <a class="open" href="${dealUrl}" target="_blank" rel="noopener noreferrer">Open Deal</a>
     </div>
   </article>`;
@@ -353,15 +354,17 @@ function formatDateTime(value) {
   });
 }
 
-function formatTimeLeft(value) {
-  const expiresAt = new Date(value).getTime();
-  if (!Number.isFinite(expiresAt)) return "24h";
-  const remainingMs = expiresAt - Date.now();
-  if (remainingMs <= 0) return "Expired";
-  const hours = Math.floor(remainingMs / (60 * 60 * 1000));
-  const minutes = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
-  if (hours >= 1) return `${hours}h ${minutes}m left`;
-  return `${Math.max(1, minutes)}m left`;
+function formatTimeAgo(value) {
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return "time unknown";
+  const elapsed = Math.max(0, Date.now() - timestamp);
+  const minutes = Math.floor(elapsed / (60 * 1000));
+  const hours = Math.floor(elapsed / (60 * 60 * 1000));
+  const days = Math.floor(elapsed / (24 * 60 * 60 * 1000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  if (hours < 24) return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+  return days === 1 ? "yesterday" : `${days} days ago`;
 }
 
 function escapeHtml(value) {

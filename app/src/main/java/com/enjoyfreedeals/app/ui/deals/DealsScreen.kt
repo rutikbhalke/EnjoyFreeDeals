@@ -31,6 +31,7 @@ import com.enjoyfreedeals.app.ui.components.SectionTitle
 import com.enjoyfreedeals.app.theme.PrimaryGreen
 import com.enjoyfreedeals.app.utils.Constants
 import com.enjoyfreedeals.app.viewmodel.DealsUiState
+import com.enjoyfreedeals.app.ui.saved.shareText
 
 @Composable
 fun DealsScreen(
@@ -127,11 +128,10 @@ fun DealsScreen(
 }
 
 fun shareDeal(context: Context, deal: DealModel) {
-    val text = "${deal.title}\n${deal.description}\n${deal.redirectUrl}"
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_SUBJECT, deal.title)
-        putExtra(Intent.EXTRA_TEXT, text)
+        putExtra(Intent.EXTRA_TEXT, deal.shareText())
     }
     context.startActivity(Intent.createChooser(intent, "Share deal"))
 }

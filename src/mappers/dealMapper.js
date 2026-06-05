@@ -1,15 +1,16 @@
 function toApiDeal(row) {
   const store = row.stores || {};
   const category = row.categories || {};
-  const currentPrice = Number(row.discounted_price || 0);
-  const originalPrice = Number(row.original_price || currentPrice || 0);
-  const discountPercent = Number(row.discount_percentage || 0);
+  const currentPrice = safePrice(row.discounted_price);
+  const originalPrice = safePrice(row.original_price || currentPrice || 0);
+  const discountPercent = safeDiscount(row.discount_percentage, originalPrice, currentPrice);
   const productImage = resolveDealImage(row);
   const dealUrl = resolveDealUrl(row);
-  const lastScrapedAt = row.last_scraped_at || row.updated_at || row.created_at || null;
-  const scrapeExpiresAt = lastScrapedAt
-    ? new Date(new Date(lastScrapedAt).getTime() + 24 * 60 * 60 * 1000).toISOString()
-    : row.expiry_date;
+  const lastScrapedAt = row.source_updated_at || row.fetched_at || row.last_scraped_at || row.updated_at || row.created_at || null;
+  const platformExpiresAt = row.platform_expires_at || row.expiry_date || null;
+  const categoryName = category.name || row.category_name || "Other Deals";
+  const isExpired = Boolean(row.is_expired) || Boolean(platformExpiresAt && new Date(platformExpiresAt).getTime() <= Date.now()) || row.status === "expired";
+  const isValid = isValidDealPrice(originalPrice, currentPrice) && isHttpUrl(dealUrl);
 
   return {
     dealId: row.id,
@@ -19,24 +20,31 @@ function toApiDeal(row) {
     description: row.description || "",
     productImage,
     imageUrl: productImage,
+    sourceImageUrl: row.source_image_url || row.raw_source_payload?.sourceImageUrl || row.raw_source_payload?.imageUrl || "",
     originalPrice,
+    dealPrice: currentPrice,
     discountedPrice: currentPrice,
     discountPercent,
+    currency: row.currency || "INR",
+    platformProductId: row.source_product_id || row.raw_source_payload?.platformProductId || row.raw_source_payload?.asin || row.raw_source_payload?.sku || "",
     storeId: row.store_id,
     storeName: store.name || row.store_name || "",
     storeLogo: store.logo_url || "",
     categoryId: row.category_id,
-    categoryName: category.name || "",
-    categorySlug: category.slug || "",
+    categoryName,
+    categorySlug: category.slug || slugify(categoryName),
     dealType: row.source || "manual",
     dealUrl,
     productUrl: dealUrl,
+    platformProductUrl: row.platform_product_url || row.raw_source_payload?.platformProductUrl || dealUrl,
     affiliateUrl: dealUrl,
     couponCode: row.coupon_code || "",
     cashbackPercentage: Number(row.cashback_percentage || 0),
     isHotDeal: discountPercent >= 50 || Boolean(row.is_featured),
     isFreeDeal: currentPrice === 0,
-    isActive: row.status === "active",
+    isExpired,
+    isValid,
+    isActive: row.status === "active" && !isExpired && isValid,
     isFeatured: Boolean(row.is_featured),
     isVerified: Boolean(row.is_verified),
     shareCount: 0,
@@ -53,22 +61,29 @@ function toApiDeal(row) {
     source: row.source || "manual",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    fetchedAt: row.fetched_at || lastScrapedAt,
+    lastCheckedAt: row.last_checked_at || row.updated_at || lastScrapedAt,
+    sourceUpdatedAt: row.source_updated_at || row.raw_source_payload?.sourceUpdatedAt || row.raw_source_payload?.normalizedAt || null,
+    platformExpiresAt,
+    expiresAt: platformExpiresAt,
     lastScrapedAt,
     scrapedAt: lastScrapedAt,
-    scrapeExpiresAt,
-    scrapeValidHours: 24,
-    expiryDate: lastScrapedAt ? scrapeExpiresAt : row.expiry_date
+    scrapeExpiresAt: platformExpiresAt,
+    scrapeValidHours: null,
+    expiryDate: platformExpiresAt
   };
 }
 
 function isAutomatedScrapedDeal(row) {
-  return Boolean(
-    row &&
-    row.last_scraped_at &&
-    row.source_url &&
-    row.dedupe_key &&
-    row.raw_source_payload?.connectorMode === "html-scrape"
-  );
+  if (!row || row.status !== "active" || !row.source_url || !row.dedupe_key) return false;
+  const mode = row.raw_source_payload?.connectorMode || "";
+  if (!["html-scrape", "telegram-bot", "telegram-page", "direct-platform-fetch"].includes(mode)) return false;
+  if (row.is_valid === false || row.is_expired === true) return false;
+  if (row.discounted_price < 0 || (row.original_price > 0 && row.discounted_price > row.original_price)) return false;
+  const platformExpiresAt = row.platform_expires_at || row.expiry_date || null;
+  if (platformExpiresAt && new Date(platformExpiresAt).getTime() <= Date.now()) return false;
+  const timestamp = row.source_updated_at || row.fetched_at || row.last_scraped_at || row.updated_at || row.created_at;
+  return Boolean(timestamp && new Date(timestamp).getTime() >= Date.now() - 24 * 60 * 60 * 1000);
 }
 
 function normalizeDealPayload(payload) {
@@ -76,6 +91,8 @@ function normalizeDealPayload(payload) {
   mapIfPresent(normalized, "dealId", "id");
   mapIfPresent(normalized, "productImage", "image_url");
   mapIfPresent(normalized, "imageUrl", "image_url");
+  mapIfPresent(normalized, "sourceImageUrl", "source_image_url");
+  mapIfPresent(normalized, "platformProductUrl", "platform_product_url");
   mapIfPresent(normalized, "photoUrl", "image_url");
   mapIfPresent(normalized, "thumbnailUrl", "image_url");
   mapIfPresent(normalized, "discountPercent", "discount_percentage");
@@ -88,6 +105,10 @@ function normalizeDealPayload(payload) {
   mapIfPresent(normalized, "cashbackPercentage", "cashback_percentage");
   mapIfPresent(normalized, "isFeatured", "is_featured");
   mapIfPresent(normalized, "expiryDate", "expiry_date");
+  mapIfPresent(normalized, "expiresAt", "platform_expires_at");
+  mapIfPresent(normalized, "platformExpiresAt", "platform_expires_at");
+  mapIfPresent(normalized, "sourceUpdatedAt", "source_updated_at");
+  mapIfPresent(normalized, "platformProductId", "source_product_id");
   mapIfPresent(normalized, "createdAt", "created_at");
   mapIfPresent(normalized, "updatedAt", "updated_at");
   mapIfPresent(normalized, "clickCount", "click_count");
@@ -139,11 +160,30 @@ function resolveDealImage(row) {
     ...generatedCandidates,
     ...storedCandidates.filter((value) => !isKnownFallbackImage(value) && !isTelegramPreviewImage(value)),
     ...storedCandidates.filter((value) => !isKnownFallbackImage(value)),
-    ...storedCandidates,
-    fallbackDealImage(row)
+    ...storedCandidates
   ]
     .map((value) => String(value || "").trim())
-    .find(isHttpUrl) || fallbackDealImage(row);
+    .find(isHttpUrl) || "";
+}
+
+function safePrice(value) {
+  const price = Number(value || 0);
+  return Number.isFinite(price) && price >= 0 ? price : 0;
+}
+
+function safeDiscount(value, originalPrice, currentPrice) {
+  const discount = Number(value || 0);
+  if (Number.isFinite(discount) && discount >= 0 && discount <= 100) return Math.round(discount);
+  if (originalPrice > 0 && currentPrice >= 0 && currentPrice <= originalPrice) {
+    return Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+  }
+  return 0;
+}
+
+function isValidDealPrice(originalPrice, currentPrice) {
+  if (!Number.isFinite(currentPrice) || currentPrice < 0) return false;
+  if (originalPrice > 0 && currentPrice > originalPrice) return false;
+  return true;
 }
 
 function resolveDealUrl(row) {
@@ -155,29 +195,6 @@ function resolveDealUrl(row) {
   ]
     .map((value) => String(value || "").trim())
     .find((value) => isHttpUrl(value) && !isImageAssetUrl(value)) || "";
-}
-
-function fallbackDealImage(row) {
-  const store = row.stores || {};
-  const category = row.categories || {};
-  const text = [
-    row.title,
-    row.description,
-    row.category_name,
-    category.name,
-    row.store_name,
-    store.name
-  ].join(" ").toLowerCase();
-
-  if (containsAny(text, ["phone", "mobile", "smartphone"])) return FALLBACK_DEAL_IMAGES.mobile;
-  if (containsAny(text, ["shoe", "sneaker", "footwear"])) return FALLBACK_DEAL_IMAGES.shoes;
-  if (containsAny(text, ["shirt", "t-shirt", "kurti", "dress", "fashion", "jeans", "saree"])) return FALLBACK_DEAL_IMAGES.fashion;
-  if (containsAny(text, ["grocery", "fruit", "food", "snack", "tea", "coffee"])) return FALLBACK_DEAL_IMAGES.grocery;
-  if (containsAny(text, ["beauty", "skin", "makeup", "cosmetic"])) return FALLBACK_DEAL_IMAGES.beauty;
-  if (containsAny(text, ["kitchen", "home", "storage", "container"])) return FALLBACK_DEAL_IMAGES.home;
-  if (containsAny(text, ["laptop", "student", "backpack", "bag"])) return FALLBACK_DEAL_IMAGES.laptop;
-  if (containsAny(text, ["earbud", "speaker", "watch", "charger", "camera", "tablet", "headphone"])) return FALLBACK_DEAL_IMAGES.electronics;
-  return FALLBACK_DEAL_IMAGES.general;
 }
 
 function amazonImageFromUrl(value) {
@@ -200,8 +217,12 @@ function amazonAsinFromUrl(value) {
   }
 }
 
-function containsAny(text, tokens) {
-  return tokens.some((token) => text.includes(token));
+function slugify(value) {
+  return String(value || "other-deals")
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") || "other-deals";
 }
 
 function isHttpUrl(value) {

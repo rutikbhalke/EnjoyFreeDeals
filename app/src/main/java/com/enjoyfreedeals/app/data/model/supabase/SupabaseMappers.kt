@@ -1,7 +1,6 @@
 package com.enjoyfreedeals.app.data.model.supabase
 
 import com.enjoyfreedeals.app.data.model.DealModel
-import com.enjoyfreedeals.app.data.model.DealImageFallbacks
 import com.enjoyfreedeals.app.data.model.PricePointModel
 import com.enjoyfreedeals.app.data.model.PriceStatsModel
 import com.enjoyfreedeals.app.data.model.StorePriceModel
@@ -17,9 +16,11 @@ fun ActiveDealDto.toDealModel(
     val price = lowestPrice ?: 0.0
     val mrp = originalPrice ?: price
     val resolvedTitle = title.ifBlank { productName }
+    val safeCategoryName = categoryName.ifBlank { "Other Deals" }
     val resolvedImageUrl = firstNotBlank(
         imageUrl,
         camelImageUrl,
+        sourceImageUrl,
         productImageUrl,
         camelProductImageUrl,
         photoUrl,
@@ -27,7 +28,9 @@ fun ActiveDealDto.toDealModel(
         thumbnail
     )
     val lastUpdatedMillis = lastUpdated.toEpochMillisOrNow()
-    val expiresMillis = expiresAt.toEpochMillisOrDefault(System.currentTimeMillis() + DealModel.DEFAULT_EXPIRY_WINDOW)
+    val platformExpiresMillis = expiresAt.toEpochMillisOrNull()
+    val validPrice = price >= 0.0 && (mrp <= 0.0 || price <= mrp)
+    val platformExpired = platformExpiresMillis?.let { it <= System.currentTimeMillis() } == true
     return DealModel(
         dealId = offerId,
         productId = productId.ifBlank { offerId },
@@ -35,22 +38,30 @@ fun ActiveDealDto.toDealModel(
         description = listOfNotNull(brand, model, categoryName).joinToString(" ").ifBlank {
             "$resolvedTitle from $storeName"
         },
-        productImage = resolvedImageUrl.ifBlank { DealImageFallbacks.forDeal(resolvedTitle, categoryName, storeName) },
+        productImage = resolvedImageUrl.takeIf { it.isHttpUrl() }.orEmpty(),
+        imageUrl = resolvedImageUrl.takeIf { it.isHttpUrl() }.orEmpty(),
+        sourceImageUrl = sourceImageUrl?.takeIf { it.isHttpUrl() }.orEmpty(),
         originalPrice = mrp,
+        dealPrice = price,
         discountedPrice = price,
         discountPercent = discountPercent ?: discountPercent(mrp, price),
         storeName = storeName,
         storeLogo = storeLogoUrl.orEmpty(),
-        categoryId = categorySlug.ifBlank { categoryName.slugify() },
-        categoryName = categoryName,
+        currency = currency.ifBlank { "INR" },
+        categoryId = categorySlug.ifBlank { safeCategoryName.slugify() },
+        categoryName = safeCategoryName,
         dealType = if (isFreeDeal) "FREE" else "DISCOUNT",
         dealUrl = affiliateUrl.orEmpty().ifBlank { productUrl },
         productUrl = productUrl,
+        platformProductUrl = platformProductUrl.orEmpty().ifBlank { productUrl },
+        platformProductId = productId.ifBlank { offerId },
         affiliateUrl = affiliateUrl.orEmpty(),
         couponCode = couponCode.orEmpty(),
         isHotDeal = isHotDeal,
         isFreeDeal = isFreeDeal,
-        isActive = isAvailable(availability) && expiresMillis > System.currentTimeMillis(),
+        isActive = isAvailable(availability) && !platformExpired && validPrice,
+        isExpired = platformExpired,
+        isValid = validPrice,
         isFeatured = isLowestPrice,
         currentPrice = price,
         lowestPrice = priceStats?.minPrice ?: price,
@@ -65,7 +76,13 @@ fun ActiveDealDto.toDealModel(
         comparisonPrices = comparisonPrices,
         createdAt = lastUpdatedMillis,
         updatedAt = lastUpdatedMillis,
-        expiryDate = expiresMillis
+        fetchedAt = lastUpdatedMillis,
+        lastCheckedAt = lastUpdatedMillis,
+        platformExpiresAt = platformExpiresMillis,
+        expiresAt = platformExpiresMillis,
+        lastScrapedAt = lastUpdatedMillis,
+        scrapeExpiresAt = platformExpiresMillis,
+        expiryDate = platformExpiresMillis
     )
 }
 
@@ -138,6 +155,9 @@ private fun String.slugify(): String =
         .replace(Regex("[^a-z0-9]+"), "-")
         .trim('-')
 
+private fun String.isHttpUrl(): Boolean =
+    startsWith("https://", ignoreCase = true) || startsWith("http://", ignoreCase = true)
+
 private fun isAvailable(availability: String?): Boolean {
     val normalized = availability.orEmpty().lowercase(Locale.US)
     return normalized.isBlank() ||
@@ -147,6 +167,11 @@ private fun isAvailable(availability: String?): Boolean {
 }
 
 fun String?.toEpochMillisOrNow(): Long = toEpochMillisOrDefault(System.currentTimeMillis())
+
+fun String?.toEpochMillisOrNull(): Long? {
+    if (isNullOrBlank()) return null
+    return toEpochMillisOrDefault(Long.MIN_VALUE).takeIf { it != Long.MIN_VALUE }
+}
 
 fun String?.toEpochMillisOrDefault(defaultValue: Long): Long {
     if (isNullOrBlank()) return defaultValue

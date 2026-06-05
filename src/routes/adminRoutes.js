@@ -13,6 +13,8 @@ router.get("/scrape-genie-loot", requireImportAccess, telegramImportController.s
 router.post("/scrape-genie-loot", requireImportAccess, telegramImportController.scrapePage);
 router.get("/sync-genie-loot", requireImportAccess, telegramImportController.syncGenieLoot);
 router.post("/sync-genie-loot", requireImportAccess, telegramImportController.syncGenieLoot);
+router.get("/scrape-all-deals", requireImportAccess, telegramImportController.scrapeAllDeals);
+router.post("/scrape-all-deals", requireImportAccess, telegramImportController.scrapeAllDeals);
 router.get("/enrich-genie-loot", requireImportAccess, telegramImportController.enrichDetails);
 router.post("/enrich-genie-loot", requireImportAccess, telegramImportController.enrichDetails);
 router.get("/genie-loot-jobs/:id", requireImportAccess, telegramImportController.jobStatus);

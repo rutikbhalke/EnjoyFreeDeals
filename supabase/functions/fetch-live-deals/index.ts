@@ -6,18 +6,6 @@ type Availability = "in_stock" | "out_of_stock" | "limited_stock";
 type PlatformDealPayload = Partial<NormalizedDeal> & { [key: string]: unknown };
 type SupabaseClient = ReturnType<typeof createClient>;
 
-const FALLBACK_DEAL_IMAGES: Record<string, string> = {
-  electronics: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=900&q=80",
-  mobile: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=80",
-  fashion: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=80",
-  shoes: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80",
-  home: "https://images.unsplash.com/photo-1556909212-d5b604d0c90d?auto=format&fit=crop&w=900&q=80",
-  grocery: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=900&q=80",
-  beauty: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=900&q=80",
-  laptop: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=900&q=80",
-  general: "https://images.unsplash.com/photo-1607082349566-187342175e2f?auto=format&fit=crop&w=900&q=80",
-};
-
 const PLATFORM_STORES: Record<string, { name: string; websiteUrl: string }> = {
   amazon: { name: "Amazon", websiteUrl: "https://www.amazon.in" },
   flipkart: { name: "Flipkart", websiteUrl: "https://www.flipkart.com" },
@@ -167,6 +155,10 @@ serve(async () => {
       const storeId = deals.length > 0 ? await ensureStore(supabase, provider.name) : null;
 
       for (const deal of deals) {
+        if (deal.currentPrice < 0 || deal.originalPrice < 0 || (deal.originalPrice > 0 && deal.currentPrice > deal.originalPrice)) {
+          errors.push(`${provider.name}: skipped invalid price for ${deal.title}`);
+          continue;
+        }
         const imageUrl = resolveDealImage(deal as PlatformDealPayload, provider.name);
         const productGroupKey = normalizeGroupKey(deal);
         const productPayload = {
@@ -191,6 +183,7 @@ serve(async () => {
         if (productError) throw productError;
 
         const discountPercent = calculateDiscountPercent(deal.originalPrice, deal.currentPrice);
+        const expiresAt = deal.expiresAt ?? null;
         const offerPayload = {
           product_id: product.id,
           store_slug: provider.name,
@@ -208,7 +201,7 @@ serve(async () => {
           rating_count: deal.ratingCount ?? 0,
           review_count: deal.reviewCount ?? 0,
           is_hot_deal: discountPercent >= 50,
-          expires_at: deal.expiresAt ?? null,
+          expires_at: expiresAt,
           last_checked_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -294,7 +287,7 @@ async function ensureStore(supabase: SupabaseClient, providerName: string): Prom
 }
 
 async function ensureCategory(supabase: SupabaseClient, category: string): Promise<string | null> {
-  const categoryName = cleanText(category) || "General";
+  const categoryName = cleanText(category) || "Other Deals";
   const { data, error } = await supabase
     .from("categories")
     .upsert({
@@ -322,7 +315,7 @@ async function upsertDealDatabaseRow(
 ): Promise<void> {
   const { providerName, deal, imageUrl, discountPercent, storeId, categoryId } = options;
   const now = new Date().toISOString();
-  const categoryName = cleanText(deal.category) || "General";
+  const categoryName = cleanText(deal.category) || "Other Deals";
   const sourceProductId = cleanText(deal.externalProductId) || `${providerName}:${slugify(deal.title, "deal")}`;
   const productUrl = cleanText(deal.productUrl);
   const affiliateLink = cleanText(deal.affiliateUrl) || productUrl;
@@ -344,7 +337,11 @@ async function upsertDealDatabaseRow(
       cashback_percentage: 0,
       affiliate_link: affiliateLink,
       image_url: imageUrl,
+      source_image_url: imageUrl,
+      platform_product_url: affiliateLink || productUrl,
       expiry_date: deal.expiresAt ?? null,
+      platform_expires_at: deal.expiresAt ?? null,
+      source_updated_at: now,
       status: shouldExpire(deal) ? "expired" : "active",
       is_featured: discountPercent >= 50 || deal.currentPrice === 0,
       is_verified: true,
@@ -389,7 +386,7 @@ function resolveDealImage(deal: PlatformDealPayload, providerName: string): stri
 
   return candidates
     .map((value) => String(value || "").trim())
-    .find(isHttpUrl) || fallbackDealImage(deal, providerName);
+    .find(isHttpUrl) || "";
 }
 
 function firstImageValue(value: unknown): string {
@@ -427,30 +424,6 @@ function firstImageValue(value: unknown): string {
   }
 
   return "";
-}
-
-function fallbackDealImage(deal: PlatformDealPayload, providerName: string): string {
-  const text = [
-    deal.title,
-    deal.category,
-    deal.brand,
-    deal.model,
-    providerName,
-  ].join(" ").toLowerCase();
-
-  if (containsAny(text, ["phone", "mobile", "smartphone"])) return FALLBACK_DEAL_IMAGES.mobile;
-  if (containsAny(text, ["shoe", "sneaker", "footwear"])) return FALLBACK_DEAL_IMAGES.shoes;
-  if (containsAny(text, ["shirt", "t-shirt", "kurti", "dress", "fashion", "jeans", "saree"])) return FALLBACK_DEAL_IMAGES.fashion;
-  if (containsAny(text, ["grocery", "fruit", "food", "snack", "tea", "coffee"])) return FALLBACK_DEAL_IMAGES.grocery;
-  if (containsAny(text, ["beauty", "skin", "makeup", "cosmetic"])) return FALLBACK_DEAL_IMAGES.beauty;
-  if (containsAny(text, ["kitchen", "home", "storage", "container"])) return FALLBACK_DEAL_IMAGES.home;
-  if (containsAny(text, ["laptop", "student", "backpack", "bag"])) return FALLBACK_DEAL_IMAGES.laptop;
-  if (containsAny(text, ["earbud", "speaker", "watch", "charger", "camera", "tablet", "headphone"])) return FALLBACK_DEAL_IMAGES.electronics;
-  return FALLBACK_DEAL_IMAGES.general;
-}
-
-function containsAny(text: string, tokens: string[]): boolean {
-  return tokens.some((token) => text.includes(token));
 }
 
 function isHttpUrl(value: string): boolean {

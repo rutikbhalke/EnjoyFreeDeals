@@ -16,6 +16,7 @@ data class ActiveDealDto(
     @SerialName("store_slug") val storeSlug: String = "",
     @SerialName("store_logo_url") val storeLogoUrl: String? = null,
     @SerialName("image_url") val imageUrl: String? = null,
+    @SerialName("source_image_url") val sourceImageUrl: String? = null,
     @SerialName("imageUrl") val camelImageUrl: String? = null,
     @SerialName("product_image") val productImageUrl: String? = null,
     @SerialName("productImage") val camelProductImageUrl: String? = null,
@@ -24,6 +25,7 @@ data class ActiveDealDto(
     val thumbnail: String? = null,
     val title: String = "",
     @SerialName("product_url") val productUrl: String = "",
+    @SerialName("platform_product_url") val platformProductUrl: String? = null,
     @SerialName("affiliate_url") val affiliateUrl: String? = null,
     @SerialName("original_price") val originalPrice: Double? = null,
     @SerialName("lowest_price") val lowestPrice: Double? = null,
@@ -83,7 +85,7 @@ data class ProductPriceStatsDto(
 data class SavedDealDto(
     val id: String = "",
     @SerialName("user_id") val userId: String = "",
-    @SerialName("offer_id") val offerId: String = "",
+    @SerialName("deal_id") val dealId: String = "",
     @SerialName("created_at") val createdAt: String? = null
 )
 
@@ -91,9 +93,11 @@ data class SavedDealDto(
 data class PriceAlertDto(
     val id: String = "",
     @SerialName("user_id") val userId: String = "",
-    @SerialName("product_id") val productId: String = "",
+    @SerialName("deal_id") val dealId: String = "",
     @SerialName("target_price") val targetPrice: Double = 0.0,
+    @SerialName("current_price") val currentPrice: Double? = null,
     @SerialName("is_active") val isActive: Boolean = true,
+    @SerialName("is_triggered") val isTriggered: Boolean = false,
     @SerialName("triggered_at") val triggeredAt: String? = null,
     @SerialName("created_at") val createdAt: String? = null
 )
@@ -119,13 +123,13 @@ data class PriceHistoryDto(
 @Serializable
 data class NewSavedDealDto(
     @SerialName("user_id") val userId: String,
-    @SerialName("offer_id") val offerId: String
+    @SerialName("deal_id") val dealId: String
 )
 
 @Serializable
 data class NewPriceAlertDto(
     @SerialName("user_id") val userId: String,
-    @SerialName("product_id") val productId: String,
+    @SerialName("deal_id") val dealId: String,
     @SerialName("target_price") val targetPrice: Double,
     @SerialName("is_active") val isActive: Boolean = true
 )

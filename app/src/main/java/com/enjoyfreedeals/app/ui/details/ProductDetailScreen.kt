@@ -33,10 +33,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.enjoyfreedeals.app.R
 import com.enjoyfreedeals.app.data.model.DealModel
 import com.enjoyfreedeals.app.data.model.PricePointModel
 import com.enjoyfreedeals.app.data.model.StorePriceModel
@@ -53,10 +55,10 @@ import com.enjoyfreedeals.app.ui.components.PremiumBackground
 import com.enjoyfreedeals.app.ui.components.PriceComparisonCard
 import com.enjoyfreedeals.app.ui.components.PriceTrackingPanel
 import com.enjoyfreedeals.app.ui.components.SectionTitle
-import com.enjoyfreedeals.app.ui.components.formatExpiry
 import com.enjoyfreedeals.app.ui.components.formatPrice
-import com.enjoyfreedeals.app.ui.components.formatScrapeValidity
-import com.enjoyfreedeals.app.ui.components.formatScrapedAt
+import com.enjoyfreedeals.app.ui.components.formatTimeAgo
+import com.enjoyfreedeals.app.ui.components.formatUpdatedStatus
+import com.enjoyfreedeals.app.ui.components.preferredUpdateTime
 import com.enjoyfreedeals.app.utils.LocalAppStrings
 import java.util.Locale
 
@@ -102,17 +104,18 @@ fun ProductDetailScreen(
                 ) {
                     Column {
                         AsyncImage(
-                            model = deal.productImage,
+                            model = deal.displayImageUrl,
                             contentDescription = deal.title,
                             modifier = Modifier.fillMaxWidth().height(260.dp),
-                            contentScale = ContentScale.Crop
+                            contentScale = ContentScale.Fit,
+                            placeholder = painterResource(R.drawable.enjoyfreedeals_logo),
+                            error = painterResource(R.drawable.enjoyfreedeals_logo)
                         )
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text(deal.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(deal.storeName, color = PrimaryGreen, fontWeight = FontWeight.Bold)
                                 if (deal.isVerified) Badge("Verified", PrimaryGreen, Color.White)
-                                Badge(formatExpiry(deal.expiryDate), SoftYellow, DarkText)
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(formatPrice(stats.currentPrice), color = PrimaryGreen, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
@@ -129,10 +132,17 @@ fun ProductDetailScreen(
                                 Text(deal.deliveryInfo, color = GreyText)
                             }
                             Text(
-                                "Scraped ${formatScrapedAt(deal.lastScrapedAt)} - ${formatScrapeValidity(deal.scrapeExpiresAt)} / ${deal.scrapeValidHours}h",
+                                formatUpdatedStatus(preferredUpdateTime(deal)),
                                 color = GreyText,
                                 style = MaterialTheme.typography.labelMedium
                             )
+                            deal.sourceUpdatedAt?.let { sourceUpdatedAt ->
+                                Text(
+                                    "Source updated ${formatTimeAgo(sourceUpdatedAt)}",
+                                    color = GreyText,
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            }
                             Text(deal.description, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }

@@ -72,6 +72,10 @@ The API runs on `http://localhost:5000` by default.
   - Admin only
 - `POST /api/admin/scraped-deals/:id/reject`
   - Admin only; body: `reason`
+- `GET /api/admin/scrape-all-deals`
+  - Import-protected; scrapes configured Telegram preview pages, enriches product pages for real images/prices, and starts a background job by default.
+- `GET /api/admin/genie-loot-jobs/:id`
+  - Import-protected; checks scrape/enrichment job status.
 - `GET /api/profiles/:userId`
 - `PUT /api/profiles/:userId`
 - `GET /api/notifications/:userId`
@@ -185,10 +189,9 @@ GENIE_LOOT_BEST_DEAL_FRACTION=0.3
 GENIE_LOOT_CHEAP_PRICE_LIMIT=999
 GENIE_LOOT_REJECT_UNSELECTED=true
 GENIE_LOOT_STALE_SCAN_LIMIT=5000
-TELEGRAM_EXPIRY_DAYS=1
 ```
 
-Telegram scraped deals are treated as fresh for 24 hours by default. API responses include `lastScrapedAt`, `scrapedAt`, `scrapeExpiresAt`, and `scrapeValidHours` so the web page and Android app can show when the deal was scraped and how long it remains valid.
+Telegram scraped deals are not given a fake expiry window. API responses include `fetchedAt`, `lastCheckedAt`, `sourceUpdatedAt`, and `platformExpiresAt` when the original platform/source provides a real expiry. Deals remain visible until the backend marks them expired, unavailable, invalid, or their real `platformExpiresAt` has passed.
 
 After the Telegram posts are imported, resolve their product links and pull merchant details, images, and structured prices where the product site exposes them:
 
@@ -211,6 +214,21 @@ http://127.0.0.1:5000/api/admin/sync-genie-loot?fast=1&quick=1&urls=https://t.me
 The response includes a `statusUrl` that can be opened to see whether the job is still running or complete.
 
 Use `url=https://t.me/s/channel_name` to target another public Telegram channel preview. Private `https://t.me/+...` invite links still cannot expose old post history.
+
+To scrape all configured deal channels and enrich actual product images in one backend job, use:
+
+```text
+http://127.0.0.1:5000/api/admin/scrape-all-deals?fast=1&quick=1&maxPages=100&limit=1500&concurrency=20&timeoutMs=2000
+```
+
+Use `blocking=true` only when you want the request to wait until scraping and enrichment are complete. Public app APIs still show only active valid deals updated in the last 24 hours. Android does not scrape directly; it reads cleaned backend/Supabase data.
+
+Image behavior:
+
+- Telegram preview-page images are saved as source images when present.
+- Product pages are fetched server-side to extract JSON-LD image, `og:image`, `twitter:image`, and platform-specific images where available.
+- `image_url` stays blank when no valid real image exists; Android then shows its neutral placeholder.
+- Generic/category images are not written as product images.
 
 ### Edge Function Secrets
 

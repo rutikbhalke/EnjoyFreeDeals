@@ -137,9 +137,9 @@ function telegramMessageToDeal(
     originalPrice,
     discountedPrice,
     couponCode,
-    imageUrl: telegramDefaultImageUrl(source),
+    imageUrl: "",
     affiliateUrl: sourceUrl,
-    expiryDate: daysFromNow(telegramExpiryDays(source)),
+    expiryDate: undefined,
     raw: {
       connectorMode: "telegram-bot",
       sourceKey: source.source_key,
@@ -349,7 +349,7 @@ function inferCategory(text: string, source: DealSourceRow): string {
   if (/book|course|student|exam|ebook/.test(value)) return "Student Deals";
   if (/food|grocery|kitchen|snack|tea|coffee/.test(value)) return "Grocery";
   if (/software|app|subscription|hosting|domain|vpn/.test(value)) return "Digital";
-  return "General";
+  return "Other Deals";
 }
 
 function telegramMessageUrl(source: DealSourceRow, message: TelegramMessage): string {
@@ -362,23 +362,6 @@ function telegramMessageUrl(source: DealSourceRow, message: TelegramMessage): st
   }
 
   return isHttpUrl(source.base_url) ? source.base_url : "";
-}
-
-function telegramDefaultImageUrl(source: DealSourceRow): string {
-  const config = sourceConfig(source);
-  return cleanText(
-    stringValue(config.defaultImageUrl) ||
-    Deno.env.get(`TELEGRAM_DEFAULT_IMAGE_URL_${envKey(source.source_key)}`) ||
-    Deno.env.get("TELEGRAM_DEFAULT_IMAGE_URL") ||
-    ""
-  );
-}
-
-function telegramExpiryDays(source: DealSourceRow): number {
-  const configDays = Number(sourceConfig(source).expiryDays);
-  const envDays = Number(Deno.env.get(`TELEGRAM_EXPIRY_DAYS_${envKey(source.source_key)}`) || Deno.env.get("TELEGRAM_EXPIRY_DAYS"));
-  const days = Number.isFinite(configDays) && configDays > 0 ? configDays : envDays;
-  return Number.isFinite(days) && days > 0 ? days : 7;
 }
 
 function telegramLimit(source: DealSourceRow): number {

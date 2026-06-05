@@ -68,6 +68,7 @@ create table if not exists public.deals (
   affiliate_link text not null default '',
   image_url text not null default '',
   expiry_date timestamptz,
+  fetched_at timestamptz not null default now(),
   status text not null default 'active',
   is_featured boolean not null default false,
   is_verified boolean not null default false,
@@ -83,6 +84,14 @@ alter table public.deals add column if not exists source_product_id text not nul
 alter table public.deals add column if not exists source_url text not null default '';
 alter table public.deals add column if not exists dedupe_key text;
 alter table public.deals add column if not exists last_scraped_at timestamptz;
+alter table public.deals add column if not exists fetched_at timestamptz default now();
+alter table public.deals add column if not exists source_updated_at timestamptz;
+alter table public.deals add column if not exists platform_expires_at timestamptz;
+alter table public.deals add column if not exists source_image_url text;
+alter table public.deals add column if not exists platform_product_url text;
+alter table public.deals add column if not exists is_valid boolean not null default true;
+alter table public.deals add column if not exists is_expired boolean not null default false;
+alter table public.deals add column if not exists currency text not null default 'INR';
 alter table public.deals add column if not exists raw_source_payload jsonb not null default '{}'::jsonb;
 
 create table if not exists public.products (
@@ -135,28 +144,6 @@ create table if not exists public.fetch_runs (
   errors text[] not null default '{}'::text[]
 );
 
-create or replace function public.fallback_deal_image(
-  title text,
-  category_name text default '',
-  store_name text default ''
-)
-returns text
-language sql
-immutable
-as $$
-  select case
-    when lower(coalesce(title, '') || ' ' || coalesce(category_name, '') || ' ' || coalesce(store_name, '')) ~ '(phone|mobile|smartphone)' then 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=80'
-    when lower(coalesce(title, '') || ' ' || coalesce(category_name, '') || ' ' || coalesce(store_name, '')) ~ '(shoe|sneaker|footwear)' then 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80'
-    when lower(coalesce(title, '') || ' ' || coalesce(category_name, '') || ' ' || coalesce(store_name, '')) ~ '(shirt|t-shirt|kurti|dress|fashion|jeans|saree)' then 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=80'
-    when lower(coalesce(title, '') || ' ' || coalesce(category_name, '') || ' ' || coalesce(store_name, '')) ~ '(grocery|fruit|food|snack|tea|coffee)' then 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=900&q=80'
-    when lower(coalesce(title, '') || ' ' || coalesce(category_name, '') || ' ' || coalesce(store_name, '')) ~ '(beauty|skin|makeup|cosmetic)' then 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=900&q=80'
-    when lower(coalesce(title, '') || ' ' || coalesce(category_name, '') || ' ' || coalesce(store_name, '')) ~ '(kitchen|home|storage|container)' then 'https://images.unsplash.com/photo-1556909212-d5b604d0c90d?auto=format&fit=crop&w=900&q=80'
-    when lower(coalesce(title, '') || ' ' || coalesce(category_name, '') || ' ' || coalesce(store_name, '')) ~ '(laptop|student|backpack|bag)' then 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=900&q=80'
-    when lower(coalesce(title, '') || ' ' || coalesce(category_name, '') || ' ' || coalesce(store_name, '')) ~ '(earbud|speaker|watch|charger|camera|tablet|headphone)' then 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=900&q=80'
-    else 'https://images.unsplash.com/photo-1607082349566-187342175e2f?auto=format&fit=crop&w=900&q=80'
-  end
-$$;
-
 create or replace view public.active_deals as
 select
   d.id::text as offer_id,
@@ -164,13 +151,14 @@ select
   d.title as product_name,
   ''::text as brand,
   ''::text as model,
-  coalesce(c.name, 'General') as category_name,
-  coalesce(c.slug, 'general') as category_slug,
+  coalesce(c.name, 'Other Deals') as category_name,
+  coalesce(c.slug, 'other-deals') as category_slug,
   coalesce(s.name, 'Store') as store_name,
   coalesce(s.slug, 'store') as store_slug,
   coalesce(s.logo_url, '') as store_logo_url,
   coalesce(
     nullif(d.image_url, ''),
+    nullif(d.source_image_url, ''),
     nullif(d.raw_source_payload ->> 'imageUrl', ''),
     nullif(d.raw_source_payload ->> 'image_url', ''),
     nullif(d.raw_source_payload ->> 'productImage', ''),
@@ -179,14 +167,16 @@ select
     nullif(d.raw_source_payload ->> 'photo_url', ''),
     nullif(d.raw_source_payload ->> 'thumbnailUrl', ''),
     nullif(d.raw_source_payload ->> 'thumbnail_url', ''),
-    nullif(d.raw_source_payload ->> 'thumbnail', ''),
-    public.fallback_deal_image(d.title, c.name, s.name)
+    nullif(d.raw_source_payload ->> 'thumbnail', '')
   ) as image_url,
+  coalesce(nullif(d.source_image_url, ''), nullif(d.image_url, '')) as source_image_url,
   d.title,
   coalesce(nullif(d.source_url, ''), d.affiliate_link) as product_url,
+  coalesce(nullif(d.platform_product_url, ''), nullif(d.source_url, ''), d.affiliate_link) as platform_product_url,
   d.affiliate_link as affiliate_url,
   d.original_price,
   d.discounted_price as lowest_price,
+  coalesce(nullif(d.currency, ''), 'INR') as currency,
   d.discount_percentage::integer as discount_percent,
   d.coupon_code,
   'See store'::text as delivery_info,
@@ -196,13 +186,19 @@ select
   (d.discount_percentage >= 50 or d.is_featured) as is_hot_deal,
   (d.discounted_price = 0) as is_free_deal,
   false as is_lowest_price,
-  case when d.status = 'active' then 'in_stock' else d.status end as availability,
-  d.updated_at as last_updated,
-  d.expiry_date as expires_at
+  'in_stock'::text as availability,
+  coalesce(d.source_updated_at, d.fetched_at, d.last_scraped_at, d.updated_at) as last_updated,
+  d.platform_expires_at as expires_at
 from public.deals d
 left join public.stores s on s.id = d.store_id
 left join public.categories c on c.id = d.category_id
 where d.status = 'active'
+  and coalesce(d.is_valid, true) = true
+  and coalesce(d.is_expired, false) = false
+  and d.discounted_price >= 0
+  and (d.original_price <= 0 or d.discounted_price <= d.original_price)
+  and (d.platform_expires_at is null or d.platform_expires_at > now())
+  and coalesce(d.source_updated_at, d.fetched_at, d.last_scraped_at, d.updated_at, d.created_at) >= now() - interval '24 hours'
 union all
 select
   po.id::text as offer_id,
@@ -210,21 +206,23 @@ select
   p.title as product_name,
   p.brand,
   p.model,
-  coalesce(nullif(p.category_name, ''), 'General') as category_name,
-  coalesce(nullif(p.category_slug, ''), 'general') as category_slug,
+  coalesce(nullif(p.category_name, ''), 'Other Deals') as category_name,
+  coalesce(nullif(p.category_slug, ''), 'other-deals') as category_slug,
   coalesce(s.name, initcap(replace(po.store_slug, '-', ' ')), 'Store') as store_name,
   po.store_slug,
   coalesce(s.logo_url, '') as store_logo_url,
   coalesce(
     nullif(po.image_url, ''),
-    nullif(p.image_url, ''),
-    public.fallback_deal_image(p.title, p.category_name, coalesce(s.name, po.store_slug))
+    nullif(p.image_url, '')
   ) as image_url,
+  coalesce(nullif(po.image_url, ''), nullif(p.image_url, '')) as source_image_url,
   p.title,
   po.product_url,
+  po.product_url as platform_product_url,
   po.affiliate_url,
   po.original_price,
   po.current_price as lowest_price,
+  'INR'::text as currency,
   po.discount_percent,
   po.coupon_code,
   coalesce(po.delivery_info, 'See store') as delivery_info,
@@ -241,7 +239,11 @@ from public.product_offers po
 join public.products p on p.id = po.product_id
 left join public.stores s on s.slug = po.store_slug
 where po.status = 'active'
+  and po.availability in ('in_stock', 'available', 'limited_stock')
+  and po.current_price >= 0
+  and (po.original_price <= 0 or po.current_price <= po.original_price)
   and (po.expires_at is null or po.expires_at > now())
+  and coalesce(po.last_checked_at, po.updated_at, po.created_at) >= now() - interval '24 hours'
   and not exists (
     select 1
     from public.deals mirrored
@@ -267,16 +269,6 @@ as $$
     and expires_at is not null
     and expires_at <= now();
 $$;
-
-update public.deals d
-set
-  image_url = public.fallback_deal_image(
-    d.title,
-    (select c.name from public.categories c where c.id = d.category_id),
-    (select s.name from public.stores s where s.id = d.store_id)
-  ),
-  updated_at = now()
-where nullif(d.image_url, '') is null;
 
 with source_categories as (
   select distinct
@@ -323,8 +315,7 @@ direct_platform_deals as (
     po.affiliate_url,
     coalesce(
       nullif(po.image_url, ''),
-      nullif(p.image_url, ''),
-      public.fallback_deal_image(p.title, p.category_name, po.store_slug)
+      nullif(p.image_url, '')
     ) as image_url,
     po.expires_at as expiry_date,
     po.status,
@@ -447,6 +438,14 @@ create table if not exists public.deal_watchlist (
 create unique index if not exists deal_watchlist_user_deal_unique_idx
   on public.deal_watchlist (user_id, deal_id);
 
+create table if not exists public.saved_deals (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  deal_id uuid not null references public.deals(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  unique (user_id, deal_id)
+);
+
 create table if not exists public.shared_deals (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -454,7 +453,33 @@ create table if not exists public.shared_deals (
   share_channel text not null default 'system',
   recipient text not null default '',
   message text not null default '',
+  shared_at timestamptz not null default now(),
   created_at timestamptz not null default now()
+);
+
+create unique index if not exists shared_deals_user_deal_unique_idx
+  on public.shared_deals (user_id, deal_id);
+
+create table if not exists public.price_alerts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  deal_id uuid not null references public.deals(id) on delete cascade,
+  target_price numeric not null,
+  current_price numeric,
+  is_active boolean not null default true,
+  is_triggered boolean not null default false,
+  triggered_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, deal_id)
+);
+
+create table if not exists public.recently_viewed_deals (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  deal_id uuid not null references public.deals(id) on delete cascade,
+  viewed_at timestamptz not null default now(),
+  unique (user_id, deal_id)
 );
 
 create table if not exists public.price_history (
@@ -659,8 +684,15 @@ create index if not exists product_offers_status_updated_idx on public.product_o
 create index if not exists product_offers_product_price_idx on public.product_offers (product_id, status, current_price);
 create index if not exists blog_posts_status_published_idx on public.blog_posts (status, published_at desc);
 create index if not exists deal_watchlist_user_created_idx on public.deal_watchlist (user_id, created_at desc);
+create index if not exists saved_deals_user_created_idx on public.saved_deals (user_id, created_at desc);
+create index if not exists saved_deals_deal_idx on public.saved_deals (deal_id);
 create index if not exists shared_deals_user_created_idx on public.shared_deals (user_id, created_at desc);
+create index if not exists shared_deals_user_shared_idx on public.shared_deals (user_id, shared_at desc);
 create index if not exists shared_deals_deal_created_idx on public.shared_deals (deal_id, created_at desc);
+create index if not exists price_alerts_user_active_idx on public.price_alerts (user_id, is_active, updated_at desc);
+create index if not exists price_alerts_deal_idx on public.price_alerts (deal_id);
+create index if not exists recently_viewed_user_viewed_idx on public.recently_viewed_deals (user_id, viewed_at desc);
+create index if not exists recently_viewed_deal_idx on public.recently_viewed_deals (deal_id);
 create index if not exists price_history_deal_recorded_idx on public.price_history (deal_id, recorded_at desc);
 create index if not exists notifications_user_created_idx on public.notifications (user_id, created_at desc);
 create index if not exists cashback_transactions_user_status_idx on public.cashback_transactions (user_id, status);
@@ -681,7 +713,10 @@ alter table public.product_offers enable row level security;
 alter table public.fetch_runs enable row level security;
 alter table public.blog_posts enable row level security;
 alter table public.deal_watchlist enable row level security;
+alter table public.saved_deals enable row level security;
 alter table public.shared_deals enable row level security;
+alter table public.price_alerts enable row level security;
+alter table public.recently_viewed_deals enable row level security;
 alter table public.price_history enable row level security;
 alter table public.notifications enable row level security;
 alter table public.user_preferences enable row level security;
@@ -735,8 +770,20 @@ drop policy if exists "Users manage own watchlist" on public.deal_watchlist;
 create policy "Users manage own watchlist" on public.deal_watchlist
   for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
+drop policy if exists "Users manage own saved deals" on public.saved_deals;
+create policy "Users manage own saved deals" on public.saved_deals
+  for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
 drop policy if exists "Users manage own shared deals" on public.shared_deals;
 create policy "Users manage own shared deals" on public.shared_deals
+  for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists "Users manage own price alerts" on public.price_alerts;
+create policy "Users manage own price alerts" on public.price_alerts
+  for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists "Users manage own recently viewed deals" on public.recently_viewed_deals;
+create policy "Users manage own recently viewed deals" on public.recently_viewed_deals
   for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
 
 drop policy if exists "Users read own notifications" on public.notifications;

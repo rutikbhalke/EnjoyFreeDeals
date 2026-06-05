@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 data class CategoryUiState(
@@ -30,6 +31,7 @@ class CategoryViewModel(application: Application) : AndroidViewModel(application
     private val dealRepository = DealRepository(application.applicationContext)
     private val _uiState = MutableStateFlow(CategoryUiState())
     val uiState: StateFlow<CategoryUiState> = _uiState.asStateFlow()
+    private var categoryDealsJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -47,8 +49,9 @@ class CategoryViewModel(application: Application) : AndroidViewModel(application
 
     fun selectCategory(category: CategoryModel, resetQuery: Boolean = true) {
         _uiState.update { it.copy(selectedCategory = category, isLoading = true, query = if (resetQuery) "" else it.query, errorMessage = null) }
-        viewModelScope.launch {
-            dealRepository.getDealsByCategory(category.categoryId)
+        categoryDealsJob?.cancel()
+        categoryDealsJob = viewModelScope.launch {
+            dealRepository.getDealsByCategory(category.categoryId, category.categoryName)
                 .catch { error ->
                     _uiState.update {
                         it.copy(
@@ -71,8 +74,8 @@ class CategoryViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun updateCategorySearch(query: String) {
-        val selected = _uiState.value.selectedCategory ?: return
         _uiState.update { it.copy(query = query) }
+        val selected = _uiState.value.selectedCategory ?: return
         selectCategory(selected, resetQuery = false)
     }
 
@@ -83,5 +86,9 @@ class CategoryViewModel(application: Application) : AndroidViewModel(application
                 categoryDeals = DealRepository.filterAndSortDeals(it.categoryDeals, it.query, "All", sort)
             )
         }
+    }
+
+    fun refreshSelectedCategory() {
+        _uiState.value.selectedCategory?.let { selectCategory(it, resetQuery = false) }
     }
 }

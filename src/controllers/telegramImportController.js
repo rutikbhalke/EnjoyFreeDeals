@@ -92,6 +92,57 @@ async function syncGenieLoot(req, res, next) {
   }
 }
 
+async function scrapeAllDeals(req, res, next) {
+  try {
+    const scrapeOptions = {
+      pageUrl: req.query.url,
+      pageUrls: req.query.urls,
+      maxPages: req.query.maxPages || 100,
+      bestFraction: req.query.bestFraction
+    };
+    const enrichOptions = enrichmentOptions({
+      ...req.query,
+      limit: req.query.limit || 1500
+    });
+    const includeBot = isTruthy(req.query.includeBot);
+
+    const runner = async () => {
+      const steps = [];
+
+      if (includeBot) {
+        steps.push(await runScrapeStep("telegram-bot", () => importTelegramDeals()));
+      }
+
+      steps.push(await runScrapeStep("telegram-pages", () => scrapeGenieLootPage(scrapeOptions)));
+      steps.push(await runScrapeStep("product-page-enrichment", () => enrichGenieLootDetails(enrichOptions)));
+
+      const failed = steps.filter((step) => step.status === "failed");
+      const imported = steps.reduce((total, step) => total + Number(step.result?.imported || 0), 0);
+      const updated = steps.reduce((total, step) => total + Number(step.result?.updated || 0), 0);
+      const enriched = steps.reduce((total, step) => total + Number(step.result?.enriched || 0), 0);
+
+      return {
+        message: failed.length
+          ? `Scrape all finished with ${failed.length} failed step(s). Check steps for details.`
+          : "Scrape all finished. Fresh deals are ready from /api/deals.",
+        imported,
+        updated,
+        enriched,
+        steps
+      };
+    };
+
+    if (!isBlockingRequest(req)) {
+      const job = startBackgroundJob("scrape-all-deals", runner);
+      return sendAccepted(res, backgroundJobResponse(job));
+    }
+
+    return sendSuccess(res, await runner());
+  } catch (error) {
+    next(error);
+  }
+}
+
 function jobStatus(req, res) {
   const id = String(req.params.id || req.query.id || "");
   const job = backgroundJobs.get(id);
@@ -109,6 +160,24 @@ function enrichmentOptions(query) {
     concurrency: query.concurrency || (quick ? 20 : undefined),
     timeoutMs: query.timeoutMs || (quick ? 2000 : undefined)
   };
+}
+
+async function runScrapeStep(name, runner) {
+  try {
+    return {
+      name,
+      status: "success",
+      result: await runner(),
+      error: ""
+    };
+  } catch (error) {
+    return {
+      name,
+      status: "failed",
+      result: null,
+      error: error instanceof Error ? error.message : "Step failed."
+    };
+  }
 }
 
 function startBackgroundJob(type, runner) {
@@ -173,4 +242,4 @@ function isTruthy(value) {
   return ["1", "true", "yes", "y", "on"].includes(String(value || "").toLowerCase());
 }
 
-module.exports = { enrichDetails, importDeals, jobStatus, scrapePage, status, syncGenieLoot };
+module.exports = { enrichDetails, importDeals, jobStatus, scrapeAllDeals, scrapePage, status, syncGenieLoot };

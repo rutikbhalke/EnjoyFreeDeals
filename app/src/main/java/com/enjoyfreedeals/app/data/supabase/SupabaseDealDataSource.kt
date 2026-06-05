@@ -40,14 +40,14 @@ class SupabaseDealDataSource {
         client.from("saved_deals").select().decodeList<SavedDealDto>()
 
     suspend fun saveDeal(userId: String, offerId: String) {
-        client.from("saved_deals").insert(NewSavedDealDto(userId = userId, offerId = offerId))
+        client.from("saved_deals").insert(NewSavedDealDto(userId = userId, dealId = offerId))
     }
 
     suspend fun removeSavedDeal(userId: String, offerId: String) {
         client.from("saved_deals").delete {
             filter {
                 eq("user_id", userId)
-                eq("offer_id", offerId)
+                eq("deal_id", offerId)
             }
         }
     }
@@ -59,7 +59,7 @@ class SupabaseDealDataSource {
         client.from("price_alerts").insert(
             NewPriceAlertDto(
                 userId = userId,
-                productId = productId,
+                dealId = productId,
                 targetPrice = targetPrice
             )
         )

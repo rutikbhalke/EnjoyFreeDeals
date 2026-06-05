@@ -55,6 +55,7 @@ import com.enjoyfreedeals.app.ui.details.ProductDetailScreen
 import com.enjoyfreedeals.app.ui.home.HomeScreen
 import com.enjoyfreedeals.app.ui.notification.NotificationScreen
 import com.enjoyfreedeals.app.ui.profile.ProfileScreen
+import com.enjoyfreedeals.app.ui.saved.DealCollectionScreen
 import com.enjoyfreedeals.app.ui.saved.SavedDealsScreen
 import com.enjoyfreedeals.app.ui.saved.SharedDealsScreen
 import com.enjoyfreedeals.app.ui.settings.LanguageSettingsScreen
@@ -164,6 +165,8 @@ private fun MainScaffold(
         Route.Notifications -> "Notifications"
         Route.SavedDeals -> "Saved Deals"
         Route.SharedDeals -> "Shared Deals"
+        Route.PriceAlertsList -> "Price Alerts"
+        Route.RecentlyViewed -> "Recently Viewed"
         Route.Settings -> "Settings"
         Route.LanguageSettings -> "Language"
         Route.About -> "About"
@@ -262,7 +265,9 @@ private fun MainScaffold(
                             navController.navigate(Route.CategoryDeals)
                         },
                         onViewDeal = ::viewDeal,
-                        onSaveDeal = dealsViewModel::saveDeal,
+                        onSaveDeal = { deal ->
+                            if (dealsState.savedDeals.contains(deal.dealId)) dealsViewModel.removeSavedDeal(deal) else dealsViewModel.saveDeal(deal)
+                        },
                         onShareDeal = dealsViewModel::shareDeal,
                         onOpenDealDetails = ::openDealDetails,
                         onStorePriceClick = { storePrice ->
@@ -272,7 +277,8 @@ private fun MainScaffold(
                         },
                         onPriceAlertClick = ::openPriceAlert,
                         priceHistory = dealsState.priceHistory,
-                        priceDropAlerts = dealsState.priceDropAlerts
+                        priceDropAlerts = dealsState.priceDropAlerts,
+                        savedDeals = dealsState.savedDeals
                     )
                 }
                 composable(Route.Deals) {
@@ -282,7 +288,9 @@ private fun MainScaffold(
                         onStoreFilter = dealsViewModel::updateStoreFilter,
                         onSort = dealsViewModel::updateSort,
                         onViewDeal = ::viewDeal,
-                        onSaveDeal = dealsViewModel::saveDeal,
+                        onSaveDeal = { deal ->
+                            if (dealsState.savedDeals.contains(deal.dealId)) dealsViewModel.removeSavedDeal(deal) else dealsViewModel.saveDeal(deal)
+                        },
                         onRemoveSavedDeal = dealsViewModel::removeSavedDeal,
                         onShareDeal = dealsViewModel::shareDeal,
                         onTogglePriceAlert = dealsViewModel::togglePriceDropAlert,
@@ -304,12 +312,15 @@ private fun MainScaffold(
                         onSearch = categoryViewModel::updateCategorySearch,
                         onSort = categoryViewModel::updateSort,
                         onViewDeal = ::viewDeal,
-                        onSaveDeal = dealsViewModel::saveDeal,
+                        onSaveDeal = { deal ->
+                            if (dealsState.savedDeals.contains(deal.dealId)) dealsViewModel.removeSavedDeal(deal) else dealsViewModel.saveDeal(deal)
+                        },
                         onShareDeal = dealsViewModel::shareDeal,
                         onOpenDealDetails = ::openDealDetails,
                         onPriceAlertClick = ::openPriceAlert,
                         priceHistory = dealsState.priceHistory,
-                        priceDropAlerts = dealsState.priceDropAlerts
+                        priceDropAlerts = dealsState.priceDropAlerts,
+                        savedDeals = dealsState.savedDeals
                     )
                 }
                 composable(Route.Blog) {
@@ -340,6 +351,8 @@ private fun MainScaffold(
                         onDarkModeToggle = profileViewModel::updateDarkModePreference,
                         onSavedDeals = { navController.navigate(Route.SavedDeals) },
                         onSharedDeals = { navController.navigate(Route.SharedDeals) },
+                        onPriceAlerts = { navController.navigate(Route.PriceAlertsList) },
+                        onRecentlyViewed = { navController.navigate(Route.RecentlyViewed) },
                         onSettings = { navController.navigate(Route.Settings) },
                         onLanguage = { navController.navigate(Route.LanguageSettings) },
                         onAbout = { navController.navigate(Route.About) },
@@ -389,6 +402,36 @@ private fun MainScaffold(
                         onPriceAlertClick = ::openPriceAlert,
                         priceHistory = dealsState.priceHistory,
                         priceDropAlerts = dealsState.priceDropAlerts
+                    )
+                }
+                composable(Route.PriceAlertsList) {
+                    DealCollectionScreen(
+                        title = "Price Alerts",
+                        emptyTitle = "No price alerts yet",
+                        emptySubtitle = "Tap the alert icon on a deal to track its price.",
+                        deals = profileState.priceAlertDeals,
+                        onViewDeal = ::viewDeal,
+                        onShareDeal = dealsViewModel::shareDeal,
+                        onOpenDealDetails = ::openDealDetails,
+                        onPriceAlertClick = ::openPriceAlert,
+                        priceHistory = dealsState.priceHistory,
+                        priceDropAlerts = dealsState.priceDropAlerts,
+                        savedDeals = dealsState.savedDeals
+                    )
+                }
+                composable(Route.RecentlyViewed) {
+                    DealCollectionScreen(
+                        title = "Recently Viewed Deals",
+                        emptyTitle = "No recently viewed deals yet",
+                        emptySubtitle = "Open a product detail page to see it here.",
+                        deals = profileState.recentlyViewedDeals,
+                        onViewDeal = ::viewDeal,
+                        onShareDeal = dealsViewModel::shareDeal,
+                        onOpenDealDetails = ::openDealDetails,
+                        onPriceAlertClick = ::openPriceAlert,
+                        priceHistory = dealsState.priceHistory,
+                        priceDropAlerts = dealsState.priceDropAlerts,
+                        savedDeals = dealsState.savedDeals
                     )
                 }
                 composable(Route.ProductPriceHistory) {
@@ -460,6 +503,8 @@ private object Route {
     const val Profile = "profile"
     const val SavedDeals = "saved_deals"
     const val SharedDeals = "shared_deals"
+    const val PriceAlertsList = "price_alerts_list"
+    const val RecentlyViewed = "recently_viewed"
     const val Settings = "settings"
     const val LanguageSettings = "language_settings"
     const val About = "about"

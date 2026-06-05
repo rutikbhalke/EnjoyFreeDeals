@@ -104,6 +104,7 @@ import com.enjoyfreedeals.app.theme.SoftGreen
 import com.enjoyfreedeals.app.theme.SoftYellow
 import com.enjoyfreedeals.app.utils.LocalAppStrings
 import java.text.SimpleDateFormat
+import java.text.NumberFormat
 import java.util.Date
 import java.util.Locale
 
@@ -270,12 +271,12 @@ fun DealCard(
         Column {
             Box {
                 SubcomposeAsyncImage(
-                    model = deal.productImage,
+                    model = deal.displayImageUrl,
                     contentDescription = deal.title,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(172.dp),
-                    contentScale = ContentScale.Crop,
+                    contentScale = ContentScale.Fit,
                     error = {
                         Box(Modifier.fillMaxSize().background(SoftGreen), contentAlignment = Alignment.Center) {
                             Image(
@@ -307,12 +308,12 @@ fun DealCard(
                         Spacer(Modifier.width(6.dp))
                         BadgeText("Verified", PrimaryGreen, Color.White)
                     }
-                    Spacer(Modifier.width(6.dp))
-                    BadgeText(formatExpiry(deal.expiryDate), SoftYellow, DarkText)
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "Scraped ${formatScrapedAt(deal.lastScrapedAt)} - ${formatScrapeValidity(deal.scrapeExpiresAt)} / ${deal.scrapeValidHours}h",
+                    listOfNotNull(
+                        formatUpdatedStatus(preferredUpdateTime(deal))
+                    ).joinToString(" - "),
                     color = GreyText,
                     style = MaterialTheme.typography.labelSmall,
                     maxLines = 1,
@@ -761,7 +762,11 @@ private fun StorePill(storeName: String) {
 }
 
 fun formatPrice(price: Double): String =
-    if (price <= 0.0) "Free" else "Rs.${String.format(Locale.US, "%,.0f", price)}"
+    if (price <= 0.0) {
+        "Free"
+    } else {
+        NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("IN").build()).format(price).replace(".00", "")
+    }
 
 fun formatDate(timestamp: Long): String =
     SimpleDateFormat("dd MMM yyyy", Locale.US).format(Date(timestamp))
@@ -769,25 +774,35 @@ fun formatDate(timestamp: Long): String =
 fun formatScrapedAt(timestamp: Long): String =
     SimpleDateFormat("dd MMM, hh:mm a", Locale.US).format(Date(timestamp))
 
+fun formatFetchedStatus(timestamp: Long?): String =
+    "Fetched ${formatTimeAgo(timestamp)}"
+
+fun formatUpdatedStatus(timestamp: Long?): String =
+    "Updated ${formatTimeAgo(timestamp)}"
+
+fun preferredUpdateTime(deal: DealModel): Long? =
+    deal.sourceUpdatedAt ?: deal.lastCheckedAt.takeIf { it > 0L } ?: deal.fetchedAt.takeIf { it > 0L }
+
+fun formatTimeAgo(timestamp: Long?): String {
+    val value = timestamp ?: return "time unknown"
+    val elapsed = (System.currentTimeMillis() - value).coerceAtLeast(0L)
+    val minutes = elapsed / (60L * 1000L)
+    val hours = elapsed / (60L * 60L * 1000L)
+    val days = elapsed / (24L * 60L * 60L * 1000L)
+    return when {
+        minutes < 1L -> "just now"
+        minutes < 60L -> "${minutes} min ago"
+        hours < 24L -> if (hours == 1L) "1 hour ago" else "${hours} hours ago"
+        else -> if (days == 1L) "1 day ago" else "${days} days ago"
+    }
+}
+
 fun formatScrapeValidity(timestamp: Long): String {
     val remaining = timestamp - System.currentTimeMillis()
     if (remaining <= 0L) return "Expired"
     val hours = remaining / (60L * 60L * 1000L)
     val minutes = (remaining % (60L * 60L * 1000L)) / (60L * 1000L)
     return if (hours >= 1L) "valid ${hours}h ${minutes}m" else "valid ${minutes.coerceAtLeast(1L)}m"
-}
-
-fun formatExpiry(timestamp: Long): String {
-    val remaining = timestamp - System.currentTimeMillis()
-    if (remaining <= 0L) return "Expired"
-    val hours = remaining / (60L * 60L * 1000L)
-    val days = hours / 24L
-    return when {
-        days >= 2L -> "Ends in ${days}d"
-        days == 1L -> "Ends tomorrow"
-        hours >= 1L -> "Ends in ${hours}h"
-        else -> "Ends soon"
-    }
 }
 
 private fun String.toDisplayLabel(): String =

@@ -48,11 +48,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.enjoyfreedeals.app.R
 import com.enjoyfreedeals.app.data.model.DealModel
 import com.enjoyfreedeals.app.data.model.PricePointModel
 import com.enjoyfreedeals.app.data.repository.DealRepository
@@ -161,13 +163,15 @@ private fun ProductHeroCard(deal: DealModel, currentPrice: Double) {
     ) {
         Column {
             AsyncImage(
-                model = deal.productImage,
+                model = deal.displayImageUrl,
                 contentDescription = deal.title,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(220.dp)
                     .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)),
-                contentScale = ContentScale.Crop
+                contentScale = ContentScale.Fit,
+                placeholder = painterResource(R.drawable.enjoyfreedeals_logo),
+                error = painterResource(R.drawable.enjoyfreedeals_logo)
             )
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

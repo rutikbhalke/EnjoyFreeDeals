@@ -28,5 +28,5 @@ class SavedDealsRepository(@Suppress("unused") private val context: Context) {
     }
 
     suspend fun isDealSaved(userId: String, offerId: String): Boolean =
-        getSavedDeals(userId).any { it.offerId == offerId }
+        getSavedDeals(userId).any { it.dealId == offerId }
 }

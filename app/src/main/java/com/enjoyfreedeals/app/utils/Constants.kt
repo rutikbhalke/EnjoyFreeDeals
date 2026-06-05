@@ -42,7 +42,6 @@ object Constants {
         "Highest Discount",
         "Lowest Price",
         "Popular Deals",
-        "Free Deals",
-        "Expiring Soon"
+        "Free Deals"
     )
 }

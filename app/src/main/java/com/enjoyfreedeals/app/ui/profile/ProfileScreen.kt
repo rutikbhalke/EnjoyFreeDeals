@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Policy
 import androidx.compose.material.icons.outlined.Settings
@@ -55,6 +56,8 @@ fun ProfileScreen(
     onDarkModeToggle: (Boolean) -> Unit,
     onSavedDeals: () -> Unit,
     onSharedDeals: () -> Unit,
+    onPriceAlerts: () -> Unit,
+    onRecentlyViewed: () -> Unit,
     onSettings: () -> Unit,
     onLanguage: () -> Unit,
     onAbout: () -> Unit,
@@ -91,6 +94,12 @@ fun ProfileScreen(
                 }
             }
             item {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatCard("Price Alerts", state.priceAlertDeals.size.toString(), Modifier.weight(1f))
+                    StatCard("Recently Viewed", state.recentlyViewedDeals.size.toString(), Modifier.weight(1f))
+                }
+            }
+            item {
                 Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Column(Modifier.padding(8.dp)) {
                         ToggleRow("Notifications", "Receive hot deal alerts", user.notificationEnabled, onNotificationToggle)
@@ -103,7 +112,8 @@ fun ProfileScreen(
                     Column(Modifier.padding(8.dp)) {
                         ProfileRow(Icons.Outlined.FavoriteBorder, "Saved Deals", "View saved offers", onSavedDeals)
                         ProfileRow(Icons.Outlined.Share, "Shared Deals", "Deals you shared", onSharedDeals)
-                        ProfileRow(Icons.Outlined.Visibility, "Recently Viewed", "Products you opened recently", onSavedDeals)
+                        ProfileRow(Icons.Outlined.NotificationsActive, "Price Alerts", "Deals you are tracking", onPriceAlerts)
+                        ProfileRow(Icons.Outlined.Visibility, "Recently Viewed", "Products you opened recently", onRecentlyViewed)
                         ProfileRow(Icons.Outlined.Language, "Language Settings", "English, Hindi, Marathi and more", onLanguage)
                         ProfileRow(Icons.Outlined.Settings, "Settings", "Preferences, support and app version", onSettings)
                         ProfileRow(Icons.Outlined.Info, "About App", "EnjoyFreeDeals by BizFlow Team", onAbout)

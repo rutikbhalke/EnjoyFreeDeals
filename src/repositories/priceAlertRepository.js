@@ -2,7 +2,7 @@ const { supabaseAdmin } = require("../config/supabaseClient");
 const { isAutomatedScrapedDeal, toApiDeal } = require("../mappers/dealMapper");
 const { throwIfSupabaseError } = require("../utils/supabaseErrors");
 
-const TABLE = "deal_watchlist";
+const TABLE = "price_alerts";
 
 async function createPriceAlert(payload) {
   const userId = payload.userId || payload.user_id;
@@ -15,21 +15,23 @@ async function createPriceAlert(payload) {
     throw error;
   }
 
-  const existing = await findAlert(userId, dealId);
-  const query = existing
-    ? supabaseAdmin
-      .from(TABLE)
-      .update({ target_price: Number(targetPrice) })
-      .eq("id", existing.id)
-    : supabaseAdmin
-      .from(TABLE)
-      .insert({
-        user_id: userId,
-        deal_id: dealId,
-        target_price: Number(targetPrice)
-      });
+  const deal = await getDealForAlert(dealId);
+  const currentPrice = Number(deal?.discounted_price || 0);
+  const safeTarget = Number(targetPrice);
+  const triggered = currentPrice > 0 && currentPrice <= safeTarget;
 
-  const { data, error } = await query
+  const { data, error } = await supabaseAdmin
+    .from(TABLE)
+    .upsert({
+      user_id: userId,
+      deal_id: dealId,
+      target_price: safeTarget,
+      current_price: currentPrice || null,
+      is_active: true,
+      is_triggered: triggered,
+      triggered_at: triggered ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "user_id,deal_id" })
     .select("*, deals(*, categories(*), stores(*))")
     .single();
   throwIfSupabaseError(error, TABLE);
@@ -45,7 +47,7 @@ async function removePriceAlert(userId, dealId) {
 
   const { data, error } = await supabaseAdmin
     .from(TABLE)
-    .update({ target_price: null })
+    .update({ is_active: false, updated_at: new Date().toISOString() })
     .eq("user_id", userId)
     .eq("deal_id", dealId)
     .select("*, deals(*, categories(*), stores(*))")
@@ -57,14 +59,26 @@ async function removePriceAlert(userId, dealId) {
     : { userId, dealId, targetPrice: null, alertStatus: "removed" };
 }
 
-async function findAlert(userId, dealId) {
+async function getPriceAlerts(userId) {
   const { data, error } = await supabaseAdmin
     .from(TABLE)
-    .select("id")
+    .select("*, deals(*, categories(*), stores(*))")
     .eq("user_id", userId)
-    .eq("deal_id", dealId)
-    .maybeSingle();
+    .eq("is_active", true)
+    .order("updated_at", { ascending: false });
   throwIfSupabaseError(error, TABLE);
+  return (data || [])
+    .filter((row) => isAutomatedScrapedDeal(row.deals))
+    .map(toApiPriceAlert);
+}
+
+async function getDealForAlert(dealId) {
+  const { data, error } = await supabaseAdmin
+    .from("deals")
+    .select("discounted_price")
+    .eq("id", dealId)
+    .maybeSingle();
+  throwIfSupabaseError(error, "deals");
   return data;
 }
 
@@ -74,11 +88,15 @@ function toApiPriceAlert(row) {
     userId: row.user_id,
     dealId: row.deal_id,
     targetPrice: row.target_price,
-    alertStatus: row.target_price === null || row.target_price === undefined ? "watching" : "active",
-    notificationSent: false,
+    currentPrice: row.current_price,
+    isActive: row.is_active,
+    isTriggered: row.is_triggered,
+    triggeredAt: row.triggered_at,
+    alertStatus: row.is_active ? (row.is_triggered ? "triggered" : "active") : "removed",
     createdAt: row.created_at,
+    updatedAt: row.updated_at,
     deal: row.deals ? toApiDeal(row.deals) : null
   };
 }
 
-module.exports = { createPriceAlert, removePriceAlert };
+module.exports = { createPriceAlert, getPriceAlerts, removePriceAlert };

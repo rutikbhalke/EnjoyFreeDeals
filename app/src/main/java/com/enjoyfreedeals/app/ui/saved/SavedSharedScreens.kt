@@ -25,7 +25,8 @@ fun SavedDealsScreen(
     onOpenDealDetails: (DealModel) -> Unit,
     onPriceAlertClick: (DealModel) -> Unit,
     priceHistory: Map<String, List<PricePointModel>> = emptyMap(),
-    priceDropAlerts: Set<String> = emptySet()
+    priceDropAlerts: Set<String> = emptySet(),
+    savedDeals: Set<String> = emptySet()
 ) {
     val context = LocalContext.current
     PremiumBackground {
@@ -93,11 +94,68 @@ fun SharedDealsScreen(
     }
 }
 
+@Composable
+fun DealCollectionScreen(
+    title: String,
+    emptyTitle: String,
+    emptySubtitle: String,
+    deals: List<DealModel>,
+    onViewDeal: (DealModel) -> Unit,
+    onShareDeal: (DealModel) -> Unit,
+    onOpenDealDetails: (DealModel) -> Unit,
+    onPriceAlertClick: (DealModel) -> Unit,
+    priceHistory: Map<String, List<PricePointModel>> = emptyMap(),
+    priceDropAlerts: Set<String> = emptySet(),
+    savedDeals: Set<String> = emptySet()
+) {
+    val context = LocalContext.current
+    PremiumBackground {
+        LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            item { SectionTitle(title) }
+            if (deals.isEmpty()) {
+                item { EmptyState(emptyTitle, emptySubtitle) }
+            } else {
+                items(deals, key = { it.dealId }) { deal ->
+                    DealCard(
+                        deal = deal,
+                        isSaved = savedDeals.contains(deal.dealId),
+                        onViewDeal = onViewDeal,
+                        onSaveDeal = {},
+                        onShareDeal = {
+                            shareDealAgain(context, it)
+                            onShareDeal(it)
+                        },
+                        priceHistory = priceHistory[deal.dealId].orEmpty(),
+                        isPriceAlertEnabled = priceDropAlerts.contains(deal.dealId),
+                        onOpenDetails = onOpenDealDetails,
+                        onPriceAlertClick = onPriceAlertClick
+                    )
+                }
+            }
+        }
+    }
+}
+
 private fun shareDealAgain(context: Context, deal: DealModel) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "text/plain"
         putExtra(Intent.EXTRA_SUBJECT, deal.title)
-        putExtra(Intent.EXTRA_TEXT, "${deal.title}\n${deal.redirectUrl}")
+        putExtra(Intent.EXTRA_TEXT, deal.shareText())
     }
     context.startActivity(Intent.createChooser(intent, "Share deal"))
 }
+
+fun DealModel.shareText(): String =
+    buildString {
+        appendLine("Check this deal on EnjoyFreeDeals:")
+        appendLine(title)
+        appendLine(storeName)
+        append(formatPriceForShare(effectivePrice))
+        if (originalPrice > 0 && originalPrice >= effectivePrice) append(" ${formatPriceForShare(originalPrice)}")
+        if (discountPercent > 0) append(" ${discountPercent}% OFF")
+        appendLine()
+        appendLine("Link: $redirectUrl")
+    }
+
+private fun formatPriceForShare(price: Double): String =
+    "₹${java.text.NumberFormat.getIntegerInstance(java.util.Locale("en", "IN")).format(price.toLong())}"

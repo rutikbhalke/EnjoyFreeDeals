@@ -35,12 +35,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
 import coil.compose.AsyncImage
+import com.enjoyfreedeals.app.R
 import com.enjoyfreedeals.app.data.model.DealModel
 import com.enjoyfreedeals.app.data.model.PricePointModel
 import com.enjoyfreedeals.app.data.repository.DealRepository
@@ -97,10 +99,12 @@ fun PriceAlertScreen(
                 ) {
                     Column {
                         AsyncImage(
-                            model = deal.productImage,
+                            model = deal.displayImageUrl,
                             contentDescription = deal.title,
                             modifier = Modifier.fillMaxWidth().height(210.dp),
-                            contentScale = ContentScale.Crop
+                            contentScale = ContentScale.Fit,
+                            placeholder = painterResource(R.drawable.enjoyfreedeals_logo),
+                            error = painterResource(R.drawable.enjoyfreedeals_logo)
                         )
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text(deal.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)

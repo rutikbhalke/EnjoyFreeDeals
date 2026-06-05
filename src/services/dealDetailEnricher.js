@@ -32,7 +32,7 @@ async function enrichGenieLootDetails(options = {}) {
 async function loadGenieLootDeals(limit) {
   const { data, error } = await supabaseAdmin
     .from("deals")
-    .select("id,title,description,original_price,discounted_price,coupon_code,affiliate_link,source_url,image_url,raw_source_payload")
+    .select("id,title,description,original_price,discounted_price,coupon_code,affiliate_link,source_url,image_url,source_image_url,platform_product_url,raw_source_payload")
     .eq("raw_source_payload->>connectorMode", "telegram-page")
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -162,17 +162,27 @@ async function buildDealUpdate(deal, page, metadata) {
   const store = isShortenerUrl(finalUrl) || !safeHost(finalUrl) ? GENIE_LOOT_STORE : inferStore(finalUrl);
   const metadataTitle = isUsableProductTitle(metadata.title) ? metadata.title : "";
   const update = {
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
+    fetched_at: new Date().toISOString(),
+    source_updated_at: new Date().toISOString()
   };
 
   if (finalUrl && finalUrl !== deal.source_url) {
     update.source_url = finalUrl;
     update.affiliate_link = finalUrl;
+    update.platform_product_url = finalUrl;
   }
 
   const productImageUrl = metadata.imageUrl || amazonImageFromUrl(finalUrl);
   if (productImageUrl && productImageUrl !== deal.image_url && shouldReplaceImage(deal.image_url, productImageUrl)) {
     update.image_url = productImageUrl;
+  }
+
+  if (productImageUrl) {
+    update.raw_source_payload = {
+      ...existingPayload,
+      productImageUrl
+    };
   }
 
   if (metadataTitle && shouldReplaceTitle(deal.title, metadataTitle)) {
@@ -214,7 +224,7 @@ async function buildDealUpdate(deal, page, metadata) {
   }
 
   update.raw_source_payload = {
-    ...existingPayload,
+    ...(update.raw_source_payload || existingPayload),
     enrichedAt: new Date().toISOString(),
     resolvedProductUrl: finalUrl,
     resolvedHost: safeHost(finalUrl),

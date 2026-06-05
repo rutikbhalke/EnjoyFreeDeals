@@ -14,17 +14,6 @@ const DEFAULT_GENIE_LOOT_PAGE_URLS = [
 ];
 const DEFAULT_BEST_DEAL_FRACTION = 0.3;
 const DAY_MS = 24 * 60 * 60 * 1000;
-const FALLBACK_DEAL_IMAGES = {
-  electronics: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=900&q=80",
-  mobile: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=80",
-  fashion: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=80",
-  shoes: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80",
-  home: "https://images.unsplash.com/photo-1556909212-d5b604d0c90d?auto=format&fit=crop&w=900&q=80",
-  grocery: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=900&q=80",
-  beauty: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=900&q=80",
-  laptop: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=900&q=80",
-  general: "https://images.unsplash.com/photo-1607082349566-187342175e2f?auto=format&fit=crop&w=900&q=80"
-};
 
 async function importTelegramDeals() {
   const token = telegramBotToken();
@@ -461,6 +450,7 @@ function telegramPageMessagesToDeals(messages, source) {
     deal.sourceProductId = pageMessage.sourceProductId;
     deal.sourceUrl = pageMessage.postUrl || deal.sourceUrl;
     deal.affiliateLink = pageMessage.urls.find(isProductUrl) || deal.affiliateLink;
+    deal.sourceProductId = sourceProductKey(deal.affiliateLink, deal.sourceProductId);
     deal.dedupeKey = `${source.source_key}:${hashString(deal.sourceProductId)}`;
     deal.slug = `${slugify(deal.title)}-${hashString(deal.sourceProductId).slice(0, 8)}`;
     deal.imageUrl = pageMessage.imageUrl || deal.imageUrl;
@@ -721,21 +711,22 @@ function telegramMessageToDeal(update, message, source) {
     : 0;
   const originalPrice = Math.max(prices.originalPrice, inferredOriginalPrice, discountedPrice);
   const sourceProductId = `telegram:${message.chat.id}:${message.message_id}`;
+  const stableSourceProductId = sourceProductKey(productUrl, sourceProductId);
 
   return {
     sourceKey: source.source_key,
     sourceName: source.source_name,
-    sourceProductId,
+    sourceProductId: stableSourceProductId,
     sourceUrl: productUrl,
-    dedupeKey: `${source.source_key}:${hashString(sourceProductId)}`,
-    slug: `${slugify(title)}-${hashString(sourceProductId).slice(0, 8)}`,
+    dedupeKey: `${source.source_key}:${hashString(stableSourceProductId)}`,
+    slug: `${slugify(title)}-${hashString(stableSourceProductId).slice(0, 8)}`,
     title,
     description: truncateClean(cleanText(removeUrls(rawText)), 220) || title,
     storeName: source.source_name,
     storeSlug: slugify(source.source_name),
     storeUrl: SOURCE_URL,
-    categoryName: inferCategory(text),
-    categorySlug: slugify(inferCategory(text)),
+    categoryName: categoryNameOrOther(inferCategory(text)),
+    categorySlug: slugify(categoryNameOrOther(inferCategory(text))),
     originalPrice,
     discountedPrice,
     discountPercentage: textDiscountPercent || calculateDiscount(originalPrice, discountedPrice),
@@ -743,8 +734,8 @@ function telegramMessageToDeal(update, message, source) {
     couponCode,
     cashbackPercentage: 0,
     affiliateLink: productUrl,
-    imageUrl: process.env.TELEGRAM_DEFAULT_IMAGE_URL || "",
-    expiryDate: daysFromNow(Number(process.env.TELEGRAM_EXPIRY_DAYS || 1)),
+    imageUrl: "",
+    expiryDate: null,
     isFeatured: discountedPrice === 0 || calculateDiscount(originalPrice, discountedPrice) >= 50,
     rawPayload: {
       connectorMode: "telegram-bot",
@@ -764,11 +755,13 @@ function telegramMessageToDeal(update, message, source) {
 }
 
 async function upsertDeal(deal) {
+  validateDealForStorage(deal);
   const storeId = await ensureStore(deal);
   const categoryId = await ensureCategory(deal);
   const existing = await findExistingDeal(deal.dedupeKey);
   const now = new Date().toISOString();
   const imageUrl = dealImageUrl(deal);
+  const sourceImageUrl = isHttpUrl(deal.imageUrl) ? deal.imageUrl : "";
   const payload = {
     title: deal.title,
     slug: deal.slug,
@@ -782,11 +775,15 @@ async function upsertDeal(deal) {
     cashback_percentage: deal.cashbackPercentage,
     affiliate_link: deal.affiliateLink,
     image_url: imageUrl,
+    source_image_url: sourceImageUrl,
+    platform_product_url: deal.affiliateLink,
     expiry_date: deal.expiryDate,
+    platform_expires_at: deal.expiryDate,
     status: "active",
     is_featured: deal.isFeatured,
     is_verified: true,
     updated_at: now,
+    fetched_at: now,
     source: deal.dealType,
     source_product_id: deal.sourceProductId,
     source_url: deal.sourceUrl,
@@ -794,7 +791,8 @@ async function upsertDeal(deal) {
     last_scraped_at: now,
     raw_source_payload: {
       ...deal.rawPayload,
-      imageUrl
+      imageUrl,
+      sourceImageUrl
     }
   };
 
@@ -910,11 +908,13 @@ async function ensureStore(deal) {
 }
 
 async function ensureCategory(deal) {
+  const categoryName = categoryNameOrOther(deal.categoryName);
+  const categorySlug = slugify(categoryName);
   const { data, error } = await supabaseAdmin
     .from("categories")
     .upsert({
-      name: deal.categoryName,
-      slug: deal.categorySlug,
+      name: categoryName,
+      slug: categorySlug,
       is_active: true
     }, { onConflict: "slug" })
     .select("id")
@@ -1120,22 +1120,30 @@ function extractTitle(text) {
 
 function inferCategory(text) {
   const value = text.toLowerCase();
-  if (/phone|mobile|earbud|speaker|laptop|watch|camera|charger|tablet|headphone/.test(value)) return "Electronics";
+  if (/laptop|notebook|macbook/.test(value)) return "Laptop";
+  if (/phone|mobile|smartphone/.test(value)) return "Mobile";
+  if (/earbud|speaker|watch|camera|charger|tablet|headphone|tv|television/.test(value)) return "Electronics";
   if (/shirt|shoe|jeans|dress|fashion|bag|backpack|kurta|saree/.test(value)) return "Fashion";
+  if (/beauty|skin|makeup|cosmetic|moisturiser|cream|serum|shampoo/.test(value)) return "Beauty";
+  if (/appliance|mixer|grinder|washing machine|refrigerator|fridge|microwave|ac\b|air conditioner/.test(value)) return "Appliances";
+  if (/kitchen|home|storage|container|bottle|furniture|decor/.test(value)) return "Home & Kitchen";
+  if (/amazon|amzn\.to/.test(value)) return "Amazon Deals";
+  if (/flipkart|fkrt|flpkrt/.test(value)) return "Flipkart Deals";
   if (/book|course|student|exam|ebook/.test(value)) return "Student Deals";
-  if (/food|grocery|kitchen|snack|tea|coffee/.test(value)) return "Grocery";
+  if (/food|grocery|snack|tea|coffee/.test(value)) return "Grocery";
   if (/software|app|subscription|hosting|domain|vpn/.test(value)) return "Digital";
-  return "General";
+  return "Other Deals";
 }
 
 function dealImageUrl(deal) {
   const imageUrl = cleanText(deal.imageUrl);
-  return firstHttpUrl([
-    imageUrl,
+  if (isHttpUrl(imageUrl)) return imageUrl;
+  const platformImage = firstHttpUrl([
     amazonImageFromUrl(deal.affiliateLink),
-    amazonImageFromUrl(deal.sourceUrl),
-    fallbackDealImage(deal.title, deal.categoryName, deal.storeName)
+    amazonImageFromUrl(deal.sourceUrl)
   ]);
+  if (platformImage) return platformImage;
+  return "";
 }
 
 function firstHttpUrl(values) {
@@ -1162,21 +1170,40 @@ function amazonAsinFromUrl(value) {
   }
 }
 
-function fallbackDealImage(title, categoryName, storeName) {
-  const text = `${title || ""} ${categoryName || ""} ${storeName || ""}`.toLowerCase();
-  if (containsAny(text, ["phone", "mobile", "smartphone"])) return FALLBACK_DEAL_IMAGES.mobile;
-  if (containsAny(text, ["shoe", "sneaker", "footwear"])) return FALLBACK_DEAL_IMAGES.shoes;
-  if (containsAny(text, ["shirt", "t-shirt", "kurti", "dress", "fashion", "jeans", "saree"])) return FALLBACK_DEAL_IMAGES.fashion;
-  if (containsAny(text, ["grocery", "fruit", "food", "snack", "tea", "coffee"])) return FALLBACK_DEAL_IMAGES.grocery;
-  if (containsAny(text, ["beauty", "skin", "makeup", "cosmetic"])) return FALLBACK_DEAL_IMAGES.beauty;
-  if (containsAny(text, ["kitchen", "home", "storage", "container"])) return FALLBACK_DEAL_IMAGES.home;
-  if (containsAny(text, ["laptop", "student", "backpack", "bag"])) return FALLBACK_DEAL_IMAGES.laptop;
-  if (containsAny(text, ["earbud", "speaker", "watch", "charger", "camera", "tablet", "headphone"])) return FALLBACK_DEAL_IMAGES.electronics;
-  return FALLBACK_DEAL_IMAGES.general;
+function sourceProductKey(productUrl, fallback) {
+  const asin = amazonAsinFromUrl(productUrl);
+  if (asin) return `amazon:${asin}`;
+  const canonical = canonicalProductUrl(productUrl);
+  return canonical || fallback;
 }
 
-function containsAny(text, tokens) {
-  return tokens.some((token) => text.includes(token));
+function canonicalProductUrl(value) {
+  try {
+    const parsed = new URL(value);
+    parsed.hash = "";
+    ["tag", "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content", "ascsubtag", "psc"].forEach((key) => {
+      parsed.searchParams.delete(key);
+    });
+    return parsed.toString();
+  } catch {
+    return "";
+  }
+}
+
+function categoryNameOrOther(value) {
+  return cleanText(value) || "Other Deals";
+}
+
+function validateDealForStorage(deal) {
+  const originalPrice = money(deal.originalPrice);
+  const discountedPrice = money(deal.discountedPrice);
+  if (discountedPrice < 0) throw new Error("Invalid deal price: negative price.");
+  if (originalPrice > 0 && discountedPrice > originalPrice) {
+    throw new Error("Invalid deal price: deal price is greater than original price.");
+  }
+  if (!isProductUrl(deal.affiliateLink) && !isProductUrl(deal.sourceUrl)) {
+    throw new Error("Invalid deal URL: product URL is missing.");
+  }
 }
 
 function telegramMessageUrl(message) {

@@ -47,6 +47,7 @@ class DealsViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         loadDeals()
+        loadSavedDealState()
         loadPriceDropAlertState()
     }
 
@@ -124,6 +125,16 @@ class DealsViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun loadSavedDealState() {
+        viewModelScope.launch {
+            repository.getSavedDeals()
+                .catch { }
+                .collect { saved ->
+                    _uiState.update { it.copy(savedDeals = saved.map { deal -> deal.dealId }.toSet()) }
+                }
+        }
+    }
+
     private fun loadPriceDropAlertState() {
         viewModelScope.launch {
             userRepository.getCurrentUserProfile().collect { user ->
@@ -134,6 +145,15 @@ class DealsViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
             }
+        }
+        viewModelScope.launch {
+            repository.getPriceAlertDeals()
+                .catch { }
+                .collect { alerts ->
+                    _uiState.update {
+                        it.copy(priceDropAlerts = it.priceDropAlerts + alerts.map { deal -> deal.dealId })
+                    }
+                }
         }
     }
 
@@ -219,6 +239,9 @@ class DealsViewModel(application: Application) : AndroidViewModel(application) {
     fun selectDeal(deal: DealModel) {
         _uiState.update { it.copy(selectedDeal = deal) }
         observePriceHistory(listOf(deal))
+        viewModelScope.launch {
+            runCatching { repository.recordRecentlyViewed(deal.dealId) }
+        }
     }
 
     fun togglePriceDropAlert(deal: DealModel) {

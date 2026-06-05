@@ -11,18 +11,6 @@ const TRACKING_PARAMS = [
   "ref"
 ];
 
-const FALLBACK_DEAL_IMAGES: Record<string, string> = {
-  electronics: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=900&q=80",
-  mobile: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=80",
-  fashion: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?auto=format&fit=crop&w=900&q=80",
-  shoes: "https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=80",
-  home: "https://images.unsplash.com/photo-1556909212-d5b604d0c90d?auto=format&fit=crop&w=900&q=80",
-  grocery: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=900&q=80",
-  beauty: "https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=900&q=80",
-  laptop: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=900&q=80",
-  general: "https://images.unsplash.com/photo-1607082349566-187342175e2f?auto=format&fit=crop&w=900&q=80"
-};
-
 export function normalizeSourceDeal(source: DealSourceRow, item: SourceDeal): NormalizedDeal {
   const originalTitle = cleanText(item.title);
   const title = cleanImportedTitle(originalTitle, source.source_name);
@@ -33,7 +21,7 @@ export function normalizeSourceDeal(source: DealSourceRow, item: SourceDeal): No
   const discountPercentage = calculateDiscount(originalPrice, discountedPrice);
   const couponCode = cleanText(item.couponCode || "").toUpperCase();
   const dealType = discountedPrice === 0 ? "FREE_DEAL" : couponCode ? "COUPON" : "DISCOUNT";
-  const categoryName = cleanText(item.categoryName || "General");
+  const categoryName = cleanText(item.categoryName || "Other Deals");
   const imageUrl = cleanDealImageUrl(item.imageUrl, title, categoryName, source.source_name);
   const identity = item.sourceProductId || sourceUrl || `${source.source_name}:${title}`;
   const dedupeKey = `${source.source_key}:${hashString(normalizeForKey(identity))}`;
@@ -145,24 +133,7 @@ export function cleanText(value: string): string {
 
 function cleanDealImageUrl(value: string, title: string, categoryName: string, sourceName: string): string {
   const imageUrl = cleanText(value);
-  return isHttpUrl(imageUrl) ? imageUrl : fallbackDealImage(title, categoryName, sourceName);
-}
-
-function fallbackDealImage(title: string, categoryName: string, sourceName: string): string {
-  const text = `${title} ${categoryName} ${sourceName}`.toLowerCase();
-  if (containsAny(text, ["phone", "mobile", "smartphone"])) return FALLBACK_DEAL_IMAGES.mobile;
-  if (containsAny(text, ["shoe", "sneaker", "footwear"])) return FALLBACK_DEAL_IMAGES.shoes;
-  if (containsAny(text, ["shirt", "t-shirt", "kurti", "dress", "fashion", "jeans", "saree"])) return FALLBACK_DEAL_IMAGES.fashion;
-  if (containsAny(text, ["grocery", "fruit", "food", "snack", "tea", "coffee"])) return FALLBACK_DEAL_IMAGES.grocery;
-  if (containsAny(text, ["beauty", "skin", "makeup", "cosmetic"])) return FALLBACK_DEAL_IMAGES.beauty;
-  if (containsAny(text, ["kitchen", "home", "storage", "container"])) return FALLBACK_DEAL_IMAGES.home;
-  if (containsAny(text, ["laptop", "student", "backpack", "bag"])) return FALLBACK_DEAL_IMAGES.laptop;
-  if (containsAny(text, ["earbud", "speaker", "watch", "charger", "camera", "tablet", "headphone"])) return FALLBACK_DEAL_IMAGES.electronics;
-  return FALLBACK_DEAL_IMAGES.general;
-}
-
-function containsAny(text: string, tokens: string[]): boolean {
-  return tokens.some((token) => text.includes(token));
+  return isHttpUrl(imageUrl) ? imageUrl : "";
 }
 
 function cleanImportedTitle(value: string, sourceName: string): string {

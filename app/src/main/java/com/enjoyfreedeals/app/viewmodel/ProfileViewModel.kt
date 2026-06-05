@@ -19,6 +19,8 @@ data class ProfileUiState(
     val user: UserModel = UserRepository.mockUser,
     val savedDeals: List<DealModel> = emptyList(),
     val sharedDeals: List<DealModel> = emptyList(),
+    val priceAlertDeals: List<DealModel> = emptyList(),
+    val recentlyViewedDeals: List<DealModel> = emptyList(),
     val message: String? = null
 )
 
@@ -50,6 +52,24 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }
                 .collect { shared ->
                     _uiState.update { it.copy(sharedDeals = shared) }
+                }
+        }
+        viewModelScope.launch {
+            dealRepository.getPriceAlertDeals()
+                .catch { error ->
+                    _uiState.update { it.copy(priceAlertDeals = emptyList(), message = error.friendlyMessage("Could not load price alerts.")) }
+                }
+                .collect { alerts ->
+                    _uiState.update { it.copy(priceAlertDeals = alerts) }
+                }
+        }
+        viewModelScope.launch {
+            dealRepository.getRecentlyViewedDeals()
+                .catch { error ->
+                    _uiState.update { it.copy(recentlyViewedDeals = emptyList(), message = error.friendlyMessage("Could not load recently viewed deals.")) }
+                }
+                .collect { viewed ->
+                    _uiState.update { it.copy(recentlyViewedDeals = viewed) }
                 }
         }
     }

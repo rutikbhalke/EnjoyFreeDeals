@@ -10,6 +10,15 @@ async function createPriceAlert(req, res, next) {
   }
 }
 
+async function getPriceAlerts(req, res, next) {
+  try {
+    const alerts = await priceAlertRepository.getPriceAlerts(req.params.userId);
+    return sendSuccess(res, alerts);
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function removePriceAlert(req, res, next) {
   try {
     const alert = await priceAlertRepository.removePriceAlert(req.params.userId, req.params.dealId);
@@ -19,4 +28,4 @@ async function removePriceAlert(req, res, next) {
   }
 }
 
-module.exports = { createPriceAlert, removePriceAlert };
+module.exports = { createPriceAlert, getPriceAlerts, removePriceAlert };

@@ -19,13 +19,14 @@ async function addSharedDeal(payload) {
 
   const { data, error } = await supabaseAdmin
     .from(TABLE)
-    .insert({
+    .upsert({
       user_id: userId,
       deal_id: dealId,
       share_channel: shareChannel,
       recipient,
-      message
-    })
+      message,
+      shared_at: new Date().toISOString()
+    }, { onConflict: "user_id,deal_id" })
     .select("*, deals(*, categories(*), stores(*))")
     .single();
   throwIfSupabaseError(error, TABLE);
@@ -37,7 +38,7 @@ async function getSharedDeals(userId) {
     .from(TABLE)
     .select("*, deals(*, categories(*), stores(*))")
     .eq("user_id", userId)
-    .order("created_at", { ascending: false });
+    .order("shared_at", { ascending: false });
   throwIfSupabaseError(error, TABLE);
   return (data || [])
     .filter((row) => isAutomatedScrapedDeal(row.deals))
@@ -52,6 +53,7 @@ function toApiSharedDeal(row) {
     shareChannel: row.share_channel || "system",
     recipient: row.recipient || "",
     message: row.message || "",
+    sharedAt: row.shared_at || row.created_at,
     createdAt: row.created_at,
     deal: row.deals ? toApiDeal(row.deals) : null
   };

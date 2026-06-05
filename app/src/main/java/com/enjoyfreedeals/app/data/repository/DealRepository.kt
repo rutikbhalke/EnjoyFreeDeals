@@ -29,19 +29,31 @@ class DealRepository(private val context: Context) {
         emit(loadDeals("/api/deals?limit=$limit&page=$page").getOrThrow())
     }
 
-    fun getDealsByCategory(categoryId: String, page: Int = 1, limit: Int = DEFAULT_PAGE_SIZE): Flow<List<DealModel>> = flow {
-        val endpoint = "/api/deals?limit=$limit&page=$page&category=${categoryId.urlEncode()}"
-        emit(loadDeals(endpoint).getOrThrow())
+    fun getDealsByCategory(categoryId: String, categoryName: String = "", page: Int = 1, limit: Int = DEFAULT_PAGE_SIZE): Flow<List<DealModel>> = flow {
+        val categoryKey = categoryId.ifBlank { categoryName }.ifBlank { "Other Deals" }
+        val endpoint = "/api/deals?limit=$limit&page=$page&category=${categoryKey.urlEncode()}"
+        val backendDeals = loadDeals(endpoint).getOrNull()
+        if (backendDeals != null) {
+            emit(filterByCategory(backendDeals, categoryId, categoryName))
+        } else {
+            emit(filterByCategory(loadSupabaseDeals().getOrThrow(), categoryId, categoryName))
+        }
     }
 
     fun getActiveDeals(): Flow<List<DealModel>> = flow {
         emit(refreshDeals())
     }
 
+    fun getHotDeals(page: Int = 1, limit: Int = DEFAULT_PAGE_SIZE): Flow<List<DealModel>> = flow {
+        emit(loadDeals("/api/deals?limit=$limit&page=$page&hot=true").getOrThrow())
+    }
+
     suspend fun refreshDeals(): List<DealModel> =
         loadSupabaseDeals().getOrElse {
             loadDeals("/api/deals?limit=$DEFAULT_PAGE_SIZE&page=1").getOrThrow()
         }
+
+    suspend fun getDealById(id: String): DealModel? = getDealByOfferId(id)
 
     suspend fun getDealByOfferId(offerId: String): DealModel? {
         val safeOfferId = offerId.trim()
@@ -52,6 +64,12 @@ class DealRepository(private val context: Context) {
                 deal.dealId == safeOfferId || deal.productId == safeOfferId
             }
             ?: loadDeal(safeOfferId).getOrNull()
+    }
+
+    suspend fun markExpiredDeals() {
+        runCatching {
+            backendClient.post("/api/admin/cleanup-expired-deals", JSONObject(), AuthSessionStore.accessToken(context))
+        }
     }
 
     fun getPriceHistory(dealId: String): Flow<List<PricePointModel>> = flow {
@@ -67,6 +85,10 @@ class DealRepository(private val context: Context) {
 
     fun getSharedDeals(): Flow<List<DealModel>> = userRepository.getSharedDeals()
 
+    fun getRecentlyViewedDeals(): Flow<List<DealModel>> = userRepository.getRecentlyViewedDeals()
+
+    fun getPriceAlertDeals(): Flow<List<DealModel>> = userRepository.getPriceAlertDeals()
+
     suspend fun saveDeal(dealId: String) {
         userRepository.addSavedDeal(dealId)
     }
@@ -77,6 +99,10 @@ class DealRepository(private val context: Context) {
 
     suspend fun shareDeal(dealId: String) {
         userRepository.addSharedDeal(dealId)
+    }
+
+    suspend fun recordRecentlyViewed(dealId: String) {
+        userRepository.addRecentlyViewedDeal(dealId)
     }
 
     suspend fun enablePriceDropAlert(deal: DealModel, targetPrice: Double) {
@@ -117,7 +143,7 @@ class DealRepository(private val context: Context) {
             .dataArray()
             .toJsonObjects()
             .map { it.toDealModel() }
-            .filter { it.isActive && it.expiryDate > System.currentTimeMillis() }
+            .filterActiveDisplayDeals()
     }
 
     private suspend fun loadDeal(dealId: String): Result<DealModel?> = runCatching {
@@ -125,7 +151,7 @@ class DealRepository(private val context: Context) {
             .dataObject()
             .takeIf { it.length() > 0 }
             ?.toDealModel()
-            ?.takeIf { it.isActive && it.expiryDate > System.currentTimeMillis() }
+            ?.takeIf { it.canDisplay }
     }
 
     private suspend fun loadSupabaseDeals(): Result<List<DealModel>> = runCatching {
@@ -147,14 +173,66 @@ class DealRepository(private val context: Context) {
                     priceStats = statsByProduct[productId]
                 )
             }
-            .filter { it.isActive && it.expiryDate > System.currentTimeMillis() }
+            .filterActiveDisplayDeals()
     }
+
+    private fun List<DealModel>.filterActiveDisplayDeals(): List<DealModel> =
+        filter { it.canDisplay && it.isUpdatedWithinLast24Hours() }
+            .distinctBy { deal ->
+                deal.platformProductId.ifBlank { deal.productUrl.ifBlank { deal.dealId } }.lowercase()
+            }
+
+    private fun DealModel.isUpdatedWithinLast24Hours(now: Long = System.currentTimeMillis()): Boolean {
+        val timestamp = sourceUpdatedAt
+            ?: lastCheckedAt.takeIf { it > 0L }
+            ?: fetchedAt.takeIf { it > 0L }
+            ?: updatedAt.takeIf { it > 0L }
+            ?: lastScrapedAt.takeIf { it > 0L }
+            ?: createdAt.takeIf { it > 0L }
+            ?: return false
+        return timestamp >= now - FRESH_DEAL_WINDOW_MS && timestamp <= now + 5 * 60 * 1000L
+    }
+
+    private fun filterByCategory(deals: List<DealModel>, categoryId: String, categoryName: String): List<DealModel> {
+        val expectedId = categoryId.normalizedCategoryKey()
+        val expectedName = categoryName.normalizedCategoryKey()
+        if (expectedId.isBlank() && expectedName.isBlank()) return deals.filterActiveDisplayDeals()
+        return deals.filterActiveDisplayDeals().filter { deal ->
+            val dealId = deal.categoryId.normalizedCategoryKey()
+            val dealName = deal.categoryName.normalizedCategoryKey()
+            dealId == expectedId ||
+                dealName == expectedId ||
+                (expectedName.isNotBlank() && (dealId == expectedName || dealName == expectedName))
+        }
+    }
+
+    private fun String.normalizedCategoryKey(): String =
+        when (
+            trim()
+            .lowercase()
+            .replace("&", "and")
+            .replace(Regex("[^a-z0-9]+"), "-")
+            .trim('-')
+        ) {
+            "mobiles", "mobile-phone", "mobile-phones", "smartphone", "smartphones" -> "mobile"
+            "home", "kitchen", "home-kitchen", "home-and-kitchen" -> "home-and-kitchen"
+            "amazon", "amazon-deal" -> "amazon-deals"
+            "flipkart", "flipkart-deal" -> "flipkart-deals"
+            "appliance" -> "appliances"
+            "other", "general" -> "other-deals"
+            else -> trim()
+                .lowercase()
+                .replace("&", "and")
+                .replace(Regex("[^a-z0-9]+"), "-")
+                .trim('-')
+        }
 
     private fun String.urlEncode(): String =
         URLEncoder.encode(this, Charsets.UTF_8.name())
 
     companion object {
         const val DEFAULT_PAGE_SIZE = 20
+        private const val FRESH_DEAL_WINDOW_MS = 24L * 60L * 60L * 1000L
 
         fun buildPriceHistoryRecord(
             deal: DealModel,
@@ -257,7 +335,6 @@ class DealRepository(private val context: Context) {
                 "Lowest Price" -> filtered.sortedBy { it.effectivePrice }
                 "Popular Deals" -> filtered.sortedByDescending { it.savedCount + it.shareCount }
                 "Free Deals" -> filtered.sortedWith(compareByDescending<DealModel> { it.isFreeDeal }.thenBy { it.effectivePrice })
-                "Expiring Soon" -> filtered.sortedBy { it.expiryDate }
                 "Latest Deals" -> filtered.sortedByDescending { it.createdAt }
                 else -> filtered.sortedByDescending { it.createdAt }
             }

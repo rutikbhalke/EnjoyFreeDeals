@@ -2,7 +2,6 @@ package com.enjoyfreedeals.app.data.remote
 
 import com.enjoyfreedeals.app.data.model.BlogModel
 import com.enjoyfreedeals.app.data.model.CategoryModel
-import com.enjoyfreedeals.app.data.model.DealImageFallbacks
 import com.enjoyfreedeals.app.data.model.DealModel
 import com.enjoyfreedeals.app.data.model.NotificationModel
 import com.enjoyfreedeals.app.data.model.PriceComparisonProductModel
@@ -24,11 +23,11 @@ fun JSONObject.dataObject(): JSONObject =
     optJSONObject("data") ?: JSONObject()
 
 fun JSONObject.toDealModel(): DealModel {
-    val current = optDoubleValue("currentPrice", "discountedPrice", "current_price", "discounted_price")
+    val current = optDoubleValue("dealPrice", "currentPrice", "discountedPrice", "deal_price", "current_price", "discounted_price")
     val original = optDoubleValue("originalPrice", "original_price", default = current)
     val title = optStringValue("title")
     val storeName = optStringValue("storeName", "store_name")
-    val categoryName = optStringValue("categoryName", "category_name", "categorySlug")
+    val categoryName = optStringValue("categoryName", "category_name", "categorySlug", default = "Other Deals")
     val productImage = optStringValue(
         "productImage",
         "imageUrl",
@@ -41,32 +40,48 @@ fun JSONObject.toDealModel(): DealModel {
         "thumbnail_url",
         "picture_url"
     )
+    val sourceImage = optStringValue("sourceImageUrl", "source_image_url", "platformImageUrl", "platform_image_url")
+    val resolvedImage = productImage.ifBlank { sourceImage }.takeIf { it.isValidHttpUrl() }.orEmpty()
     val comparisonPrices = optJSONArray("comparisonPrices")
         ?.toJsonObjects()
         ?.map { it.toStorePriceModel() }
         .orEmpty()
+    val fetchedAt = optTimestampValue("fetchedAt", "fetched_at", "lastScrapedAt", "last_scraped_at", "scrapedAt", "scraped_at", default = optTimestampValue("updatedAt", "updated_at"))
+    val platformExpiresAt = optNullableTimestampValue("platformExpiresAt", "platform_expires_at", "expiresAt", "expires_at", "expiryDate", "expiry_date")
+    val safeDiscount = optIntValue("discountPercent", "discount_percentage").takeIf { it in 0..100 }
+        ?: calculateDiscountPercent(original, current)
+    val isExpired = optBooleanValue("isExpired", "is_expired", default = platformExpiresAt?.let { it <= System.currentTimeMillis() } == true)
+    val isValid = optBooleanValue("isValid", "is_valid", default = hasValidPrice(original, current))
 
     return DealModel(
         dealId = optStringValue("dealId", "id", "deal_id"),
         productId = optStringValue("productId", "product_id", "dealId", "id", "deal_id"),
         title = title,
         description = optStringValue("description"),
-        productImage = productImage.ifBlank { DealImageFallbacks.forDeal(title, categoryName, storeName) },
+        productImage = resolvedImage,
+        imageUrl = resolvedImage,
+        sourceImageUrl = sourceImage.takeIf { it.isValidHttpUrl() }.orEmpty(),
         originalPrice = original,
+        dealPrice = optDoubleValue("dealPrice", "deal_price", default = current),
         discountedPrice = optDoubleValue("discountedPrice", "discounted_price", default = current),
-        discountPercent = optIntValue("discountPercent", "discount_percentage"),
+        discountPercent = safeDiscount,
+        currency = optStringValue("currency", default = "INR"),
         storeName = storeName,
         storeLogo = optStringValue("storeLogo", "store_logo"),
-        categoryId = optStringValue("categoryId", "category_id"),
+        categoryId = optStringValue("categoryId", "category_id", "categorySlug", "category_slug"),
         categoryName = categoryName,
         dealType = optStringValue("dealType", "source", default = "manual"),
         dealUrl = optStringValue("dealUrl", "deal_url"),
         productUrl = optStringValue("productUrl", "product_url", "dealUrl"),
+        platformProductId = optStringValue("platformProductId", "platform_product_id", "sourceProductId", "source_product_id", "asin", "sku", "productId", "product_id"),
+        platformProductUrl = optStringValue("platformProductUrl", "platform_product_url", "productUrl", "product_url", "dealUrl"),
         affiliateUrl = optStringValue("affiliateUrl", "affiliate_url", "dealUrl"),
         couponCode = optStringValue("couponCode", "coupon_code"),
         isHotDeal = optBooleanValue("isHotDeal", "is_hot_deal"),
         isFreeDeal = optBooleanValue("isFreeDeal", "is_free_deal"),
         isActive = optBooleanValue("isActive", "is_active", default = true),
+        isExpired = isExpired,
+        isValid = isValid,
         isFeatured = optBooleanValue("isFeatured", "is_featured"),
         isVerified = optBooleanValue("isVerified", "is_verified"),
         shareCount = optIntValue("shareCount", "share_count"),
@@ -83,10 +98,15 @@ fun JSONObject.toDealModel(): DealModel {
         comparisonPrices = comparisonPrices,
         createdAt = optTimestampValue("createdAt", "created_at"),
         updatedAt = optTimestampValue("updatedAt", "updated_at"),
-        lastScrapedAt = optTimestampValue("lastScrapedAt", "last_scraped_at", "scrapedAt", "scraped_at", default = optTimestampValue("updatedAt", "updated_at")),
-        scrapeExpiresAt = optTimestampValue("scrapeExpiresAt", "scrape_expires_at", default = optTimestampValue("lastScrapedAt", "last_scraped_at", "scrapedAt", "scraped_at", default = optTimestampValue("updatedAt", "updated_at")) + DealModel.SCRAPE_VALID_WINDOW),
-        scrapeValidHours = optIntValue("scrapeValidHours", "scrape_valid_hours", default = 24),
-        expiryDate = optTimestampValue("expiryDate", "expiry_date", default = System.currentTimeMillis() + DealModel.DEFAULT_EXPIRY_WINDOW)
+        fetchedAt = fetchedAt,
+        lastCheckedAt = optTimestampValue("lastCheckedAt", "last_checked_at", default = fetchedAt),
+        sourceUpdatedAt = optNullableTimestampValue("sourceUpdatedAt", "source_updated_at"),
+        platformExpiresAt = platformExpiresAt,
+        expiresAt = platformExpiresAt,
+        lastScrapedAt = fetchedAt,
+        scrapeExpiresAt = platformExpiresAt,
+        scrapeValidHours = optIntValue("scrapeValidHours", "scrape_valid_hours", default = 0).takeIf { it > 0 },
+        expiryDate = platformExpiresAt
     )
 }
 
@@ -179,7 +199,7 @@ fun JSONObject.toPriceComparisonProductModel(): PriceComparisonProductModel {
     return PriceComparisonProductModel(
         productId = optStringValue("productId", "dealId", "deal_id", "id"),
         productName = productName,
-        imageUrl = imageUrl.ifBlank { DealImageFallbacks.forDeal(productName, category, storeName) },
+        imageUrl = imageUrl.takeIf { it.isValidHttpUrl() }.orEmpty(),
         category = category,
         originalPrice = optDoubleValue("originalPrice", "original_price"),
         lowestPrice = optDoubleValue("lowestPrice", "lowest_price", "currentPrice"),
@@ -264,6 +284,30 @@ fun JSONObject.optTimestampValue(vararg keys: String, default: Long = System.cur
     }
     return default
 }
+
+fun JSONObject.optNullableTimestampValue(vararg keys: String): Long? {
+    keys.forEach { key ->
+        val value = opt(key)
+        when (value) {
+            is Number -> return value.toLong()
+            is String -> parseBackendTimestamp(value)?.let { return it }
+        }
+    }
+    return null
+}
+
+private fun calculateDiscountPercent(originalPrice: Double, dealPrice: Double): Int =
+    if (originalPrice > 0.0 && dealPrice >= 0.0 && dealPrice <= originalPrice) {
+        (((originalPrice - dealPrice) / originalPrice) * 100).toInt()
+    } else {
+        0
+    }
+
+private fun hasValidPrice(originalPrice: Double, dealPrice: Double): Boolean =
+    dealPrice >= 0.0 && (originalPrice <= 0.0 || dealPrice <= originalPrice)
+
+private fun String.isValidHttpUrl(): Boolean =
+    startsWith("https://", ignoreCase = true) || startsWith("http://", ignoreCase = true)
 
 private fun parseBackendTimestamp(value: String): Long? {
     val trimmed = value.trim()

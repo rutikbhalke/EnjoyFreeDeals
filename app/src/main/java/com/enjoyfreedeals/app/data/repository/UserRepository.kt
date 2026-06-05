@@ -103,6 +103,18 @@ class UserRepository(private val context: Context) {
         mockUser = mockUser.copy(sharedDeals = (mockUser.sharedDeals + dealId).distinct())
     }
 
+    suspend fun addRecentlyViewedDeal(dealId: String) {
+        val userId = getCurrentUserId()
+        if (userId == Constants.MOCK_USER_ID) return
+        backendClient.post(
+            "/api/recently-viewed",
+            JSONObject()
+                .put("userId", userId)
+                .put("dealId", dealId),
+            AuthSessionStore.accessToken(context)
+        )
+    }
+
     fun addPriceDropAlert(dealId: String, targetPrice: Double) {
         val targets = mockUser.priceDropTargetPrices + (dealId to targetPrice)
         if (!mockUser.priceDropAlerts.contains(dealId)) {
@@ -154,6 +166,36 @@ class UserRepository(private val context: Context) {
             }.getOrThrow()
 
             mockUser = mockUser.copy(sharedDeals = deals.map { it.dealId })
+            emit(deals)
+        }
+
+    fun getRecentlyViewedDeals(): Flow<List<DealModel>> =
+        flow {
+            val userId = getCurrentUserId()
+            if (userId == Constants.MOCK_USER_ID) {
+                emit(emptyList())
+                return@flow
+            }
+
+            val deals = backendClient.get("/api/recently-viewed/${userId.urlEncode()}", AuthSessionStore.accessToken(context))
+                .dataArray()
+                .toJsonObjects()
+                .mapNotNull { it.optJSONObject("deal")?.toDealModel() }
+            emit(deals)
+        }
+
+    fun getPriceAlertDeals(): Flow<List<DealModel>> =
+        flow {
+            val userId = getCurrentUserId()
+            if (userId == Constants.MOCK_USER_ID) {
+                emit(emptyList())
+                return@flow
+            }
+
+            val deals = backendClient.get("/api/price-alerts/${userId.urlEncode()}", AuthSessionStore.accessToken(context))
+                .dataArray()
+                .toJsonObjects()
+                .mapNotNull { it.optJSONObject("deal")?.toDealModel() }
             emit(deals)
         }
 

@@ -69,7 +69,8 @@ fun CategoryDealsScreen(
     onOpenDealDetails: (DealModel) -> Unit,
     onPriceAlertClick: (DealModel) -> Unit,
     priceHistory: Map<String, List<PricePointModel>> = emptyMap(),
-    priceDropAlerts: Set<String> = emptySet()
+    priceDropAlerts: Set<String> = emptySet(),
+    savedDeals: Set<String> = emptySet()
 ) {
     PremiumBackground {
         LazyColumn(
@@ -104,7 +105,7 @@ fun CategoryDealsScreen(
                 items(state.categoryDeals, key = { it.dealId }) { deal ->
                     DealCard(
                         deal = deal,
-                        isSaved = false,
+                        isSaved = savedDeals.contains(deal.dealId),
                         onViewDeal = onViewDeal,
                         onSaveDeal = onSaveDeal,
                         onShareDeal = onShareDeal,

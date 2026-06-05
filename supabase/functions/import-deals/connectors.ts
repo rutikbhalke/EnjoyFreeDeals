@@ -197,7 +197,7 @@ function extractDealFromHtml(source: DealSourceRow, productUrl: string, html: st
     couponCode: couponFromHtml(html),
     imageUrl,
     affiliateUrl: canonicalProductUrl,
-    expiryDate: daysFromNow(3),
+    expiryDate: undefined,
     raw: {
       connectorMode: "html-scrape",
       sourceKey: source.source_key,
@@ -342,7 +342,7 @@ function inferCategory(title: string, source: DealSourceRow): string {
   if (/shirt|shoe|jeans|dress|fashion|bag|backpack/.test(value)) return "Fashion";
   if (/book|course|student|exam/.test(value)) return "Student Deals";
   if (/food|grocery|kitchen/.test(value)) return "Grocery";
-  return "General";
+  return "Other Deals";
 }
 
 function productIdFromUrl(url: string): string {
@@ -466,13 +466,13 @@ function buildGenericTemplate(source: DealSourceRow): SourceTemplate[] {
       sourceUrl: source.base_url,
       title: `${source.source_name} Sample Deal`,
       description: `Placeholder API response for ${source.source_name}.`,
-      categoryName: "General",
+      categoryName: "Other Deals",
       originalPrice: 999,
       discountedPrice: 699,
       couponCode: "",
       imageUrl: "https://images.unsplash.com/photo-1607082349566-187342175e2f?auto=format&fit=crop&w=900&q=80",
       affiliateUrl: source.base_url,
-      expiryDate: daysFromNow(3)
+      expiryDate: undefined
     }
   ];
 }
@@ -494,7 +494,7 @@ const mockCatalog: Record<string, SourceTemplate[]> = {
       couponCode: "BOAT60",
       imageUrl: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=900&q=80",
       affiliateUrl: "/dp/B0CBOAT60",
-      expiryDate: daysFromNow(2)
+      expiryDate: undefined
     }
   ]
 };

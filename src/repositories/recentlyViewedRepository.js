@@ -2,9 +2,9 @@ const { supabaseAdmin } = require("../config/supabaseClient");
 const { isAutomatedScrapedDeal, toApiDeal } = require("../mappers/dealMapper");
 const { throwIfSupabaseError } = require("../utils/supabaseErrors");
 
-const TABLE = "saved_deals";
+const TABLE = "recently_viewed_deals";
 
-async function addToWishlist(payload) {
+async function recordRecentlyViewed(payload) {
   const userId = payload.userId || payload.user_id;
   const dealId = payload.dealId || payload.deal_id;
 
@@ -18,51 +18,35 @@ async function addToWishlist(payload) {
     .from(TABLE)
     .upsert({
       user_id: userId,
-      deal_id: dealId
+      deal_id: dealId,
+      viewed_at: new Date().toISOString()
     }, { onConflict: "user_id,deal_id" })
     .select("*, deals(*, categories(*), stores(*))")
     .single();
   throwIfSupabaseError(error, TABLE);
-  return toApiWatchlistItem(data);
+  return toApiRecentlyViewed(data);
 }
 
-async function getWishlist(userId) {
+async function getRecentlyViewed(userId) {
   const { data, error } = await supabaseAdmin
     .from(TABLE)
     .select("*, deals(*, categories(*), stores(*))")
     .eq("user_id", userId)
-    .order("created_at", { ascending: false });
+    .order("viewed_at", { ascending: false });
   throwIfSupabaseError(error, TABLE);
   return (data || [])
     .filter((row) => isAutomatedScrapedDeal(row.deals))
-    .map(toApiWatchlistItem);
+    .map(toApiRecentlyViewed);
 }
 
-async function removeFromWishlist(userId, dealId) {
-  if (!userId || !dealId) {
-    const error = new Error("userId and dealId are required.");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const { data, error } = await supabaseAdmin
-    .from(TABLE)
-    .delete()
-    .eq("user_id", userId)
-    .eq("deal_id", dealId)
-    .select("*");
-  throwIfSupabaseError(error, TABLE);
-  return { removed: (data || []).length > 0, userId, dealId };
-}
-
-function toApiWatchlistItem(row) {
+function toApiRecentlyViewed(row) {
   return {
     id: row.id,
     userId: row.user_id,
     dealId: row.deal_id,
-    createdAt: row.created_at,
+    viewedAt: row.viewed_at,
     deal: row.deals ? toApiDeal(row.deals) : null
   };
 }
 
-module.exports = { addToWishlist, getWishlist, removeFromWishlist };
+module.exports = { getRecentlyViewed, recordRecentlyViewed };

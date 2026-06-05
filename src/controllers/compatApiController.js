@@ -44,7 +44,7 @@ async function filterTelegramDeal(req, res, next) {
       return res.json({ success: false, message: "Deal rejected", reason: "Duplicate deal already exists" });
     }
 
-    const payload = toCurrentDealRow(deal);
+    const payload = await toCurrentDealRow(deal);
     const query = existing
       ? supabaseAdmin.from("deals").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", existing.id)
       : supabaseAdmin.from("deals").insert(payload);
@@ -123,29 +123,41 @@ async function findExistingDeal(deal) {
   return data;
 }
 
-function toCurrentDealRow(deal) {
+async function toCurrentDealRow(deal) {
   const now = new Date().toISOString();
+  const storeId = await ensureStore(deal.platform || "Telegram");
+  const categoryName = inferCategoryName(`${deal.productTitle} ${deal.platform}`);
+  const categoryId = await ensureCategory(categoryName);
+  const sourceProductId = platformProductId(deal.productUrl) || deal.productUrl;
   return {
     title: deal.productTitle,
     slug: slugify(`${deal.productTitle}-${deal.platform}`),
     description: deal.productTitle,
+    store_id: storeId,
+    category_id: categoryId,
     original_price: deal.originalPrice,
     discounted_price: deal.dealPrice,
     discount_percentage: deal.discountPercent,
     coupon_code: deal.couponCode || "",
     affiliate_link: deal.productUrl,
     image_url: deal.imageUrl || "",
-    expiry_date: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    source_image_url: deal.imageUrl || "",
+    platform_product_url: deal.productUrl,
+    expiry_date: null,
+    platform_expires_at: null,
     status: "active",
     is_featured: deal.isHotDeal || deal.isSuperHotDeal,
     is_verified: true,
     source: "TELEGRAM_FILTER",
     source_url: deal.productUrl,
+    source_product_id: sourceProductId,
     dedupe_key: deal.dedupeKey,
     last_scraped_at: now,
     raw_source_payload: {
       connectorMode: "telegram-page",
       platform: deal.platform,
+      categoryName,
+      platformProductId: sourceProductId,
       deal_score: deal.dealScore,
       is_super_hot_deal: deal.isSuperHotDeal,
       is_best_price: deal.isBestPrice,
@@ -154,6 +166,66 @@ function toCurrentDealRow(deal) {
     },
     updated_at: now
   };
+}
+
+async function ensureStore(platform) {
+  const storeName = String(platform || "Telegram").trim() || "Telegram";
+  const slug = slugify(storeName);
+  const { data, error } = await supabaseAdmin
+    .from("stores")
+    .upsert({
+      name: storeName,
+      slug,
+      website_url: "",
+      is_active: true
+    }, { onConflict: "slug" })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return data?.id || null;
+}
+
+async function ensureCategory(categoryName) {
+  const name = categoryName || "Other Deals";
+  const { data, error } = await supabaseAdmin
+    .from("categories")
+    .upsert({
+      name,
+      slug: slugify(name),
+      is_active: true
+    }, { onConflict: "slug" })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return data?.id || null;
+}
+
+function inferCategoryName(text) {
+  const value = String(text || "").toLowerCase();
+  if (/laptop|notebook|macbook/.test(value)) return "Laptop";
+  if (/phone|mobile|smartphone/.test(value)) return "Mobile";
+  if (/flipkart|fkrt|flpkrt/.test(value)) return "Flipkart Deals";
+  if (/amazon|amzn/.test(value)) return "Amazon Deals";
+  if (/shirt|shoe|jeans|dress|fashion|bag|kurta|saree/.test(value)) return "Fashion";
+  if (/grocery|food|snack|tea|coffee/.test(value)) return "Grocery";
+  if (/beauty|skin|makeup|cosmetic|cream|serum/.test(value)) return "Beauty";
+  if (/appliance|mixer|grinder|washing|fridge|microwave|air conditioner/.test(value)) return "Appliances";
+  if (/home|kitchen|storage|container|bottle|furniture/.test(value)) return "Home & Kitchen";
+  if (/earbud|speaker|watch|camera|charger|tablet|headphone|tv/.test(value)) return "Electronics";
+  return "Other Deals";
+}
+
+function platformProductId(productUrl) {
+  try {
+    const parsed = new URL(productUrl);
+    const asin = decodeURIComponent(parsed.pathname).match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?]|$)/i)?.[1];
+    if (asin) return `amazon:${asin.toUpperCase()}`;
+    parsed.hash = "";
+    ["tag", "utm_source", "utm_medium", "utm_campaign", "utm_content"].forEach((key) => parsed.searchParams.delete(key));
+    return parsed.toString();
+  } catch {
+    return "";
+  }
 }
 
 async function storeOtp(mobile, otp) {

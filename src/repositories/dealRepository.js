@@ -21,7 +21,7 @@ async function listDeals(filters) {
 
   if (filters.category) {
     const categoryId = await resolveCategoryId(filters.category);
-    query = categoryId ? query.eq("category_id", categoryId) : query.eq("category_id", filters.category);
+    query = categoryId ? query.eq("category_id", categoryId) : query.eq("category_id", "00000000-0000-0000-0000-000000000000");
   }
 
   if (filters.dealType) {
@@ -44,6 +44,7 @@ async function listDeals(filters) {
   throwIfSupabaseError(error, TABLE);
   const mappedDeals = (data || [])
     .map(toApiDeal)
+    .filter((deal) => deal.isValid && !deal.isExpired)
     .filter((deal) => filterByPlatform(deal, filters.platform));
 
   return {
@@ -70,7 +71,8 @@ async function getDealById(id) {
     .or(nonExpiredDealFilter())
     .maybeSingle();
   throwIfSupabaseError(error, TABLE);
-  return data ? toApiDeal(data) : null;
+  const deal = data ? toApiDeal(data) : null;
+  return deal && deal.isValid && !deal.isExpired ? deal : null;
 }
 
 async function createDeal(payload) {
@@ -110,10 +112,12 @@ function escapeIlike(value) {
 }
 
 function applyPublicDealVisibility(query) {
+  const updatedCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   return query
     .eq("status", "active")
+    .gte("discounted_price", 0)
+    .gte("updated_at", updatedCutoff)
     .not("last_scraped_at", "is", null)
-    .gt("last_scraped_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
     .not("dedupe_key", "is", null)
     .neq("source_url", "")
     .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "direct-platform-fetch"])
@@ -121,7 +125,8 @@ function applyPublicDealVisibility(query) {
 }
 
 function nonExpiredDealFilter() {
-  return `expiry_date.is.null,expiry_date.gt.${new Date().toISOString()}`;
+  const now = new Date().toISOString();
+  return `platform_expires_at.is.null,platform_expires_at.gt.${now}`;
 }
 
 async function resolveCategoryId(category) {
@@ -130,14 +135,42 @@ async function resolveCategoryId(category) {
     .select("id,name,slug");
 
   if (error) return null;
-  const normalized = String(category).toLowerCase();
+  const normalized = normalizeCategoryKey(category);
   const match = (data || []).find((item) =>
-    String(item.id).toLowerCase() === normalized ||
-    String(item.slug || "").toLowerCase() === normalized ||
-    String(item.name || "").toLowerCase() === normalized
+    normalizeCategoryKey(item.id) === normalized ||
+    normalizeCategoryKey(item.slug) === normalized ||
+    normalizeCategoryKey(item.name) === normalized
   );
   return match?.id || null;
 }
+
+function normalizeCategoryKey(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return CATEGORY_ALIASES[normalized] || normalized;
+}
+
+const CATEGORY_ALIASES = {
+  mobiles: "mobile",
+  "mobile-phone": "mobile",
+  "mobile-phones": "mobile",
+  smartphone: "mobile",
+  smartphones: "mobile",
+  home: "home-and-kitchen",
+  kitchen: "home-and-kitchen",
+  "home-kitchen": "home-and-kitchen",
+  "amazon-deal": "amazon-deals",
+  amazon: "amazon-deals",
+  "flipkart-deal": "flipkart-deals",
+  flipkart: "flipkart-deals",
+  appliance: "appliances",
+  general: "other-deals",
+  other: "other-deals"
+};
 
 function filterByPlatform(deal, platform) {
   if (!platform) return true;
