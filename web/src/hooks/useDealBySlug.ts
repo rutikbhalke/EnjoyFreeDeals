@@ -10,7 +10,7 @@ export function useDealBySlug(slug: string | undefined) {
         const deal = await apiGet<BackendDeal>(`/api/deals/${encodeURIComponent(slug!)}`);
         return mapBackendDeal(deal);
       } catch {
-        const deals = await fetchDeals({ limit: 200, search: slug });
+        const deals = await fetchDeals({ limit: 500 });
         return deals.find((deal) => deal.slug === slug || deal.id === slug) ?? null;
       }
     },

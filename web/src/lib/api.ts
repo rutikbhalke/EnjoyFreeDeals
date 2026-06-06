@@ -189,11 +189,20 @@ function numberOrNull(value: unknown) {
 }
 
 function firstHttpUrl(...values: Array<string | null | undefined>) {
-  return values.map((value) => String(value || "").trim()).find(isHttpUrl) || null;
+  return values.map((value) => String(value || "").trim()).find(isUsableImageUrl) || null;
 }
 
 function isHttpUrl(value: string) {
   return /^https?:\/\//i.test(value);
+}
+
+function isUsableImageUrl(value: string) {
+  if (!isHttpUrl(value)) return false;
+  const lowerValue = value.toLowerCase();
+  return !(
+    lowerValue.includes("amazon-adsystem.com/widgets/q") ||
+    lowerValue.includes("id=asinimage")
+  );
 }
 
 function slugify(value?: string | null) {
