@@ -10,5 +10,11 @@
     "api/index.js": {
       "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/scrape-telegram",
+      "schedule": "*/30 * * * *"
+    }
+  ]
 }

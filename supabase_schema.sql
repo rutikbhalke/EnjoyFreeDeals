@@ -11,6 +11,8 @@ create table if not exists public.deals (
   coupon_code text,
   product_url text not null,
   image_url text,
+  fallback_image_url text,
+  final_image_url text,
   rating numeric,
   review_count integer,
   delivery_charge numeric,
@@ -21,7 +23,9 @@ create table if not exists public.deals (
   is_best_price boolean default false,
   deal_score integer default 0,
   scraped_from_channel text,
+  telegram_channel text,
   telegram_message_id text,
+  message_text text,
   expires_at timestamptz,
   is_active boolean default true,
   created_at timestamptz default now(),
@@ -50,6 +54,11 @@ create index if not exists idx_deals_category on public.deals(category);
 create index if not exists idx_deals_discount_percent on public.deals(discount_percent);
 create index if not exists idx_deals_deal_score on public.deals(deal_score);
 create index if not exists idx_deals_is_active on public.deals(is_active);
+create index if not exists idx_deals_telegram_channel on public.deals(telegram_channel);
+create index if not exists idx_deals_telegram_message_id on public.deals(telegram_message_id);
+create index if not exists idx_deals_telegram_channel_message
+on public.deals(telegram_channel, telegram_message_id)
+;
 create index if not exists idx_saved_deals_user_id on public.saved_deals(user_id);
 create index if not exists idx_otp_verifications_mobile on public.otp_verifications(mobile);
 

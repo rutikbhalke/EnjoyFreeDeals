@@ -20,6 +20,7 @@ const recentlyViewedRoutes = require("./routes/recentlyViewedRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const dealRepository = require("./repositories/dealRepository");
 const compatApiRoutes = require("./routes/compatApiRoutes");
+const telegramScraperRoutes = require("./routes/telegramScraperRoutes");
 
 const app = express();
 
@@ -288,6 +289,7 @@ app.get("/api/health", (_req, res) => {
 });
 
 app.use("/api", compatApiRoutes);
+app.use("/api", telegramScraperRoutes);
 app.use("/api/deals", dealRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/categories", categoryRoutes);

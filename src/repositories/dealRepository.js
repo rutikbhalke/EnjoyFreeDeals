@@ -46,6 +46,9 @@ async function listDeals(filters) {
     .map(toApiDeal)
     .filter((deal) => deal.isValid && !deal.isExpired)
     .filter((deal) => filterByPlatform(deal, filters.platform));
+  if (filters.sort === "score") {
+    mappedDeals.sort((a, b) => Number(b.dealScore || 0) - Number(a.dealScore || 0));
+  }
 
   return {
     deals: mappedDeals,
@@ -67,7 +70,7 @@ async function getDealById(id) {
     .not("last_scraped_at", "is", null)
     .not("dedupe_key", "is", null)
     .neq("source_url", "")
-    .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "direct-platform-fetch"])
+    .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"])
     .or(nonExpiredDealFilter())
     .maybeSingle();
   throwIfSupabaseError(error, TABLE);
@@ -120,7 +123,7 @@ function applyPublicDealVisibility(query) {
     .not("last_scraped_at", "is", null)
     .not("dedupe_key", "is", null)
     .neq("source_url", "")
-    .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "direct-platform-fetch"])
+    .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"])
     .or(nonExpiredDealFilter());
 }
 

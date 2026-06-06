@@ -5,6 +5,8 @@ function toApiDeal(row) {
   const originalPrice = safePrice(row.original_price || currentPrice || 0);
   const discountPercent = safeDiscount(row.discount_percentage, originalPrice, currentPrice);
   const productImage = resolveDealImage(row);
+  const fallbackImageUrl = row.fallback_image_url || row.raw_source_payload?.fallback_image_url || "";
+  const finalImageUrl = row.final_image_url || row.raw_source_payload?.final_image_url || productImage || fallbackImageUrl;
   const dealUrl = resolveDealUrl(row);
   const lastScrapedAt = row.source_updated_at || row.fetched_at || row.last_scraped_at || row.updated_at || row.created_at || null;
   const platformExpiresAt = row.platform_expires_at || row.expiry_date || null;
@@ -19,19 +21,30 @@ function toApiDeal(row) {
     slug: row.slug || "",
     description: row.description || "",
     productImage,
-    imageUrl: productImage,
+    imageUrl: finalImageUrl,
     sourceImageUrl: row.source_image_url || row.raw_source_payload?.sourceImageUrl || row.raw_source_payload?.imageUrl || "",
+    fallbackImageUrl,
+    finalImageUrl,
+    image_url: finalImageUrl,
+    source_image_url: row.source_image_url || row.raw_source_payload?.sourceImageUrl || row.raw_source_payload?.imageUrl || "",
+    fallback_image_url: fallbackImageUrl,
+    final_image_url: finalImageUrl,
     originalPrice,
+    original_price: originalPrice,
     dealPrice: currentPrice,
+    deal_price: currentPrice,
     discountedPrice: currentPrice,
     discountPercent,
+    discount_percent: discountPercent,
     currency: row.currency || "INR",
     platformProductId: row.source_product_id || row.raw_source_payload?.platformProductId || row.raw_source_payload?.asin || row.raw_source_payload?.sku || "",
+    product_title: row.title || "",
     storeId: row.store_id,
     storeName: store.name || row.store_name || "",
     storeLogo: store.logo_url || "",
     categoryId: row.category_id,
     categoryName,
+    category: categoryName,
     categorySlug: category.slug || slugify(categoryName),
     dealType: row.source || "manual",
     dealUrl,
@@ -39,8 +52,16 @@ function toApiDeal(row) {
     platformProductUrl: row.platform_product_url || row.raw_source_payload?.platformProductUrl || dealUrl,
     affiliateUrl: dealUrl,
     couponCode: row.coupon_code || "",
+    coupon_code: row.coupon_code || "",
     cashbackPercentage: Number(row.cashback_percentage || 0),
-    isHotDeal: discountPercent >= 50 || Boolean(row.is_featured),
+    isHotDeal: Boolean(row.raw_source_payload?.is_hot_deal) || discountPercent >= 50 || Boolean(row.is_featured),
+    is_hot_deal: Boolean(row.raw_source_payload?.is_hot_deal) || discountPercent >= 50 || Boolean(row.is_featured),
+    isSuperHotDeal: Boolean(row.raw_source_payload?.is_super_hot_deal),
+    is_super_hot_deal: Boolean(row.raw_source_payload?.is_super_hot_deal),
+    isBestPrice: Boolean(row.raw_source_payload?.is_best_price),
+    is_best_price: Boolean(row.raw_source_payload?.is_best_price),
+    dealScore: Number(row.deal_score || row.raw_source_payload?.deal_score || 0),
+    deal_score: Number(row.deal_score || row.raw_source_payload?.deal_score || 0),
     isFreeDeal: currentPrice === 0,
     isExpired,
     isValid,
@@ -132,6 +153,8 @@ function resolveDealImage(row) {
   const raw = row.raw_source_payload || {};
   const nested = raw.metadata || raw.product || {};
   const storedCandidates = [
+    row.final_image_url,
+    raw.final_image_url,
     row.image_url,
     raw.imageUrl,
     raw.image_url,
@@ -149,15 +172,7 @@ function resolveDealImage(row) {
     nested.photoUrl,
     nested.thumbnailUrl
   ];
-  const generatedCandidates = [
-    amazonImageFromUrl(raw.resolvedProductUrl),
-    amazonImageFromUrl(raw.sourceUrl),
-    amazonImageFromUrl(row.source_url),
-    amazonImageFromUrl(row.affiliate_link)
-  ];
-
   return [
-    ...generatedCandidates,
     ...storedCandidates.filter((value) => !isKnownFallbackImage(value) && !isTelegramPreviewImage(value)),
     ...storedCandidates.filter((value) => !isKnownFallbackImage(value)),
     ...storedCandidates
