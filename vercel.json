@@ -14,7 +14,7 @@
   "crons": [
     {
       "path": "/api/cron/scrape-telegram",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 3 * * *"
     }
   ]
 }

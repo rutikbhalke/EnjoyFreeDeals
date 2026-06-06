@@ -71,7 +71,6 @@ async function getDealById(id) {
     .not("dedupe_key", "is", null)
     .neq("source_url", "")
     .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"])
-    .or(nonExpiredDealFilter())
     .maybeSingle();
   throwIfSupabaseError(error, TABLE);
   const deal = data ? toApiDeal(data) : null;
@@ -123,8 +122,7 @@ function applyPublicDealVisibility(query) {
     .not("last_scraped_at", "is", null)
     .not("dedupe_key", "is", null)
     .neq("source_url", "")
-    .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"])
-    .or(nonExpiredDealFilter());
+    .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"]);
 }
 
 function nonExpiredDealFilter() {
