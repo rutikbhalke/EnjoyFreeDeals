@@ -1,0 +1,19 @@
+# EnjoyFreeDeals
+> India's smartest free deals & cashback platform
+
+## About
+EnjoyFreeDeals aggregates the best deals, coupons, and cashback offers from top Indian and global stores including Amazon, Flipkart, Myntra, Swiggy, MakeMyTrip, and more.
+
+## Sections
+- /deals - Browse all active deals with filters for category, store, and price
+- /blog - Shopping tips, coupon guides, and deal strategies
+- /stores - Partner store listings with cashback rates
+- /categories - Deal categories including Electronics, Fashion, Food, Travel, and more
+- /submit-deal - Submit community deals
+
+## Key Features
+- Real-time price tracking and price history charts
+- Deal voting system for community curation
+- Price drop alerts and watchlist
+- Cashback rewards on qualifying purchases
+- Coupon codes and promo codes aggregation

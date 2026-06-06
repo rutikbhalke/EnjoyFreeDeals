@@ -19,7 +19,7 @@ fun projectProperty(name: String, defaultValue: String = ""): String =
         .orElse(localProperties.getProperty(name) ?: defaultValue)
         .get()
 
-val backendBaseUrl = projectProperty("BACKEND_BASE_URL", "http://10.0.2.2:5000")
+val backendBaseUrl = projectProperty("BACKEND_BASE_URL", "https://enjoyfreedeals.vercel.app")
 val supabaseUrl = projectProperty("SUPABASE_URL")
 val supabaseAnonKey = projectProperty("SUPABASE_ANON_KEY")
 
