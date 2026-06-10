@@ -38,7 +38,7 @@ class ProductDetailViewModel(application: Application) : AndroidViewModel(applic
             _uiState.update { it.copy(isLoading = true, errorMessage = null) }
             runCatching {
                 val deal = dealRepository.getDealByOfferId(offerId)
-                val productId = deal?.productId?.ifBlank { offerId } ?: offerId
+                val productId = deal?.dealId?.ifBlank { offerId } ?: offerId
                 val comparison = productRepository.getPriceComparison(productId)
                 val history = productRepository.getPriceHistory(productId)
                 val stats = productRepository.getPriceStatsModel(productId, deal?.effectivePrice ?: 0.0)

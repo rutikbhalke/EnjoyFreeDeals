@@ -1,6 +1,7 @@
 package com.enjoyfreedeals.app.data.repository
 
 import android.content.Context
+import android.util.Log
 import com.enjoyfreedeals.app.data.mock.MockDeals
 import com.enjoyfreedeals.app.data.mock.MockPriceHistory
 import com.enjoyfreedeals.app.data.model.PricePointModel
@@ -25,15 +26,21 @@ class ProductRepository(@Suppress("unused") private val context: Context) {
         val fallback = mockDeal(productId)?.comparisonPrices.orEmpty()
         val backendPrices = runCatching {
             val encodedProductId = URLEncoder.encode(productId, Charsets.UTF_8.name())
+            Log.d("PriceComparison", "GET /api/compare-price?productId=$encodedProductId")
             val response = backend.get("/api/compare-price?productId=$encodedProductId")
-            response.optJSONArray("prices")
+            val prices = response.optJSONArray("prices")
                 ?.toJsonObjects()
                 ?.map { it.toStorePriceModel() }
                 ?.sortedWith(compareBy<StorePriceModel> { !it.available }.thenBy { it.price })
                 .orEmpty()
+            Log.d("PriceComparison", "Backend rows=${prices.size}")
+            prices
+        }.onFailure {
+            Log.w("PriceComparison", "Backend failed, using fallback data", it)
         }.getOrDefault(emptyList())
         if (backendPrices.isNotEmpty()) return backendPrices
 
+        Log.d("PriceComparison", "Fallback rows used")
         if (!SupabaseConfig.isConfigured) return fallback.ifEmpty { sampleComparison(productId) }
         return runCatching {
             supabase.priceComparison()
@@ -81,8 +88,8 @@ class ProductRepository(@Suppress("unused") private val context: Context) {
                 price = price,
                 originalPrice = price * 2,
                 discountPercent = 50.0,
-                productUrl = "",
-                affiliateUrl = "",
+                productUrl = "https://enjoyfreedeals-web.vercel.app/deals",
+                affiliateUrl = "https://enjoyfreedeals-web.vercel.app/deals",
                 available = true,
                 deliveryInfo = "See store",
                 isLowestPrice = price == lowest

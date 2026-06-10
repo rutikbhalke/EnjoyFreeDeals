@@ -1,6 +1,7 @@
 package com.enjoyfreedeals.app.data.repository
 
 import android.content.Context
+import com.enjoyfreedeals.app.data.model.PriceComparisonModel
 import com.enjoyfreedeals.app.data.model.PriceComparisonProductModel
 import com.enjoyfreedeals.app.data.model.StorePriceModel
 import com.enjoyfreedeals.app.data.remote.BackendClient
@@ -21,6 +22,29 @@ class PriceComparisonRepository(private val context: Context) {
 
     suspend fun getPriceComparison(productId: String): List<StorePriceModel> =
         loadComparison(productId).getOrDefault(sampleComparison())
+
+    suspend fun getPriceComparisonResult(productId: String): Result<List<PriceComparisonModel>> =
+        loadComparison(productId).map { prices ->
+            prices.mapIndexed { index, price ->
+                PriceComparisonModel(
+                    id = "$productId-${price.platform.ifBlank { index.toString() }}",
+                    productId = productId,
+                    platform = price.platform,
+                    platformLogoUrl = price.storeLogoUrl.takeIf { it.isNotBlank() },
+                    productUrl = price.redirectUrl,
+                    price = price.price,
+                    originalPrice = price.originalPrice,
+                    discountPercent = price.discountPercent,
+                    couponCode = price.couponCode.takeIf { it.isNotBlank() },
+                    deliveryCharge = price.deliveryCharge,
+                    rating = price.rating,
+                    reviewCount = price.reviewCount,
+                    isLowestPrice = price.isLowestPrice,
+                    isAvailable = price.available,
+                    lastCheckedAt = price.lastUpdated.toString()
+                )
+            }
+        }
 
     suspend fun getLowestPrice(productId: String): StorePriceModel? =
         getPriceComparison(productId).filter { it.available }.minByOrNull { it.price }

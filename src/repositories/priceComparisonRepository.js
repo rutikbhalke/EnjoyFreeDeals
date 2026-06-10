@@ -21,6 +21,9 @@ async function listPriceComparisons() {
 
 async function getPriceComparison(productId) {
   const deal = await findDeal(productId);
+  if (!isUuid(productId)) {
+    return toDemoPriceComparison(productId, deal);
+  }
   const { data, error } = await supabaseAdmin
     .from(TABLE)
     .select("*, price_comparison_platforms(*)")
@@ -31,9 +34,12 @@ async function getPriceComparison(productId) {
   }
   throwIfSupabaseError(error, TABLE);
   if (!data) {
-    return deal ? toDealBackedPriceComparison(deal) : null;
+    return deal ? withDemoRows(toDealBackedPriceComparison(deal)) : toDemoPriceComparison(productId, deal);
   }
-  return normalizeLowestFlags(toApiPriceComparison({ ...data, deal }));
+  const comparison = normalizeLowestFlags(toApiPriceComparison({ ...data, deal }));
+  return comparison.ecommercePlatformPrices.length
+    ? comparison
+    : withDemoRows(comparison);
 }
 
 async function getPriceComparisonSummary(productId) {
@@ -162,6 +168,7 @@ function toApiPriceComparison(row) {
 
 function toApiStorePrice(row) {
   return {
+    id: row.id || "",
     platform: row.platform || "",
     platformLogoUrl: row.platform_logo_url || getPlatformLogo(row.platform),
     platform_logo_url: row.platform_logo_url || getPlatformLogo(row.platform),
@@ -284,7 +291,7 @@ function compareStorePrices(a, b) {
 }
 
 async function findDeal(productId) {
-  if (!productId) return null;
+  if (!productId || !isUuid(productId)) return null;
   const { data, error } = await supabaseAdmin
     .from("deals")
     .select("*, categories(*), stores(*)")
@@ -298,6 +305,7 @@ async function findDeal(productId) {
 function toComparePriceResponse(comparison) {
   const normalized = normalizeLowestFlags(comparison);
   const prices = normalized.ecommercePlatformPrices.map((price) => ({
+    id: price.id || `${normalized.productId}-${price.platform}`,
     platform: price.platform,
     platform_logo_url: price.platformLogoUrl || price.platform_logo_url || getPlatformLogo(price.platform),
     price: Number(price.price || 0),
@@ -327,6 +335,84 @@ function toComparePriceResponse(comparison) {
     prices,
     ecommercePlatformPrices: normalized.ecommercePlatformPrices
   };
+}
+
+function toDemoPriceComparison(productId, deal) {
+  const now = new Date().toISOString();
+  const title = String(deal?.title || "").toLowerCase();
+  const demoRows = demoPlatformRows(title, deal?.affiliate_link || deal?.source_url || "", now);
+  const currentPrice = Number(deal?.discounted_price || demoRows[0]?.price || 0);
+  return normalizeLowestFlags({
+    productId,
+    id: productId,
+    dealId: productId,
+    productName: deal?.title || "Demo product",
+    imageUrl: deal?.final_image_url || deal?.image_url || "",
+    category: deal?.categories?.name || "Deals",
+    originalPrice: Number(deal?.original_price || currentPrice * 2 || 0),
+    lowestPrice: Math.min(...demoRows.map((row) => row.price)),
+    discountPercent: Number(deal?.discount_percentage || 50),
+    productUrl: deal?.affiliate_link || deal?.source_url || demoRows[0]?.productUrl || "",
+    storeName: "Meesho",
+    couponCode: deal?.coupon_code || "",
+    rating: 4.2,
+    isHotDeal: true,
+    isFreeDeal: false,
+    lastUpdated: now,
+    ecommercePlatformPrices: demoRows
+  });
+}
+
+function withDemoRows(comparison) {
+  const now = new Date().toISOString();
+  const rows = demoPlatformRows(comparison.productName, comparison.productUrl, now);
+  return normalizeLowestFlags({
+    ...comparison,
+    ecommercePlatformPrices: rows
+  });
+}
+
+function demoPlatformRows(title, productUrl, now) {
+  const value = String(title || "").toLowerCase();
+  const rows = value.includes("watch")
+    ? [["Amazon", 1499, 2999], ["Flipkart", 1399, 2799], ["TataCliq", 1599, 3199], ["Croma", 1699, 3299]]
+    : value.includes("mobile") || value.includes("phone")
+      ? [["Amazon", 12999, 17999], ["Flipkart", 12499, 18999], ["Croma", 13299, 19999], ["TataCliq", 13499, 19999]]
+      : [["Amazon", 999, 1999], ["Flipkart", 949, 1999], ["Meesho", 899, 1899], ["Croma", 1049, 2099]];
+  return rows.map(([platform, price, originalPrice]) => ({
+    id: `demo-${String(platform).toLowerCase()}`,
+    platform,
+    platformLogoUrl: getPlatformLogo(platform),
+    platform_logo_url: getPlatformLogo(platform),
+    price,
+    originalPrice,
+    original_price: originalPrice,
+    discountPercent: Math.round(((originalPrice - price) / originalPrice) * 100),
+    discount_percent: Math.round(((originalPrice - price) / originalPrice) * 100),
+    productUrl: productUrl || "https://enjoyfreedeals-web.vercel.app/deals",
+    product_url: productUrl || "https://enjoyfreedeals-web.vercel.app/deals",
+    affiliateUrl: productUrl || "https://enjoyfreedeals-web.vercel.app/deals",
+    affiliate_url: productUrl || "https://enjoyfreedeals-web.vercel.app/deals",
+    available: true,
+    isAvailable: true,
+    is_available: true,
+    deliveryInfo: "Free delivery",
+    delivery_info: "Free delivery",
+    deliveryCharge: 0,
+    delivery_charge: 0,
+    rating: 4.2,
+    reviewCount: 0,
+    review_count: 0,
+    couponCode: "",
+    coupon_code: "",
+    lastUpdated: now,
+    lastCheckedAt: now,
+    last_checked_at: now
+  }));
+}
+
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
 }
 
 function normalizeLowestFlags(comparison) {

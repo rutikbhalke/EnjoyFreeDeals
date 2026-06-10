@@ -346,6 +346,38 @@ fun DealCard(
                         BadgeText(deal.couponCode, SoftYellow, DarkText)
                     }
                 }
+                if (deal.lowestPrice > 0.0) {
+                    Spacer(Modifier.height(8.dp))
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = onOpenDetails != null) { onOpenDetails?.invoke(deal) },
+                        shape = RoundedCornerShape(14.dp),
+                        color = SoftGreen.copy(alpha = 0.82f),
+                        border = BorderStroke(1.dp, PrimaryGreen.copy(alpha = 0.18f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Lowest price: ${formatPrice(deal.lowestPrice)}", color = PrimaryGreen, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelMedium)
+                                Text(
+                                    listOfNotNull(
+                                        deal.bestPlatform.takeIf { it.isNotBlank() },
+                                        deal.comparisonCount.takeIf { it > 0 }?.let { "$it platforms" }
+                                    ).joinToString(" - ").ifBlank { "Compare prices" },
+                                    color = GreyText,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Text("Compare", color = PrimaryGreen, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                }
                 Spacer(Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(
