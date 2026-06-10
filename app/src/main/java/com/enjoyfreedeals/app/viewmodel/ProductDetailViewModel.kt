@@ -44,7 +44,13 @@ class ProductDetailViewModel(application: Application) : AndroidViewModel(applic
                 val stats = productRepository.getPriceStatsModel(productId, deal?.effectivePrice ?: 0.0)
                 ProductDetailUiState(
                     isLoading = false,
-                    deal = deal?.copy(comparisonPrices = comparison.ifEmpty { deal.comparisonPrices }),
+                    deal = deal?.copy(
+                        comparisonPrices = comparison.ifEmpty { deal.comparisonPrices },
+                        lowestPrice = comparison.filter { it.available }.minOfOrNull { it.price } ?: deal.lowestPrice,
+                        bestPlatform = comparison.filter { it.available }.minByOrNull { it.price }?.platform ?: deal.bestPlatform,
+                        comparisonCount = comparison.ifEmpty { deal.comparisonPrices }.size,
+                        lastPriceCheckedAt = comparison.maxOfOrNull { it.lastUpdated } ?: deal.lastPriceCheckedAt
+                    ),
                     comparison = comparison,
                     priceHistory = history,
                     priceStats = stats

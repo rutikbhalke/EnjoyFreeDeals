@@ -2,6 +2,7 @@ function toApiDeal(row) {
   const store = row.stores || {};
   const category = row.categories || {};
   const currentPrice = safePrice(row.discounted_price);
+  const lowestPrice = safePrice(row.lowest_price || currentPrice);
   const originalPrice = safePrice(row.original_price || currentPrice || 0);
   const discountPercent = safeDiscount(row.discount_percentage, originalPrice, currentPrice);
   const productImage = resolveDealImage(row);
@@ -73,7 +74,14 @@ function toApiDeal(row) {
     clickCount: Number(row.click_count || 0),
     voteScore: Number(row.vote_score || 0),
     currentPrice,
-    lowestPrice: currentPrice,
+    lowestPrice,
+    lowest_price: lowestPrice,
+    bestPlatform: row.best_platform || store.name || row.store_name || "",
+    best_platform: row.best_platform || store.name || row.store_name || "",
+    comparisonCount: Number(row.comparison_count || 0),
+    comparison_count: Number(row.comparison_count || 0),
+    lastPriceCheckedAt: row.last_price_checked_at || null,
+    last_price_checked_at: row.last_price_checked_at || null,
     highestPrice: originalPrice,
     averagePrice: originalPrice && currentPrice ? (originalPrice + currentPrice) / 2 : currentPrice,
     rating: 4.3,

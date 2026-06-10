@@ -52,7 +52,7 @@ import com.enjoyfreedeals.app.theme.SoftYellow
 import com.enjoyfreedeals.app.ui.components.DealCard
 import com.enjoyfreedeals.app.ui.components.EmptyState
 import com.enjoyfreedeals.app.ui.components.PremiumBackground
-import com.enjoyfreedeals.app.ui.components.PriceComparisonCard
+import com.enjoyfreedeals.app.ui.components.PriceComparisonSection
 import com.enjoyfreedeals.app.ui.components.PriceTrackingPanel
 import com.enjoyfreedeals.app.ui.components.SectionTitle
 import com.enjoyfreedeals.app.ui.components.formatPrice
@@ -162,7 +162,11 @@ fun ProductDetailScreen(
                 }
             }
             item {
-                PriceComparisonCard(deal = deal, onStoreClick = onStorePriceClick)
+                PriceComparisonSection(
+                    prices = deal.comparisonPrices,
+                    lastCheckedAt = deal.lastPriceCheckedAt ?: deal.priceCheckedAt,
+                    onStoreClick = onStorePriceClick
+                )
             }
             item {
                 PriceTrackingPanel(

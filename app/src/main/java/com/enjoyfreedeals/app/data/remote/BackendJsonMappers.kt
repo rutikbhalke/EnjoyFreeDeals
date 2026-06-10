@@ -42,7 +42,7 @@ fun JSONObject.toDealModel(): DealModel {
     )
     val sourceImage = optStringValue("sourceImageUrl", "source_image_url", "platformImageUrl", "platform_image_url")
     val resolvedImage = productImage.ifBlank { sourceImage }.takeIf { it.isValidHttpUrl() }.orEmpty()
-    val comparisonPrices = optJSONArray("comparisonPrices")
+    val comparisonPrices = (optJSONArray("comparisonPrices") ?: optJSONArray("ecommercePlatformPrices") ?: optJSONArray("prices"))
         ?.toJsonObjects()
         ?.map { it.toStorePriceModel() }
         .orEmpty()
@@ -88,6 +88,9 @@ fun JSONObject.toDealModel(): DealModel {
         savedCount = optIntValue("savedCount", "saved_count"),
         currentPrice = current,
         lowestPrice = optDoubleValue("lowestPrice", "lowest_price", default = current),
+        bestPlatform = optStringValue("bestPlatform", "best_platform", default = storeName),
+        comparisonCount = optIntValue("comparisonCount", "comparison_count", default = comparisonPrices.size),
+        lastPriceCheckedAt = optNullableTimestampValue("lastPriceCheckedAt", "last_price_checked_at"),
         highestPrice = optDoubleValue("highestPrice", "highest_price", default = original),
         averagePrice = optDoubleValue("averagePrice", "average_price", default = current),
         rating = optDoubleValue("rating", default = 4.3),
@@ -204,7 +207,7 @@ fun JSONObject.toPriceComparisonProductModel(): PriceComparisonProductModel {
         originalPrice = optDoubleValue("originalPrice", "original_price"),
         lowestPrice = optDoubleValue("lowestPrice", "lowest_price", "currentPrice"),
         discountPercent = optIntValue("discountPercent", "discount_percentage"),
-        ecommercePlatformPrices = optJSONArray("ecommercePlatformPrices")
+        ecommercePlatformPrices = (optJSONArray("ecommercePlatformPrices") ?: optJSONArray("prices"))
             ?.toJsonObjects()
             ?.map { it.toStorePriceModel() }
             .orEmpty(),
@@ -222,17 +225,20 @@ fun JSONObject.toStorePriceModel(): StorePriceModel =
     StorePriceModel(
         platform = optStringValue("platform"),
         price = optDoubleValue("price"),
+        originalPrice = optDoubleValue("originalPrice", "original_price", default = -1.0).takeIf { it >= 0.0 },
+        discountPercent = optDoubleValue("discountPercent", "discount_percent", default = -1.0).takeIf { it >= 0.0 },
         productUrl = optStringValue("productUrl", "product_url"),
         affiliateUrl = optStringValue("affiliateUrl", "affiliate_url"),
-        available = optBooleanValue("available", default = true),
+        available = optBooleanValue("available", "isAvailable", "is_available", default = true),
         deliveryInfo = optStringValue("deliveryInfo", "delivery_info", default = "Free delivery"),
+        deliveryCharge = optDoubleValue("deliveryCharge", "delivery_charge", default = -1.0).takeIf { it >= 0.0 },
         rating = optDoubleValue("rating", default = 4.2),
         ratingCount = optIntValue("ratingCount", "rating_count"),
         reviewCount = optIntValue("reviewCount", "review_count"),
         couponCode = optStringValue("couponCode", "coupon_code"),
         isLowestPrice = optBooleanValue("isLowestPrice", "is_lowest_price"),
-        storeLogoUrl = optStringValue("storeLogoUrl", "store_logo_url"),
-        lastUpdated = optTimestampValue("lastUpdated", "last_updated")
+        storeLogoUrl = optStringValue("storeLogoUrl", "store_logo_url", "platformLogoUrl", "platform_logo_url"),
+        lastUpdated = optTimestampValue("lastUpdated", "last_updated", "lastCheckedAt", "last_checked_at")
     )
 
 fun JSONObject.optStringValue(vararg keys: String, default: String = ""): String {

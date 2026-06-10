@@ -1,4 +1,4 @@
-const DEFAULT_API_BASE_URL = "https://enjoyfreedeals.vercel.app";
+const DEFAULT_API_BASE_URL = "https://enjoy-free-deals.vercel.app";
 
 export const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL ||
@@ -37,6 +37,10 @@ export type BackendDeal = {
   lastCheckedAt?: string | null;
   sourceUpdatedAt?: string | null;
   platformExpiresAt?: string | null;
+  lowestPrice?: number | null;
+  bestPlatform?: string | null;
+  comparisonCount?: number | null;
+  lastPriceCheckedAt?: string | null;
   createdAt?: string | null;
 };
 
@@ -60,8 +64,37 @@ export type WebDeal = {
   is_featured: boolean;
   click_count: number;
   vote_score: number;
+  lowest_price: number | null;
+  best_platform: string | null;
+  comparison_count: number;
+  last_price_checked_at: string | null;
   stores: { name: string; logo_url: string | null; slug: string } | null;
   categories: { name: string; slug: string } | null;
+};
+
+export type PlatformPrice = {
+  platform: string;
+  platform_logo_url: string | null;
+  price: number;
+  original_price: number | null;
+  discount_percent: number | null;
+  coupon_code: string | null;
+  delivery_charge: number | null;
+  rating: number | null;
+  review_count: number;
+  product_url: string;
+  is_lowest_price: boolean;
+  is_available: boolean;
+  last_checked_at: string | null;
+};
+
+export type PriceComparison = {
+  product_id: string;
+  lowest_price: number;
+  best_platform: string;
+  comparison_count: number;
+  last_price_checked_at: string | null;
+  prices: PlatformPrice[];
 };
 
 export type WebCategory = {
@@ -131,6 +164,16 @@ export async function fetchCategories() {
   });
 }
 
+export async function fetchPriceComparison(productId: string): Promise<PriceComparison | null> {
+  if (!productId) return null;
+  try {
+    return await apiGet<PriceComparison>(`/api/compare-price?productId=${encodeURIComponent(productId)}`);
+  } catch (error) {
+    if (error instanceof Error && /No price comparison|404/i.test(error.message)) return null;
+    throw error;
+  }
+}
+
 export function mapBackendDeal(deal: BackendDeal): WebDeal {
   const storeName = deal.storeName || "Store";
   const categoryName = deal.categoryName || "Other Deals";
@@ -158,6 +201,10 @@ export function mapBackendDeal(deal: BackendDeal): WebDeal {
     is_featured: Boolean(deal.isFeatured || deal.isHotDeal),
     click_count: Number(deal.clickCount || 0),
     vote_score: Number(deal.voteScore || 0),
+    lowest_price: numberOrNull(deal.lowestPrice),
+    best_platform: deal.bestPlatform || null,
+    comparison_count: Number(deal.comparisonCount || 0),
+    last_price_checked_at: deal.lastPriceCheckedAt || null,
     stores: {
       name: storeName,
       logo_url: deal.storeLogo || null,

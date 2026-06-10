@@ -14,7 +14,9 @@ import { useDealClickTracker } from "@/hooks/useDealClickTracker";
 import { useActivityTracker } from "@/hooks/useActivityTracker";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePriceHistory } from "@/hooks/usePriceHistory";
+import { usePriceComparison } from "@/hooks/usePriceComparison";
 import PriceHistoryChart from "@/components/deals/PriceHistoryChart";
+import PriceComparisonPanel from "@/components/deals/PriceComparisonPanel";
 import WatchDealButton from "@/components/deals/WatchDealButton";
 import DealVoteButtons from "@/components/deals/DealVoteButtons";
 import DealCommentSection from "@/components/deals/DealCommentSection";
@@ -28,6 +30,7 @@ export default function DealDetailPage() {
   const { trackDealView } = useActivityTracker();
   const isMobile = useIsMobile();
   const { data: priceHistory } = usePriceHistory(deal?.id);
+  const { data: priceComparison, isLoading: isComparisonLoading } = usePriceComparison(deal?.id);
 
   // Track deal view on page load
   useEffect(() => {
@@ -87,6 +90,10 @@ export default function DealDetailPage() {
     }
   };
 
+  const openComparisonDeal = (url: string) => {
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   return (
     <MainLayout>
       <SEO
@@ -138,9 +145,11 @@ export default function DealDetailPage() {
           )}
         </nav>
 
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Image */}
-          <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-secondary">
+        <div className="grid xl:grid-cols-[minmax(0,1fr)_390px] gap-8 items-start">
+          <div className="space-y-8">
+            <div className="grid lg:grid-cols-2 gap-8">
+              {/* Image */}
+              <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-secondary">
             {deal.image_url ? (
               <img src={deal.image_url} alt={deal.title} className="h-full w-full object-cover" />
             ) : (
@@ -153,10 +162,10 @@ export default function DealDetailPage() {
                 {Math.round(deal.discount_percentage)}% OFF
               </Badge>
             )}
-          </div>
+              </div>
 
-          {/* Info */}
-          <div className="flex flex-col">
+              {/* Info */}
+              <div className="flex flex-col">
             {/* Store & Category & Share */}
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">
@@ -244,16 +253,26 @@ export default function DealDetailPage() {
                 <ExternalLink className="h-4 w-4" />
               </Button>
             )}
+              </div>
+            </div>
+
+            {/* Price History Chart */}
+            {priceHistory && priceHistory.length >= 2 && (
+              <PriceHistoryChart history={priceHistory} currentPrice={deal.discounted_price} />
+            )}
+
+            {/* Comments Section */}
+            <DealCommentSection dealId={deal.id} />
           </div>
+
+          <aside className="xl:sticky xl:top-24">
+            <PriceComparisonPanel
+              comparison={priceComparison}
+              isLoading={isComparisonLoading}
+              onViewDeal={openComparisonDeal}
+            />
+          </aside>
         </div>
-
-        {/* Price History Chart */}
-        {priceHistory && priceHistory.length >= 2 && (
-          <PriceHistoryChart history={priceHistory} currentPrice={deal.discounted_price} />
-        )}
-
-        {/* Comments Section */}
-        <DealCommentSection dealId={deal.id} />
 
         {/* Related Deals */}
         {related && related.length > 0 && (

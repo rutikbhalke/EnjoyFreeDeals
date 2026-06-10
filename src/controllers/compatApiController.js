@@ -1,12 +1,20 @@
 const { supabaseAdmin } = require("../config/supabaseClient");
 const authRepository = require("../repositories/authRepository");
 const dealRepository = require("../repositories/dealRepository");
+const priceComparisonRepository = require("../repositories/priceComparisonRepository");
 const wishlistRepository = require("../repositories/wishlistRepository");
 const { parseTelegramDeal, validateFilteredDeal } = require("../../lib/dealFilter");
 const { hashOtp, normalizeIndianMobile, testOtp, useTestOtp } = require("../../lib/otp");
 
 async function comparePrice(req, res, next) {
   try {
+    const productId = String(req.query.productId || req.query.product_id || "").trim();
+    if (productId) {
+      const comparison = await priceComparisonRepository.getPriceComparisonSummary(productId);
+      if (!comparison) return res.status(404).json({ success: false, message: "No price comparison found" });
+      return res.json({ success: true, ...comparison });
+    }
+
     const product = String(req.query.product || "").trim();
     if (!product) return res.status(400).json({ success: false, message: "product query is required" });
 
