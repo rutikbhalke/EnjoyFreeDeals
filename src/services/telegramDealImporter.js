@@ -1,5 +1,6 @@
 const { supabaseAdmin } = require("../config/supabaseClient");
 const { throwIfSupabaseError } = require("../utils/supabaseErrors");
+const { detectCategory } = require("../../lib/categoryDetector");
 
 const SOURCE_KEY = "telegram_enjoyfreedeals";
 const SOURCE_NAME = "EnjoyFreeDeals Telegram";
@@ -1119,20 +1120,7 @@ function extractTitle(text) {
 }
 
 function inferCategory(text) {
-  const value = text.toLowerCase();
-  if (/laptop|notebook|macbook/.test(value)) return "Laptop";
-  if (/phone|mobile|smartphone/.test(value)) return "Mobile";
-  if (/earbud|speaker|watch|camera|charger|tablet|headphone|tv|television/.test(value)) return "Electronics";
-  if (/shirt|shoe|jeans|dress|fashion|bag|backpack|kurta|saree/.test(value)) return "Fashion";
-  if (/beauty|skin|makeup|cosmetic|moisturiser|cream|serum|shampoo/.test(value)) return "Beauty";
-  if (/appliance|mixer|grinder|washing machine|refrigerator|fridge|microwave|ac\b|air conditioner/.test(value)) return "Appliances";
-  if (/kitchen|home|storage|container|bottle|furniture|decor/.test(value)) return "Home & Kitchen";
-  if (/amazon|amzn\.to/.test(value)) return "Amazon Deals";
-  if (/flipkart|fkrt|flpkrt/.test(value)) return "Flipkart Deals";
-  if (/book|course|student|exam|ebook/.test(value)) return "Student Deals";
-  if (/food|grocery|snack|tea|coffee/.test(value)) return "Grocery";
-  if (/software|app|subscription|hosting|domain|vpn/.test(value)) return "Digital";
-  return "Other Deals";
+  return detectCategory("", text, "");
 }
 
 function dealImageUrl(deal) {

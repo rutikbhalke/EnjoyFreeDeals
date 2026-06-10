@@ -6,7 +6,8 @@ async function scrape(req, res, next) {
     const body = req.body || {};
     const result = await scrapeTelegramDeals({
       channels: body.channels || req.query.channels,
-      limit: body.limit || req.query.limit
+      limit: body.limit || req.query.limit,
+      categories: body.categories || req.query.categories || "all"
     });
     return sendSuccess(res, result);
   } catch (error) {
@@ -35,7 +36,8 @@ async function cron(req, res, next) {
 
     const result = await scrapeTelegramDeals({
       channels: req.query.channels,
-      limit: req.query.limit || process.env.TELEGRAM_CRON_LIMIT || 50
+      limit: req.query.limit || process.env.TELEGRAM_CRON_LIMIT || 50,
+      categories: req.query.categories || "all"
     });
     return sendSuccess(res, result);
   } catch (error) {

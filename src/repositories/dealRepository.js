@@ -136,34 +136,61 @@ async function resolveCategoryId(category) {
     .select("id,name,slug");
 
   if (error) return null;
-  const normalized = normalizeCategoryKey(category);
+  const requestedKeys = categoryLookupKeys(category);
   const match = (data || []).find((item) =>
-    normalizeCategoryKey(item.id) === normalized ||
-    normalizeCategoryKey(item.slug) === normalized ||
-    normalizeCategoryKey(item.name) === normalized
+    requestedKeys.has(normalizeCategoryKey(item.id)) ||
+    requestedKeys.has(normalizeCategoryKey(item.slug)) ||
+    requestedKeys.has(normalizeCategoryKey(item.name))
   );
   return match?.id || null;
 }
 
 function normalizeCategoryKey(value) {
-  const normalized = String(value || "")
+  return rawCategoryKey(value);
+}
+
+function rawCategoryKey(value) {
+  return String(value || "")
     .trim()
     .toLowerCase()
     .replace(/&/g, "and")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
-  return CATEGORY_ALIASES[normalized] || normalized;
+}
+
+function categoryLookupKeys(value) {
+  const raw = rawCategoryKey(value);
+  return new Set([raw, CATEGORY_ALIASES[raw]].filter(Boolean));
 }
 
 const CATEGORY_ALIASES = {
+  mobile: "mobiles",
   mobiles: "mobile",
-  "mobile-phone": "mobile",
-  "mobile-phones": "mobile",
-  smartphone: "mobile",
-  smartphones: "mobile",
+  "mobile-phone": "mobiles",
+  "mobile-phones": "mobiles",
+  smartphone: "mobiles",
+  smartphones: "mobiles",
   home: "home-and-kitchen",
   kitchen: "home-and-kitchen",
   "home-kitchen": "home-and-kitchen",
+  coupon: "coupons",
+  recharge: "recharge-offers",
+  "recharge-offer": "recharge-offers",
+  bank: "bank-offers",
+  "bank-offer": "bank-offers",
+  cashback: "bank-offers",
+  student: "student-deals",
+  festival: "festival-deals",
+  shoe: "footwear",
+  shoes: "footwear",
+  watch: "watches",
+  bag: "bags",
+  personal: "personal-care",
+  "baby-product": "baby-products",
+  book: "books",
+  game: "gaming",
+  food: "food-offers",
+  travel: "travel",
   "amazon-deal": "amazon-deals",
   amazon: "amazon-deals",
   "flipkart-deal": "flipkart-deals",
