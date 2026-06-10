@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -82,6 +83,13 @@ fun PlatformPriceRow(
                 }
                 price.discountPercent?.takeIf { it > 0.0 }?.let {
                     Text("${it.toInt()}% OFF", color = PrimaryGreen, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+                }
+                Button(
+                    enabled = price.available && price.redirectUrl.isNotBlank(),
+                    onClick = onClick,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(if (price.redirectUrl.isBlank()) "Link unavailable" else "View")
                 }
             }
             Spacer(Modifier.width(12.dp))

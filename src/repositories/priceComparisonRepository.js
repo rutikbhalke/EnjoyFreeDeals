@@ -1,6 +1,7 @@
 const { supabaseAdmin } = require("../config/supabaseClient");
 const { isMissingTableError, throwIfSupabaseError } = require("../utils/supabaseErrors");
 const { getPlatformLogo } = require("../../lib/platformLogos");
+const { normalizePlatformName, isSupportedPlatform } = require("../../lib/platformDetector");
 
 const TABLE = "price_comparisons";
 const PLATFORM_TABLE = "price_comparison_platforms";
@@ -96,7 +97,7 @@ async function savePriceComparison(productId, prices = []) {
 
   const platformRows = normalizedPrices.map((price) => ({
     comparison_id: comparisonId,
-    platform: price.platform,
+    platform: normalizePlatformName(price.platform) || price.platform,
     platform_logo_url: price.platformLogoUrl || getPlatformLogo(price.platform),
     price: price.price,
     original_price: price.originalPrice,
@@ -374,12 +375,8 @@ function withDemoRows(comparison) {
 
 function demoPlatformRows(title, productUrl, now) {
   const value = String(title || "").toLowerCase();
-  const rows = value.includes("watch")
-    ? [["Amazon", 1499, 2999], ["Flipkart", 1399, 2799], ["TataCliq", 1599, 3199], ["Croma", 1699, 3299]]
-    : value.includes("mobile") || value.includes("phone")
-      ? [["Amazon", 12999, 17999], ["Flipkart", 12499, 18999], ["Croma", 13299, 19999], ["TataCliq", 13499, 19999]]
-      : [["Amazon", 999, 1999], ["Flipkart", 949, 1999], ["Meesho", 899, 1899], ["Croma", 1049, 2099]];
-  return rows.map(([platform, price, originalPrice]) => ({
+  const rows = comparisonPreset(value);
+  return rows.map(({ platform, price, originalPrice, url }) => ({
     id: `demo-${String(platform).toLowerCase()}`,
     platform,
     platformLogoUrl: getPlatformLogo(platform),
@@ -389,10 +386,10 @@ function demoPlatformRows(title, productUrl, now) {
     original_price: originalPrice,
     discountPercent: Math.round(((originalPrice - price) / originalPrice) * 100),
     discount_percent: Math.round(((originalPrice - price) / originalPrice) * 100),
-    productUrl: productUrl || "https://enjoyfreedeals-web.vercel.app/deals",
-    product_url: productUrl || "https://enjoyfreedeals-web.vercel.app/deals",
-    affiliateUrl: productUrl || "https://enjoyfreedeals-web.vercel.app/deals",
-    affiliate_url: productUrl || "https://enjoyfreedeals-web.vercel.app/deals",
+    productUrl: url,
+    product_url: url,
+    affiliateUrl: url,
+    affiliate_url: url,
     available: true,
     isAvailable: true,
     is_available: true,
@@ -409,6 +406,72 @@ function demoPlatformRows(title, productUrl, now) {
     lastCheckedAt: now,
     last_checked_at: now
   }));
+}
+
+function comparisonPreset(value) {
+  if (/shoe|sneaker|adidas|nike|puma|decathlon|fashion/.test(value)) {
+    return [
+      demoRow("Decathlon", 1699, 2999, "https://www.decathlon.in/"),
+      demoRow("Puma", 1799, 3499, "https://in.puma.com/"),
+      demoRow("Ajio", 1899, 3999, "https://www.ajio.com/"),
+      demoRow("Myntra", 1999, 3999, "https://www.myntra.com/"),
+      demoRow("Adidas", 2299, 4599, "https://www.adidas.co.in/"),
+      demoRow("Nike", 2499, 4995, "https://www.nike.com/in/")
+    ];
+  }
+  if (/beauty|skin|cream|makeup|serum|mamaearth|nykaa|purplle/.test(value)) {
+    return [
+      demoRow("Purplle", 449, 899, "https://www.purplle.com/"),
+      demoRow("Nykaa", 499, 999, "https://www.nykaa.com/"),
+      demoRow("Mamaearth", 499, 999, "https://mamaearth.in/"),
+      demoRow("Flipkart", 519, 999, "https://www.flipkart.com/"),
+      demoRow("Amazon", 529, 999, "https://www.amazon.in/")
+    ];
+  }
+  if (/grocery|atta|rice|oil|snack|combo|basket|blinkit|zepto|jiomart/.test(value)) {
+    return [
+      demoRow("JioMart", 699, 999, "https://www.jiomart.com/"),
+      demoRow("Zepto", 719, 999, "https://www.zeptonow.com/"),
+      demoRow("Blinkit", 729, 999, "https://blinkit.com/"),
+      demoRow("Swiggy Instamart", 735, 999, "https://www.swiggy.com/instamart"),
+      demoRow("BigBasket", 749, 999, "https://www.bigbasket.com/"),
+      demoRow("Amazon", 799, 1099, "https://www.amazon.in/")
+    ];
+  }
+  if (/watch|noise|smartwatch/.test(value)) {
+    return [
+      demoRow("Noise", 1299, 4999, "https://www.gonoise.com/"),
+      demoRow("Flipkart", 1399, 4999, "https://www.flipkart.com/"),
+      demoRow("Amazon", 1499, 4999, "https://www.amazon.in/"),
+      demoRow("TataCliq", 1599, 4999, "https://www.tatacliq.com/"),
+      demoRow("Reliance Digital", 1599, 4999, "https://www.reliancedigital.in/"),
+      demoRow("Croma", 1699, 4999, "https://www.croma.com/")
+    ];
+  }
+  if (/mobile|phone|iphone|samsung|oneplus|realme|xiaomi|\bmi\b/.test(value)) {
+    return [
+      demoRow("Flipkart", 12499, 18999, "https://www.flipkart.com/"),
+      demoRow("JioMart", 12899, 18999, "https://www.jiomart.com/"),
+      demoRow("Reliance Digital", 12949, 18999, "https://www.reliancedigital.in/"),
+      demoRow("Amazon", 12999, 17999, "https://www.amazon.in/"),
+      demoRow("Croma", 13299, 19999, "https://www.croma.com/"),
+      demoRow("TataCliq", 13499, 19999, "https://www.tatacliq.com/"),
+      demoRow("Samsung", 13999, 20999, "https://www.samsung.com/in/"),
+      demoRow("OnePlus", 14299, 21999, "https://www.oneplus.in/")
+    ];
+  }
+  return [
+    demoRow("Meesho", 899, 1899, "https://www.meesho.com/"),
+    demoRow("Flipkart", 949, 1999, "https://www.flipkart.com/"),
+    demoRow("Amazon", 999, 1999, "https://www.amazon.in/"),
+    demoRow("Croma", 1049, 2099, "https://www.croma.com/"),
+    demoRow("Boat", 1099, 2499, "https://www.boat-lifestyle.com/"),
+    demoRow("Reliance Digital", 1199, 2499, "https://www.reliancedigital.in/")
+  ];
+}
+
+function demoRow(platform, price, originalPrice, url) {
+  return { platform, price, originalPrice, url };
 }
 
 function isUuid(value) {
@@ -435,9 +498,9 @@ function normalizeInputPrices(prices) {
   return (Array.isArray(prices) ? prices : [])
     .map((price) => {
       const numericPrice = Number(price.price);
-      const platform = String(price.platform || "").trim();
+      const platform = normalizePlatformName(price.platform) || String(price.platform || "").trim();
       const productUrl = String(price.product_url || price.productUrl || "").trim();
-      if (!platform || !Number.isFinite(numericPrice) || numericPrice < 0 || !/^https?:\/\//i.test(productUrl)) return null;
+      if (!platform || !isSupportedPlatform(platform) || !Number.isFinite(numericPrice) || numericPrice < 0 || !/^https?:\/\//i.test(productUrl)) return null;
       return {
         platform,
         platformLogoUrl: price.platform_logo_url || price.platformLogoUrl || getPlatformLogo(platform),

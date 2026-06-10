@@ -70,7 +70,7 @@ class PriceComparisonRepository(private val context: Context) {
     }
 
     private fun sampleComparison(): List<StorePriceModel> {
-        val rows = listOf("Amazon" to 999.0, "Flipkart" to 949.0, "Meesho" to 899.0, "Croma" to 1049.0)
+        val rows = listOf("Meesho" to 899.0, "Flipkart" to 949.0, "Amazon" to 999.0, "Croma" to 1049.0, "Boat" to 1099.0, "Reliance Digital" to 1199.0)
         val lowest = rows.minOf { it.second }
         return rows.map { (platform, price) ->
             StorePriceModel(
@@ -78,9 +78,32 @@ class PriceComparisonRepository(private val context: Context) {
                 price = price,
                 originalPrice = price * 2,
                 discountPercent = 50.0,
+                productUrl = platformUrl(platform),
+                affiliateUrl = platformUrl(platform),
                 deliveryInfo = "See store",
-                isLowestPrice = price == lowest
+                isLowestPrice = price == lowest,
+                storeLogoUrl = platformLogo(platform)
             )
         }
+    }
+
+    private fun platformUrl(platform: String): String = when (platform.lowercase()) {
+        "amazon" -> "https://www.amazon.in/"
+        "flipkart" -> "https://www.flipkart.com/"
+        "meesho" -> "https://www.meesho.com/"
+        "croma" -> "https://www.croma.com/"
+        "boat" -> "https://www.boat-lifestyle.com/"
+        "reliance digital" -> "https://www.reliancedigital.in/"
+        else -> "https://enjoyfreedeals-web.vercel.app/deals"
+    }
+
+    private fun platformLogo(platform: String): String = when (platform.lowercase()) {
+        "amazon" -> "https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg"
+        "flipkart" -> "https://static-assets-web.flixcart.com/batman-returns/batman-returns/p/images/fk-logo-pre-login-3a7a30.svg"
+        "meesho" -> "https://upload.wikimedia.org/wikipedia/commons/8/80/Meesho_Logo_Full.png"
+        "croma" -> "https://logo.clearbit.com/croma.com"
+        "boat" -> "https://logo.clearbit.com/boat-lifestyle.com"
+        "reliance digital" -> "https://logo.clearbit.com/reliancedigital.in"
+        else -> ""
     }
 }

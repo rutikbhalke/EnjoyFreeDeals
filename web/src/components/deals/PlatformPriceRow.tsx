@@ -53,8 +53,8 @@ export default function PlatformPriceRow({ price, onViewDeal }: PlatformPriceRow
           disabled={!price.is_available || !price.product_url}
           onClick={() => onViewDeal(price.product_url)}
         >
-          View
-          <ExternalLink className="h-3.5 w-3.5" />
+          {price.product_url ? "View" : "Link unavailable"}
+          {price.product_url && <ExternalLink className="h-3.5 w-3.5" />}
         </Button>
       </div>
     </div>

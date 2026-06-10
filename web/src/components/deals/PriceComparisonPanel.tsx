@@ -1,4 +1,6 @@
+import { useMemo, useState } from "react";
 import { Clock, SearchX } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatUpdatedTime, type PriceComparison } from "@/lib/api";
 import LowestPriceBadge from "./LowestPriceBadge";
@@ -11,6 +13,15 @@ type PriceComparisonPanelProps = {
 };
 
 export default function PriceComparisonPanel({ comparison, isLoading, onViewDeal }: PriceComparisonPanelProps) {
+  const [showAll, setShowAll] = useState(false);
+  const sortedPrices = useMemo(
+    () => [...(comparison?.prices || [])].sort((a, b) => {
+      if (a.is_lowest_price !== b.is_lowest_price) return a.is_lowest_price ? -1 : 1;
+      if (a.is_available !== b.is_available) return a.is_available ? -1 : 1;
+      return Number(a.price || 0) - Number(b.price || 0);
+    }),
+    [comparison?.prices]
+  );
   if (isLoading) {
     return (
       <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
@@ -33,6 +44,8 @@ export default function PriceComparisonPanel({ comparison, isLoading, onViewDeal
   }
 
   const updatedText = formatUpdatedTime(comparison.last_price_checked_at);
+  const visiblePrices = showAll ? sortedPrices : sortedPrices.slice(0, 5);
+  const hiddenCount = Math.max(0, sortedPrices.length - visiblePrices.length);
 
   return (
     <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
@@ -59,13 +72,18 @@ export default function PriceComparisonPanel({ comparison, isLoading, onViewDeal
       </div>
 
       <div className="space-y-3">
-        {comparison.prices.map((price) => (
+        {visiblePrices.map((price) => (
           <PlatformPriceRow
             key={`${price.platform}-${price.product_url}`}
             price={price}
             onViewDeal={onViewDeal}
           />
         ))}
+        {hiddenCount > 0 && (
+          <Button variant="outline" className="w-full" onClick={() => setShowAll(true)}>
+            Show More Platforms ({hiddenCount})
+          </Button>
+        )}
       </div>
     </section>
   );

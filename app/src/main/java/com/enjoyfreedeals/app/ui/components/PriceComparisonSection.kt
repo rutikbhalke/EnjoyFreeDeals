@@ -5,11 +5,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -24,8 +29,11 @@ fun PriceComparisonSection(
     modifier: Modifier = Modifier
 ) {
     if (prices.isEmpty()) return
+    var showAll by remember(prices) { mutableStateOf(false) }
     val normalizedPrices = prices.markLowestPrice()
     val lowest = normalizedPrices.firstOrNull { it.isLowestPrice }
+    val visiblePrices = if (showAll) normalizedPrices else normalizedPrices.take(5)
+    val hiddenCount = (normalizedPrices.size - visiblePrices.size).coerceAtLeast(0)
 
     ElevatedCard(
         modifier = modifier.fillMaxWidth(),
@@ -48,8 +56,13 @@ fun PriceComparisonSection(
                     count = normalizedPrices.size
                 )
             }
-            normalizedPrices.forEach { price ->
+            visiblePrices.forEach { price ->
                 PlatformPriceRow(price = price, onClick = { onStoreClick(price) })
+            }
+            if (hiddenCount > 0) {
+                Button(modifier = Modifier.fillMaxWidth(), onClick = { showAll = true }) {
+                    Text("Show More Platforms ($hiddenCount)")
+                }
             }
         }
     }

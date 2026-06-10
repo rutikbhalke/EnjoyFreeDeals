@@ -266,13 +266,15 @@ function slugify(value?: string | null) {
 
 function demoPriceComparison(productId: string): PriceComparison {
   const now = new Date().toISOString();
-  const rows: Array<[string, number, number]> = [
-    ["Amazon", 999, 1999],
-    ["Flipkart", 949, 1999],
-    ["Meesho", 899, 1899],
-    ["Croma", 1049, 2099],
+  const rows: Array<[string, number, number, string]> = [
+    ["Meesho", 899, 1899, "https://www.meesho.com/"],
+    ["Flipkart", 949, 1999, "https://www.flipkart.com/"],
+    ["Amazon", 999, 1999, "https://www.amazon.in/"],
+    ["Croma", 1049, 2099, "https://www.croma.com/"],
+    ["Boat", 1099, 2499, "https://www.boat-lifestyle.com/"],
+    ["Reliance Digital", 1199, 2499, "https://www.reliancedigital.in/"],
   ];
-  const prices = rows.map(([platform, price, originalPrice]) => ({
+  const prices = rows.map(([platform, price, originalPrice, productUrl]) => ({
     platform,
     platform_logo_url: platformLogo(platform),
     price,
@@ -282,7 +284,7 @@ function demoPriceComparison(productId: string): PriceComparison {
     delivery_charge: 0,
     rating: 4.2,
     review_count: 0,
-    product_url: "https://enjoyfreedeals-web.vercel.app/deals",
+    product_url: productUrl,
     is_lowest_price: platform === "Meesho",
     is_available: true,
     last_checked_at: now,
@@ -303,5 +305,9 @@ function platformLogo(platform: string) {
   if (key === "flipkart") return "https://static-assets-web.flixcart.com/batman-returns/batman-returns/p/images/fk-logo-pre-login-3a7a30.svg";
   if (key === "meesho") return "https://upload.wikimedia.org/wikipedia/commons/8/80/Meesho_Logo_Full.png";
   if (key === "croma") return "https://media-ik.croma.com/prod/https://media.croma.com/image/upload/v1664415872/Croma%20Assets/CMS/Homepage%20Banners/Croma_logo_hqvdqv.svg";
+  if (key === "boat") return "https://logo.clearbit.com/boat-lifestyle.com";
+  if (key === "reliance digital") return "https://logo.clearbit.com/reliancedigital.in";
+  if (key === "jiomart") return "https://logo.clearbit.com/jiomart.com";
+  if (key === "nykaa") return "https://logo.clearbit.com/nykaa.com";
   return "/logo.png";
 }
