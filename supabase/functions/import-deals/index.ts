@@ -329,7 +329,6 @@ async function syncPriceComparison(
   const matches = bestPricePerStore((data || [])
     .map(toComparableDeal)
     .filter((candidate) => candidate.price > 0)
-    .filter((candidate) => isActualProductUrl(candidate.storeName, candidate.url))
     .filter((candidate) => candidate.id === dealId || titleSimilarity(comparisonKey, candidate.title) >= 0.55));
 
   const distinctStores = new Set(matches.map((candidate) => candidate.storeName.toLowerCase()).filter(Boolean));
@@ -538,25 +537,6 @@ function bestPricePerStore(candidates: ReturnType<typeof toComparableDeal>[]): R
   }
 
   return [...byStore.values()];
-}
-
-function isActualProductUrl(platform: string, value: string): boolean {
-  try {
-    const url = new URL(value);
-    const host = url.hostname.toLowerCase();
-    const path = decodeURIComponent(url.pathname || "").toLowerCase();
-    const key = platform.toLowerCase().replace(/[^a-z0-9]+/g, "");
-    if (!path || path === "/") return false;
-    if (key === "amazon") return /\/(dp|gp\/product)\/[a-z0-9]{8,}/i.test(path);
-    if (key === "flipkart") return host.includes("flipkart.") && (path.includes("/p/") || path.includes("/itm"));
-    if (key === "meesho") return host.includes("meesho.") && path.includes("/p/");
-    if (key === "myntra") return host.includes("myntra.") && (path.includes("/buy") || path.includes("/product/"));
-    if (["ajio", "croma", "nykaa"].includes(key)) return path.includes("/p/");
-    if (key === "tatacliq") return path.includes("/p-");
-    return path.split("/").filter(Boolean).length >= 2;
-  } catch {
-    return false;
-  }
 }
 
 function titleSimilarity(comparisonKey: string, title: string): number {

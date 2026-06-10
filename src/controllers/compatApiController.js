@@ -11,7 +11,7 @@ async function comparePrice(req, res, next) {
     const productId = String(req.query.productId || req.query.product_id || "").trim();
     if (productId) {
       const comparison = await priceComparisonRepository.getPriceComparisonSummary(productId);
-      if (!comparison) return res.json({ success: false, message: "No valid product comparison URLs found" });
+      if (!comparison) return res.status(404).json({ success: false, message: "No price comparison found" });
       return res.json({ success: true, ...comparison });
     }
 

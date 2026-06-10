@@ -2,7 +2,6 @@ const { supabaseAdmin } = require("../config/supabaseClient");
 const { isMissingTableError, throwIfSupabaseError } = require("../utils/supabaseErrors");
 const { getPlatformLogo } = require("../../lib/platformLogos");
 const { normalizePlatformName, isSupportedPlatform } = require("../../lib/platformDetector");
-const { isActualProductUrl, normalizeUrl } = require("../../lib/urlUtils");
 
 const TABLE = "price_comparisons";
 const PLATFORM_TABLE = "price_comparison_platforms";
@@ -36,10 +35,12 @@ async function getPriceComparison(productId) {
   }
   throwIfSupabaseError(error, TABLE);
   if (!data) {
-    return deal ? toDealBackedPriceComparison(deal) : null;
+    return deal ? withDemoRows(toDealBackedPriceComparison(deal)) : toDemoPriceComparison(productId, deal);
   }
   const comparison = normalizeLowestFlags(toApiPriceComparison({ ...data, deal }));
-  return comparison.ecommercePlatformPrices.length ? comparison : null;
+  return comparison.ecommercePlatformPrices.length
+    ? comparison
+    : withDemoRows(comparison);
 }
 
 async function getPriceComparisonSummary(productId) {
@@ -304,40 +305,23 @@ async function findDeal(productId) {
 
 function toComparePriceResponse(comparison) {
   const normalized = normalizeLowestFlags(comparison);
-  const prices = normalized.ecommercePlatformPrices
-    .map((price) => {
-      const platform = price.platform;
-      const productUrl = normalizeUrl(price.productUrl || price.product_url || price.affiliateUrl || price.affiliate_url || "");
-      const validProductUrl = isActualProductUrl(platform, productUrl);
-      if (!validProductUrl) {
-        console.warn("[price-comparison] rejected invalid comparison URL", {
-          platform,
-          productUrl: price.productUrl || price.product_url || price.affiliateUrl || price.affiliate_url || ""
-        });
-        return null;
-      }
-      return {
-        id: price.id || `${normalized.productId}-${platform}`,
-        platform,
-        platform_logo_url: price.platformLogoUrl || price.platform_logo_url || getPlatformLogo(platform),
-        price: Number(price.price || 0),
-        original_price: nullableNumber(price.originalPrice ?? price.original_price),
-        discount_percent: nullableNumber(price.discountPercent ?? price.discount_percent),
-        coupon_code: price.couponCode || price.coupon_code || null,
-        delivery_charge: nullableNumber(price.deliveryCharge ?? price.delivery_charge),
-        rating: nullableNumber(price.rating),
-        review_count: Number(price.reviewCount || price.review_count || 0),
-        product_url: productUrl,
-        is_lowest_price: Boolean(price.isLowestPrice || price.is_lowest_price),
-        is_available: price.available !== false && price.is_available !== false,
-        last_checked_at: price.lastCheckedAt || price.last_checked_at || price.lastUpdated || price.last_updated || normalized.lastUpdated
-      };
-    })
-    .filter(Boolean)
-    .filter((price) => price.is_available && Number(price.price || 0) > 0);
-  if (!prices.length) return null;
-  const sortedPrices = normalizeResponseLowestFlags(prices);
-  const lowest = sortedPrices.find((price) => price.is_lowest_price) || sortedPrices[0];
+  const prices = normalized.ecommercePlatformPrices.map((price) => ({
+    id: price.id || `${normalized.productId}-${price.platform}`,
+    platform: price.platform,
+    platform_logo_url: price.platformLogoUrl || price.platform_logo_url || getPlatformLogo(price.platform),
+    price: Number(price.price || 0),
+    original_price: nullableNumber(price.originalPrice ?? price.original_price),
+    discount_percent: nullableNumber(price.discountPercent ?? price.discount_percent),
+    coupon_code: price.couponCode || price.coupon_code || null,
+    delivery_charge: nullableNumber(price.deliveryCharge ?? price.delivery_charge),
+    rating: nullableNumber(price.rating),
+    review_count: Number(price.reviewCount || price.review_count || 0),
+    product_url: price.productUrl || price.product_url || price.affiliateUrl || price.affiliate_url || "",
+    is_lowest_price: Boolean(price.isLowestPrice || price.is_lowest_price),
+    is_available: price.available !== false && price.is_available !== false,
+    last_checked_at: price.lastCheckedAt || price.last_checked_at || price.lastUpdated || price.last_updated || normalized.lastUpdated
+  }));
+  const lowest = prices.find((price) => price.is_lowest_price) || prices.filter((price) => price.is_available).sort((a, b) => a.price - b.price)[0];
   return {
     product_id: normalized.productId,
     productId: normalized.productId,
@@ -345,12 +329,12 @@ function toComparePriceResponse(comparison) {
     lowestPrice: lowest?.price || normalized.lowestPrice || 0,
     best_platform: lowest?.platform || normalized.storeName || "",
     bestPlatform: lowest?.platform || normalized.storeName || "",
-    comparison_count: sortedPrices.length,
-    comparisonCount: sortedPrices.length,
+    comparison_count: prices.length,
+    comparisonCount: prices.length,
     last_price_checked_at: lowest?.last_checked_at || normalized.lastUpdated || null,
     lastPriceCheckedAt: lowest?.last_checked_at || normalized.lastUpdated || null,
-    prices: sortedPrices,
-    ecommercePlatformPrices: sortedPrices
+    prices,
+    ecommercePlatformPrices: normalized.ecommercePlatformPrices
   };
 }
 
@@ -377,6 +361,15 @@ function toDemoPriceComparison(productId, deal) {
     isFreeDeal: false,
     lastUpdated: now,
     ecommercePlatformPrices: demoRows
+  });
+}
+
+function withDemoRows(comparison) {
+  const now = new Date().toISOString();
+  const rows = demoPlatformRows(comparison.productName, comparison.productUrl, now);
+  return normalizeLowestFlags({
+    ...comparison,
+    ecommercePlatformPrices: rows
   });
 }
 
@@ -416,65 +409,64 @@ function demoPlatformRows(title, productUrl, now) {
 }
 
 function comparisonPreset(value) {
-  // Demo URLs are only for development. Real scraper/API data must save real product URLs.
   if (/shoe|sneaker|adidas|nike|puma|decathlon|fashion/.test(value)) {
     return [
-      demoRow("Decathlon", 1699, 2999, "https://www.decathlon.in/p/sample-running-shoes-8589090"),
-      demoRow("Puma", 1799, 3499, "https://in.puma.com/in/en/pd/sample-running-shoes/390000"),
-      demoRow("Ajio", 1899, 3999, "https://www.ajio.com/sample-running-shoes/p/469000000_black"),
-      demoRow("Myntra", 1999, 3999, "https://www.myntra.com/sports-shoes/sample-brand/sample-running-shoes/12345678/buy"),
-      demoRow("Adidas", 2299, 4599, "https://www.adidas.co.in/sample-running-shoes/IF0000.html"),
-      demoRow("Nike", 2499, 4995, "https://www.nike.com/in/t/sample-running-shoes-DM0000")
+      demoRow("Decathlon", 1699, 2999, "https://www.decathlon.in/"),
+      demoRow("Puma", 1799, 3499, "https://in.puma.com/"),
+      demoRow("Ajio", 1899, 3999, "https://www.ajio.com/"),
+      demoRow("Myntra", 1999, 3999, "https://www.myntra.com/"),
+      demoRow("Adidas", 2299, 4599, "https://www.adidas.co.in/"),
+      demoRow("Nike", 2499, 4995, "https://www.nike.com/in/")
     ];
   }
   if (/beauty|skin|cream|makeup|serum|mamaearth|nykaa|purplle/.test(value)) {
     return [
-      demoRow("Purplle", 449, 899, "https://www.purplle.com/product/sample-vitamin-c-serum-30ml"),
-      demoRow("Nykaa", 499, 999, "https://www.nykaa.com/sample-vitamin-c-serum/p/123456"),
-      demoRow("Mamaearth", 499, 999, "https://mamaearth.in/product/sample-vitamin-c-serum"),
-      demoRow("Flipkart", 519, 999, "https://www.flipkart.com/sample-vitamin-c-serum/p/itmbeauty123"),
-      demoRow("Amazon", 529, 999, "https://www.amazon.in/dp/B0BEAUTY123")
+      demoRow("Purplle", 449, 899, "https://www.purplle.com/"),
+      demoRow("Nykaa", 499, 999, "https://www.nykaa.com/"),
+      demoRow("Mamaearth", 499, 999, "https://mamaearth.in/"),
+      demoRow("Flipkart", 519, 999, "https://www.flipkart.com/"),
+      demoRow("Amazon", 529, 999, "https://www.amazon.in/")
     ];
   }
   if (/grocery|atta|rice|oil|snack|combo|basket|blinkit|zepto|jiomart/.test(value)) {
     return [
-      demoRow("JioMart", 699, 999, "https://www.jiomart.com/p/groceries/sample-grocery-combo/590000000"),
-      demoRow("Zepto", 719, 999, "https://www.zeptonow.com/pn/sample-grocery-combo/pvid/demo123"),
-      demoRow("Blinkit", 729, 999, "https://blinkit.com/prn/sample-grocery-combo/prid/123456"),
-      demoRow("Swiggy Instamart", 735, 999, "https://www.swiggy.com/instamart/item/sample-grocery-combo"),
-      demoRow("BigBasket", 749, 999, "https://www.bigbasket.com/pd/123456/sample-grocery-combo"),
-      demoRow("Amazon", 799, 1099, "https://www.amazon.in/dp/B0GROCERY12")
+      demoRow("JioMart", 699, 999, "https://www.jiomart.com/"),
+      demoRow("Zepto", 719, 999, "https://www.zeptonow.com/"),
+      demoRow("Blinkit", 729, 999, "https://blinkit.com/"),
+      demoRow("Swiggy Instamart", 735, 999, "https://www.swiggy.com/instamart"),
+      demoRow("BigBasket", 749, 999, "https://www.bigbasket.com/"),
+      demoRow("Amazon", 799, 1099, "https://www.amazon.in/")
     ];
   }
   if (/watch|noise|smartwatch/.test(value)) {
     return [
-      demoRow("Noise", 1299, 4999, "https://www.gonoise.com/products/sample-smart-watch"),
-      demoRow("Flipkart", 1399, 4999, "https://www.flipkart.com/sample-smart-watch/p/itmwatch123"),
-      demoRow("Amazon", 1499, 4999, "https://www.amazon.in/dp/B0WATCH123"),
-      demoRow("TataCliq", 1599, 4999, "https://www.tatacliq.com/sample-smart-watch/p-mp000000000"),
-      demoRow("Reliance Digital", 1599, 4999, "https://www.reliancedigital.in/sample-smart-watch/p/491000000"),
-      demoRow("Croma", 1699, 4999, "https://www.croma.com/sample-smart-watch/p/300000")
+      demoRow("Noise", 1299, 4999, "https://www.gonoise.com/"),
+      demoRow("Flipkart", 1399, 4999, "https://www.flipkart.com/"),
+      demoRow("Amazon", 1499, 4999, "https://www.amazon.in/"),
+      demoRow("TataCliq", 1599, 4999, "https://www.tatacliq.com/"),
+      demoRow("Reliance Digital", 1599, 4999, "https://www.reliancedigital.in/"),
+      demoRow("Croma", 1699, 4999, "https://www.croma.com/")
     ];
   }
   if (/mobile|phone|iphone|samsung|oneplus|realme|xiaomi|\bmi\b/.test(value)) {
     return [
-      demoRow("Flipkart", 12499, 18999, "https://www.flipkart.com/sample-mobile-phone/p/itmmobile123"),
-      demoRow("JioMart", 12899, 18999, "https://www.jiomart.com/p/electronics/sample-mobile-phone/590000001"),
-      demoRow("Reliance Digital", 12949, 18999, "https://www.reliancedigital.in/sample-mobile-phone/p/491000001"),
-      demoRow("Amazon", 12999, 17999, "https://www.amazon.in/dp/B0MOBILE123"),
-      demoRow("Croma", 13299, 19999, "https://www.croma.com/sample-mobile-phone/p/300001"),
-      demoRow("TataCliq", 13499, 19999, "https://www.tatacliq.com/sample-mobile-phone/p-mp000000001"),
-      demoRow("Samsung", 13999, 20999, "https://www.samsung.com/in/smartphones/galaxy-s/sample-phone"),
-      demoRow("OnePlus", 14299, 21999, "https://www.oneplus.in/products/sample-mobile-phone")
+      demoRow("Flipkart", 12499, 18999, "https://www.flipkart.com/"),
+      demoRow("JioMart", 12899, 18999, "https://www.jiomart.com/"),
+      demoRow("Reliance Digital", 12949, 18999, "https://www.reliancedigital.in/"),
+      demoRow("Amazon", 12999, 17999, "https://www.amazon.in/"),
+      demoRow("Croma", 13299, 19999, "https://www.croma.com/"),
+      demoRow("TataCliq", 13499, 19999, "https://www.tatacliq.com/"),
+      demoRow("Samsung", 13999, 20999, "https://www.samsung.com/in/"),
+      demoRow("OnePlus", 14299, 21999, "https://www.oneplus.in/")
     ];
   }
   return [
-    demoRow("Meesho", 899, 1899, "https://www.meesho.com/sample-product/p/demoearbuds1"),
-    demoRow("Flipkart", 949, 1999, "https://www.flipkart.com/sample-product/p/itmxxxxxxx"),
-    demoRow("Amazon", 999, 1999, "https://www.amazon.in/dp/B0XXXXXXX"),
-    demoRow("Croma", 1049, 2099, "https://www.croma.com/sample-product/p/300002"),
-    demoRow("Boat", 1099, 2499, "https://www.boat-lifestyle.com/products/sample-product"),
-    demoRow("Reliance Digital", 1199, 2499, "https://www.reliancedigital.in/sample-product/p/491000002")
+    demoRow("Meesho", 899, 1899, "https://www.meesho.com/"),
+    demoRow("Flipkart", 949, 1999, "https://www.flipkart.com/"),
+    demoRow("Amazon", 999, 1999, "https://www.amazon.in/"),
+    demoRow("Croma", 1049, 2099, "https://www.croma.com/"),
+    demoRow("Boat", 1099, 2499, "https://www.boat-lifestyle.com/"),
+    demoRow("Reliance Digital", 1199, 2499, "https://www.reliancedigital.in/")
   ];
 }
 
@@ -502,47 +494,32 @@ function normalizeLowestFlags(comparison) {
   };
 }
 
-function normalizeResponseLowestFlags(prices) {
-  const sorted = prices
-    .map((price) => ({ ...price, is_lowest_price: false }))
-    .sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
-  if (sorted[0]) sorted[0].is_lowest_price = true;
-  return sorted;
-}
 function normalizeInputPrices(prices) {
-  const normalized = [];
-  for (const price of Array.isArray(prices) ? prices : []) {
-    const numericPrice = Number(price.price);
-    const platform = normalizePlatformName(price.platform) || String(price.platform || "").trim();
-    const productUrl = normalizeUrl(price.product_url || price.productUrl || "");
-    if (!platform || !isSupportedPlatform(platform) || !Number.isFinite(numericPrice) || numericPrice < 0) continue;
-    if (!isActualProductUrl(platform, productUrl)) {
-      const error = new Error("Invalid product URL. Homepage URLs are not allowed for price comparison.");
-      error.statusCode = 400;
-      console.warn("[price-comparison] rejected input comparison URL", {
+  return (Array.isArray(prices) ? prices : [])
+    .map((price) => {
+      const numericPrice = Number(price.price);
+      const platform = normalizePlatformName(price.platform) || String(price.platform || "").trim();
+      const productUrl = String(price.product_url || price.productUrl || "").trim();
+      if (!platform || !isSupportedPlatform(platform) || !Number.isFinite(numericPrice) || numericPrice < 0 || !/^https?:\/\//i.test(productUrl)) return null;
+      return {
         platform,
-        productUrl: price.product_url || price.productUrl || ""
-      });
-      throw error;
-    }
-    normalized.push({
-      platform,
-      platformLogoUrl: price.platform_logo_url || price.platformLogoUrl || getPlatformLogo(platform),
-      price: numericPrice,
-      originalPrice: nullableNumber(price.original_price ?? price.originalPrice),
-      discountPercent: nullableNumber(price.discount_percent ?? price.discountPercent),
-      couponCode: price.coupon_code || price.couponCode || "",
-      deliveryInfo: price.delivery_info || price.deliveryInfo || (Number(price.delivery_charge || price.deliveryCharge || 0) > 0 ? `Delivery Rs.${Number(price.delivery_charge || price.deliveryCharge)}` : "Free delivery"),
-      deliveryCharge: nullableNumber(price.delivery_charge ?? price.deliveryCharge),
-      rating: nullableNumber(price.rating),
-      reviewCount: Number(price.review_count || price.reviewCount || 0),
-      productUrl,
-      affiliateUrl: normalizeUrl(price.affiliate_url || price.affiliateUrl || productUrl) || productUrl,
-      available: price.is_available !== false && price.available !== false,
-      lastCheckedAt: price.last_checked_at || price.lastCheckedAt || new Date().toISOString()
-    });
-  }
-  return normalized.sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
+        platformLogoUrl: price.platform_logo_url || price.platformLogoUrl || getPlatformLogo(platform),
+        price: numericPrice,
+        originalPrice: nullableNumber(price.original_price ?? price.originalPrice),
+        discountPercent: nullableNumber(price.discount_percent ?? price.discountPercent),
+        couponCode: price.coupon_code || price.couponCode || "",
+        deliveryInfo: price.delivery_info || price.deliveryInfo || (Number(price.delivery_charge || price.deliveryCharge || 0) > 0 ? `Delivery ₹${Number(price.delivery_charge || price.deliveryCharge)}` : "Free delivery"),
+        deliveryCharge: nullableNumber(price.delivery_charge ?? price.deliveryCharge),
+        rating: nullableNumber(price.rating),
+        reviewCount: Number(price.review_count || price.reviewCount || 0),
+        productUrl,
+        affiliateUrl: price.affiliate_url || price.affiliateUrl || productUrl,
+        available: price.is_available !== false && price.available !== false,
+        lastCheckedAt: price.last_checked_at || price.lastCheckedAt || new Date().toISOString()
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => Number(a.price || 0) - Number(b.price || 0));
 }
 
 async function updateDealPriceSummary(productId, lowest, count, now) {

@@ -1,5 +1,4 @@
 -- Development seed for price comparison data.
--- Demo URLs are only for development. Real scraper/API data must save real product URLs.
 -- Run after supabase/migrations/20260610_price_comparison_feature.sql.
 
 with selected_deals as (
@@ -27,46 +26,46 @@ with selected_deals as (
 ),
 platform_seed(product_group, platform, price, original_price, discount_percent, logo_url, product_url) as (
   values
-    ('earbuds', 'Meesho', 899::numeric, 1899::numeric, 53::numeric, 'https://upload.wikimedia.org/wikipedia/commons/8/80/Meesho_Logo_Full.png', 'https://www.meesho.com/sample-product/p/demoearbuds1'),
-    ('earbuds', 'Flipkart', 949::numeric, 1999::numeric, 52::numeric, 'https://static-assets-web.flixcart.com/batman-returns/batman-returns/p/images/fk-logo-pre-login-3a7a30.svg', 'https://www.flipkart.com/sample-product/p/itmxxxxxxx'),
-    ('earbuds', 'Amazon', 999::numeric, 1999::numeric, 50::numeric, 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg', 'https://www.amazon.in/dp/B0XXXXXXX'),
-    ('earbuds', 'Croma', 1049::numeric, 2099::numeric, 50::numeric, 'https://logo.clearbit.com/croma.com', 'https://www.croma.com/sample-product/p/300002'),
-    ('earbuds', 'Boat', 1099::numeric, 2499::numeric, 56::numeric, 'https://logo.clearbit.com/boat-lifestyle.com', 'https://www.boat-lifestyle.com/products/sample-product'),
-    ('earbuds', 'Reliance Digital', 1199::numeric, 2499::numeric, 52::numeric, 'https://logo.clearbit.com/reliancedigital.in', 'https://www.reliancedigital.in/sample-product/p/491000002'),
+    ('earbuds', 'Meesho', 899::numeric, 1899::numeric, 53::numeric, 'https://upload.wikimedia.org/wikipedia/commons/8/80/Meesho_Logo_Full.png', 'https://www.meesho.com/'),
+    ('earbuds', 'Flipkart', 949::numeric, 1999::numeric, 52::numeric, 'https://static-assets-web.flixcart.com/batman-returns/batman-returns/p/images/fk-logo-pre-login-3a7a30.svg', 'https://www.flipkart.com/'),
+    ('earbuds', 'Amazon', 999::numeric, 1999::numeric, 50::numeric, 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg', 'https://www.amazon.in/'),
+    ('earbuds', 'Croma', 1049::numeric, 2099::numeric, 50::numeric, 'https://logo.clearbit.com/croma.com', 'https://www.croma.com/'),
+    ('earbuds', 'Boat', 1099::numeric, 2499::numeric, 56::numeric, 'https://logo.clearbit.com/boat-lifestyle.com', 'https://www.boat-lifestyle.com/'),
+    ('earbuds', 'Reliance Digital', 1199::numeric, 2499::numeric, 52::numeric, 'https://logo.clearbit.com/reliancedigital.in', 'https://www.reliancedigital.in/'),
 
-    ('watch', 'Noise', 1299::numeric, 4999::numeric, 74::numeric, 'https://logo.clearbit.com/gonoise.com', 'https://www.gonoise.com/products/sample-smart-watch'),
-    ('watch', 'Flipkart', 1399::numeric, 4999::numeric, 72::numeric, 'https://static-assets-web.flixcart.com/batman-returns/batman-returns/p/images/fk-logo-pre-login-3a7a30.svg', 'https://www.flipkart.com/sample-product/p/itmxxxxxxx'),
-    ('watch', 'Amazon', 1499::numeric, 4999::numeric, 70::numeric, 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg', 'https://www.amazon.in/dp/B0XXXXXXX'),
-    ('watch', 'TataCliq', 1599::numeric, 4999::numeric, 68::numeric, 'https://logo.clearbit.com/tatacliq.com', 'https://www.tatacliq.com/sample-smart-watch/p-mp000000000'),
-    ('watch', 'Reliance Digital', 1599::numeric, 4999::numeric, 68::numeric, 'https://logo.clearbit.com/reliancedigital.in', 'https://www.reliancedigital.in/sample-product/p/491000002'),
-    ('watch', 'Croma', 1699::numeric, 4999::numeric, 66::numeric, 'https://logo.clearbit.com/croma.com', 'https://www.croma.com/sample-product/p/300002'),
+    ('watch', 'Noise', 1299::numeric, 4999::numeric, 74::numeric, 'https://logo.clearbit.com/gonoise.com', 'https://www.gonoise.com/'),
+    ('watch', 'Flipkart', 1399::numeric, 4999::numeric, 72::numeric, 'https://static-assets-web.flixcart.com/batman-returns/batman-returns/p/images/fk-logo-pre-login-3a7a30.svg', 'https://www.flipkart.com/'),
+    ('watch', 'Amazon', 1499::numeric, 4999::numeric, 70::numeric, 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg', 'https://www.amazon.in/'),
+    ('watch', 'TataCliq', 1599::numeric, 4999::numeric, 68::numeric, 'https://logo.clearbit.com/tatacliq.com', 'https://www.tatacliq.com/'),
+    ('watch', 'Reliance Digital', 1599::numeric, 4999::numeric, 68::numeric, 'https://logo.clearbit.com/reliancedigital.in', 'https://www.reliancedigital.in/'),
+    ('watch', 'Croma', 1699::numeric, 4999::numeric, 66::numeric, 'https://logo.clearbit.com/croma.com', 'https://www.croma.com/'),
 
-    ('mobile', 'Flipkart', 12499::numeric, 18999::numeric, 34::numeric, 'https://static-assets-web.flixcart.com/batman-returns/batman-returns/p/images/fk-logo-pre-login-3a7a30.svg', 'https://www.flipkart.com/sample-product/p/itmxxxxxxx'),
-    ('mobile', 'JioMart', 12899::numeric, 18999::numeric, 32::numeric, 'https://logo.clearbit.com/jiomart.com', 'https://www.jiomart.com/p/electronics/sample-product/590000000'),
-    ('mobile', 'Reliance Digital', 12949::numeric, 18999::numeric, 32::numeric, 'https://logo.clearbit.com/reliancedigital.in', 'https://www.reliancedigital.in/sample-product/p/491000002'),
-    ('mobile', 'Amazon', 12999::numeric, 17999::numeric, 28::numeric, 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg', 'https://www.amazon.in/dp/B0XXXXXXX'),
-    ('mobile', 'Croma', 13299::numeric, 19999::numeric, 34::numeric, 'https://logo.clearbit.com/croma.com', 'https://www.croma.com/sample-product/p/300002'),
-    ('mobile', 'TataCliq', 13499::numeric, 19999::numeric, 33::numeric, 'https://logo.clearbit.com/tatacliq.com', 'https://www.tatacliq.com/sample-smart-watch/p-mp000000000'),
+    ('mobile', 'Flipkart', 12499::numeric, 18999::numeric, 34::numeric, 'https://static-assets-web.flixcart.com/batman-returns/batman-returns/p/images/fk-logo-pre-login-3a7a30.svg', 'https://www.flipkart.com/'),
+    ('mobile', 'JioMart', 12899::numeric, 18999::numeric, 32::numeric, 'https://logo.clearbit.com/jiomart.com', 'https://www.jiomart.com/'),
+    ('mobile', 'Reliance Digital', 12949::numeric, 18999::numeric, 32::numeric, 'https://logo.clearbit.com/reliancedigital.in', 'https://www.reliancedigital.in/'),
+    ('mobile', 'Amazon', 12999::numeric, 17999::numeric, 28::numeric, 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg', 'https://www.amazon.in/'),
+    ('mobile', 'Croma', 13299::numeric, 19999::numeric, 34::numeric, 'https://logo.clearbit.com/croma.com', 'https://www.croma.com/'),
+    ('mobile', 'TataCliq', 13499::numeric, 19999::numeric, 33::numeric, 'https://logo.clearbit.com/tatacliq.com', 'https://www.tatacliq.com/'),
 
-    ('beauty', 'Purplle', 449::numeric, 899::numeric, 50::numeric, 'https://logo.clearbit.com/purplle.com', 'https://www.purplle.com/product/sample-vitamin-c-serum-30ml'),
-    ('beauty', 'Nykaa', 499::numeric, 999::numeric, 50::numeric, 'https://logo.clearbit.com/nykaa.com', 'https://www.nykaa.com/sample-vitamin-c-serum/p/123456'),
-    ('beauty', 'Mamaearth', 499::numeric, 999::numeric, 50::numeric, 'https://logo.clearbit.com/mamaearth.in', 'https://mamaearth.in/product/sample-vitamin-c-serum'),
-    ('beauty', 'Flipkart', 519::numeric, 999::numeric, 48::numeric, 'https://static-assets-web.flixcart.com/batman-returns/batman-returns/p/images/fk-logo-pre-login-3a7a30.svg', 'https://www.flipkart.com/sample-product/p/itmxxxxxxx'),
-    ('beauty', 'Amazon', 529::numeric, 999::numeric, 47::numeric, 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg', 'https://www.amazon.in/dp/B0XXXXXXX'),
+    ('beauty', 'Purplle', 449::numeric, 899::numeric, 50::numeric, 'https://logo.clearbit.com/purplle.com', 'https://www.purplle.com/'),
+    ('beauty', 'Nykaa', 499::numeric, 999::numeric, 50::numeric, 'https://logo.clearbit.com/nykaa.com', 'https://www.nykaa.com/'),
+    ('beauty', 'Mamaearth', 499::numeric, 999::numeric, 50::numeric, 'https://logo.clearbit.com/mamaearth.in', 'https://mamaearth.in/'),
+    ('beauty', 'Flipkart', 519::numeric, 999::numeric, 48::numeric, 'https://static-assets-web.flixcart.com/batman-returns/batman-returns/p/images/fk-logo-pre-login-3a7a30.svg', 'https://www.flipkart.com/'),
+    ('beauty', 'Amazon', 529::numeric, 999::numeric, 47::numeric, 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg', 'https://www.amazon.in/'),
 
-    ('grocery', 'JioMart', 699::numeric, 999::numeric, 30::numeric, 'https://logo.clearbit.com/jiomart.com', 'https://www.jiomart.com/p/electronics/sample-product/590000000'),
-    ('grocery', 'Zepto', 719::numeric, 999::numeric, 28::numeric, 'https://logo.clearbit.com/zeptonow.com', 'https://www.zeptonow.com/pn/sample-grocery-combo/pvid/demo123'),
-    ('grocery', 'Blinkit', 729::numeric, 999::numeric, 27::numeric, 'https://logo.clearbit.com/blinkit.com', 'https://blinkit.com/prn/sample-grocery-combo/prid/123456'),
+    ('grocery', 'JioMart', 699::numeric, 999::numeric, 30::numeric, 'https://logo.clearbit.com/jiomart.com', 'https://www.jiomart.com/'),
+    ('grocery', 'Zepto', 719::numeric, 999::numeric, 28::numeric, 'https://logo.clearbit.com/zeptonow.com', 'https://www.zeptonow.com/'),
+    ('grocery', 'Blinkit', 729::numeric, 999::numeric, 27::numeric, 'https://logo.clearbit.com/blinkit.com', 'https://blinkit.com/'),
     ('grocery', 'Swiggy Instamart', 735::numeric, 999::numeric, 26::numeric, 'https://logo.clearbit.com/swiggy.com', 'https://www.swiggy.com/instamart'),
-    ('grocery', 'BigBasket', 749::numeric, 999::numeric, 25::numeric, 'https://logo.clearbit.com/bigbasket.com', 'https://www.bigbasket.com/pd/123456/sample-grocery-combo'),
-    ('grocery', 'Amazon', 799::numeric, 1099::numeric, 27::numeric, 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg', 'https://www.amazon.in/dp/B0XXXXXXX'),
+    ('grocery', 'BigBasket', 749::numeric, 999::numeric, 25::numeric, 'https://logo.clearbit.com/bigbasket.com', 'https://www.bigbasket.com/'),
+    ('grocery', 'Amazon', 799::numeric, 1099::numeric, 27::numeric, 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg', 'https://www.amazon.in/'),
 
-    ('shoes', 'Decathlon', 1699::numeric, 2999::numeric, 43::numeric, 'https://logo.clearbit.com/decathlon.in', 'https://www.decathlon.in/p/sample-running-shoes-8589090'),
-    ('shoes', 'Puma', 1799::numeric, 3499::numeric, 49::numeric, 'https://logo.clearbit.com/puma.com', 'https://in.puma.com/in/en/pd/sample-running-shoes/390000'),
-    ('shoes', 'Ajio', 1899::numeric, 3999::numeric, 53::numeric, 'https://logo.clearbit.com/ajio.com', 'https://www.ajio.com/sample-running-shoes/p/469000000_black'),
-    ('shoes', 'Myntra', 1999::numeric, 3999::numeric, 50::numeric, 'https://logo.clearbit.com/myntra.com', 'https://www.myntra.com/sports-shoes/sample-brand/sample-running-shoes/12345678/buy'),
-    ('shoes', 'Adidas', 2299::numeric, 4599::numeric, 50::numeric, 'https://logo.clearbit.com/adidas.co.in', 'https://www.adidas.co.in/sample-running-shoes/IF0000.html'),
-    ('shoes', 'Nike', 2499::numeric, 4995::numeric, 50::numeric, 'https://logo.clearbit.com/nike.com', 'https://www.nike.com/in/t/sample-running-shoes-DM0000')
+    ('shoes', 'Decathlon', 1699::numeric, 2999::numeric, 43::numeric, 'https://logo.clearbit.com/decathlon.in', 'https://www.decathlon.in/'),
+    ('shoes', 'Puma', 1799::numeric, 3499::numeric, 49::numeric, 'https://logo.clearbit.com/puma.com', 'https://in.puma.com/'),
+    ('shoes', 'Ajio', 1899::numeric, 3999::numeric, 53::numeric, 'https://logo.clearbit.com/ajio.com', 'https://www.ajio.com/'),
+    ('shoes', 'Myntra', 1999::numeric, 3999::numeric, 50::numeric, 'https://logo.clearbit.com/myntra.com', 'https://www.myntra.com/'),
+    ('shoes', 'Adidas', 2299::numeric, 4599::numeric, 50::numeric, 'https://logo.clearbit.com/adidas.co.in', 'https://www.adidas.co.in/'),
+    ('shoes', 'Nike', 2499::numeric, 4995::numeric, 50::numeric, 'https://logo.clearbit.com/nike.com', 'https://www.nike.com/in/')
 ),
 comparison_rows as (
   insert into public.price_comparisons (
