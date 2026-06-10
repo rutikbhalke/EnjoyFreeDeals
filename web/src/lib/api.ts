@@ -266,13 +266,14 @@ function slugify(value?: string | null) {
 
 function demoPriceComparison(productId: string): PriceComparison {
   const now = new Date().toISOString();
+  // Demo URLs are only for development. Real scraper/API data must save real product URLs.
   const rows: Array<[string, number, number, string]> = [
-    ["Meesho", 899, 1899, "https://www.meesho.com/"],
-    ["Flipkart", 949, 1999, "https://www.flipkart.com/"],
-    ["Amazon", 999, 1999, "https://www.amazon.in/"],
-    ["Croma", 1049, 2099, "https://www.croma.com/"],
-    ["Boat", 1099, 2499, "https://www.boat-lifestyle.com/"],
-    ["Reliance Digital", 1199, 2499, "https://www.reliancedigital.in/"],
+    ["Meesho", 899, 1899, "https://www.meesho.com/sample-product/p/demoearbuds1"],
+    ["Flipkart", 949, 1999, "https://www.flipkart.com/sample-product/p/itmxxxxxxx"],
+    ["Amazon", 999, 1999, "https://www.amazon.in/dp/B0XXXXXXX"],
+    ["Croma", 1049, 2099, "https://www.croma.com/sample-product/p/300002"],
+    ["Boat", 1099, 2499, "https://www.boat-lifestyle.com/products/sample-product"],
+    ["Reliance Digital", 1199, 2499, "https://www.reliancedigital.in/sample-product/p/491000002"],
   ];
   const prices = rows.map(([platform, price, originalPrice, productUrl]) => ({
     platform,

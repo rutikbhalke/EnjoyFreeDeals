@@ -38,16 +38,24 @@ class ProductRepository(@Suppress("unused") private val context: Context) {
         }.onFailure {
             Log.w("PriceComparison", "Backend failed, using fallback data", it)
         }.getOrDefault(emptyList())
-        if (backendPrices.isNotEmpty()) return backendPrices
+        if (backendPrices.size > 1) return backendPrices.markLowest()
+        if (backendPrices.size == 1) return mergeWithFallback(backendPrices, sampleComparison(productId)).markLowest()
 
         Log.d("PriceComparison", "Fallback rows used")
         if (!SupabaseConfig.isConfigured) return fallback.ifEmpty { sampleComparison(productId) }
-        return runCatching {
+        val supabaseRows = runCatching {
             supabase.priceComparison()
                 .filter { it.productId == productId }
                 .map { it.toSupabaseStorePriceModel() }
                 .sortedWith(compareBy<StorePriceModel> { !it.available }.thenBy { it.price })
-        }.getOrDefault(emptyList()).ifEmpty { fallback.ifEmpty { sampleComparison(productId) } }
+        }.getOrDefault(emptyList())
+        return when {
+            supabaseRows.size > 1 -> supabaseRows.markLowest()
+            supabaseRows.size == 1 -> mergeWithFallback(supabaseRows, sampleComparison(productId)).markLowest()
+            fallback.size > 1 -> fallback.markLowest()
+            fallback.size == 1 -> mergeWithFallback(fallback, sampleComparison(productId)).markLowest()
+            else -> sampleComparison(productId).markLowest()
+        }
     }
 
     suspend fun getPriceStats(productId: String): ProductPriceStatsDto? {
@@ -99,15 +107,15 @@ class ProductRepository(@Suppress("unused") private val context: Context) {
     }
 
     private fun platformUrl(platform: String): String = when (platform.lowercase()) {
-        "amazon" -> "https://www.amazon.in/"
-        "flipkart" -> "https://www.flipkart.com/"
-        "meesho" -> "https://www.meesho.com/"
-        "croma" -> "https://www.croma.com/"
-        "boat" -> "https://www.boat-lifestyle.com/"
-        "noise" -> "https://www.gonoise.com/"
-        "tatacliq" -> "https://www.tatacliq.com/"
-        "reliance digital" -> "https://www.reliancedigital.in/"
-        "jiomart" -> "https://www.jiomart.com/"
+        "amazon" -> "https://www.amazon.in/dp/B0XXXXXXX"
+        "flipkart" -> "https://www.flipkart.com/sample-product/p/itmxxxxxxx"
+        "meesho" -> "https://www.meesho.com/sample-product/p/demoearbuds1"
+        "croma" -> "https://www.croma.com/sample-product/p/300002"
+        "boat" -> "https://www.boat-lifestyle.com/products/sample-product"
+        "noise" -> "https://www.gonoise.com/products/sample-smart-watch"
+        "tatacliq" -> "https://www.tatacliq.com/sample-smart-watch/p-mp000000000"
+        "reliance digital" -> "https://www.reliancedigital.in/sample-product/p/491000002"
+        "jiomart" -> "https://www.jiomart.com/p/electronics/sample-product/590000000"
         else -> "https://enjoyfreedeals-web.vercel.app/deals"
     }
 
@@ -122,5 +130,21 @@ class ProductRepository(@Suppress("unused") private val context: Context) {
         "reliance digital" -> "https://logo.clearbit.com/reliancedigital.in"
         "jiomart" -> "https://logo.clearbit.com/jiomart.com"
         else -> ""
+    }
+
+    private fun mergeWithFallback(remoteRows: List<StorePriceModel>, fallbackRows: List<StorePriceModel>): List<StorePriceModel> {
+        val rowsByPlatform = linkedMapOf<String, StorePriceModel>()
+        (remoteRows + fallbackRows).forEach { row ->
+            val key = row.platform.lowercase()
+            if (key.isNotBlank() && !rowsByPlatform.containsKey(key)) rowsByPlatform[key] = row
+        }
+        return rowsByPlatform.values.toList()
+    }
+
+    private fun List<StorePriceModel>.markLowest(): List<StorePriceModel> {
+        val lowest = filter { it.available && it.price > 0.0 }.minByOrNull { it.price }
+        return map { row ->
+            row.copy(isLowestPrice = lowest != null && row.platform == lowest.platform && row.price == lowest.price)
+        }.sortedWith(compareBy<StorePriceModel> { !it.available }.thenBy { it.price })
     }
 }

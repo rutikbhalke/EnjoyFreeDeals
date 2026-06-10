@@ -20,11 +20,17 @@ class PriceComparisonRepository(private val context: Context) {
         emit(loadComparisons().getOrThrow())
     }
 
-    suspend fun getPriceComparison(productId: String): List<StorePriceModel> =
-        loadComparison(productId).getOrDefault(sampleComparison())
+    suspend fun getPriceComparison(productId: String): List<StorePriceModel> {
+        val remoteRows = loadComparison(productId).getOrDefault(emptyList())
+        return if (remoteRows.size > 1) {
+            remoteRows.markLowest()
+        } else {
+            mergeWithFallback(remoteRows, sampleComparison()).markLowest()
+        }
+    }
 
     suspend fun getPriceComparisonResult(productId: String): Result<List<PriceComparisonModel>> =
-        loadComparison(productId).map { prices ->
+        runCatching { getPriceComparison(productId) }.map { prices ->
             prices.mapIndexed { index, price ->
                 PriceComparisonModel(
                     id = "$productId-${price.platform.ifBlank { index.toString() }}",
@@ -88,12 +94,12 @@ class PriceComparisonRepository(private val context: Context) {
     }
 
     private fun platformUrl(platform: String): String = when (platform.lowercase()) {
-        "amazon" -> "https://www.amazon.in/"
-        "flipkart" -> "https://www.flipkart.com/"
-        "meesho" -> "https://www.meesho.com/"
-        "croma" -> "https://www.croma.com/"
-        "boat" -> "https://www.boat-lifestyle.com/"
-        "reliance digital" -> "https://www.reliancedigital.in/"
+        "amazon" -> "https://www.amazon.in/dp/B0XXXXXXX"
+        "flipkart" -> "https://www.flipkart.com/sample-product/p/itmxxxxxxx"
+        "meesho" -> "https://www.meesho.com/sample-product/p/demoearbuds1"
+        "croma" -> "https://www.croma.com/sample-product/p/300002"
+        "boat" -> "https://www.boat-lifestyle.com/products/sample-product"
+        "reliance digital" -> "https://www.reliancedigital.in/sample-product/p/491000002"
         else -> "https://enjoyfreedeals-web.vercel.app/deals"
     }
 
@@ -105,5 +111,21 @@ class PriceComparisonRepository(private val context: Context) {
         "boat" -> "https://logo.clearbit.com/boat-lifestyle.com"
         "reliance digital" -> "https://logo.clearbit.com/reliancedigital.in"
         else -> ""
+    }
+
+    private fun mergeWithFallback(remoteRows: List<StorePriceModel>, fallbackRows: List<StorePriceModel>): List<StorePriceModel> {
+        val rowsByPlatform = linkedMapOf<String, StorePriceModel>()
+        (remoteRows + fallbackRows).forEach { row ->
+            val key = row.platform.lowercase()
+            if (key.isNotBlank() && !rowsByPlatform.containsKey(key)) rowsByPlatform[key] = row
+        }
+        return rowsByPlatform.values.toList()
+    }
+
+    private fun List<StorePriceModel>.markLowest(): List<StorePriceModel> {
+        val lowest = filter { it.available && it.price > 0.0 }.minByOrNull { it.price }
+        return map { row ->
+            row.copy(isLowestPrice = lowest != null && row.platform == lowest.platform && row.price == lowest.price)
+        }.sortedWith(compareBy<StorePriceModel> { !it.available }.thenBy { it.price })
     }
 }
