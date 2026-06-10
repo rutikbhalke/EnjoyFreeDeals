@@ -68,27 +68,23 @@ async function savePriceComparison(productId, prices = []) {
   const discountPercentage = firstNumber(lowest.discountPercent, deal?.discount_percentage);
   const now = new Date().toISOString();
 
-  const { data: comparison, error } = await supabaseAdmin
-    .from(TABLE)
-    .upsert({
-      deal_id: productId,
-      product_name: productName,
-      image_url: imageUrl,
-      category,
-      original_price: originalPrice,
-      lowest_price: lowest.price,
-      discount_percentage: discountPercentage,
-      product_url: deal?.affiliate_link || deal?.source_url || lowest.productUrl,
-      store_name: lowest.platform,
-      coupon_code: lowest.couponCode || "",
-      rating: firstNumber(lowest.rating, 4.2),
-      is_hot_deal: discountPercentage >= 50,
-      is_free_deal: lowest.price === 0,
-      last_updated: now
-    }, { onConflict: "deal_id" })
-    .select("id")
-    .single();
-  throwIfSupabaseError(error, TABLE);
+  const comparisonPayload = {
+    deal_id: productId,
+    product_name: productName,
+    image_url: imageUrl,
+    category,
+    original_price: originalPrice,
+    lowest_price: lowest.price,
+    discount_percentage: discountPercentage,
+    product_url: deal?.affiliate_link || deal?.source_url || lowest.productUrl,
+    store_name: lowest.platform,
+    coupon_code: lowest.couponCode || "",
+    rating: firstNumber(lowest.rating, 4.2),
+    is_hot_deal: discountPercentage >= 50,
+    is_free_deal: lowest.price === 0,
+    last_updated: now
+  };
+  const comparison = await upsertPriceComparisonHeader(productId, comparisonPayload);
 
   const comparisonId = comparison.id;
   const { error: deleteError } = await supabaseAdmin
@@ -128,6 +124,48 @@ async function savePriceComparison(productId, prices = []) {
 
   await updateDealPriceSummary(productId, lowest, normalizedPrices.length, now);
   return getPriceComparisonSummary(productId);
+}
+
+async function upsertPriceComparisonHeader(productId, payload) {
+  const { data, error } = await supabaseAdmin
+    .from(TABLE)
+    .upsert(payload, { onConflict: "deal_id" })
+    .select("id")
+    .single();
+  if (!isMissingDealIdUniqueConstraintError(error)) {
+    throwIfSupabaseError(error, TABLE);
+    return data;
+  }
+
+  const { data: existing, error: lookupError } = await supabaseAdmin
+    .from(TABLE)
+    .select("id")
+    .eq("deal_id", productId)
+    .maybeSingle();
+  throwIfSupabaseError(lookupError, TABLE);
+
+  if (existing?.id) {
+    const { data: updated, error: updateError } = await supabaseAdmin
+      .from(TABLE)
+      .update(payload)
+      .eq("id", existing.id)
+      .select("id")
+      .single();
+    throwIfSupabaseError(updateError, TABLE);
+    return updated;
+  }
+
+  const { data: inserted, error: insertError } = await supabaseAdmin
+    .from(TABLE)
+    .insert(payload)
+    .select("id")
+    .single();
+  throwIfSupabaseError(insertError, TABLE);
+  return inserted;
+}
+
+function isMissingDealIdUniqueConstraintError(error) {
+  return /no unique or exclusion constraint matching the on conflict specification/i.test(error?.message || "");
 }
 
 async function listDealBackedComparisons() {

@@ -66,8 +66,8 @@ fun LoginScreen(
     onSuccess: () -> Unit,
     onMessageShown: () -> Unit
 ) {
-    var mobile by remember { mutableStateOf("") }
-    var otp by remember { mutableStateOf("") }
+    var mobile by remember { mutableStateOf(SAMPLE_LOGIN_MOBILE) }
+    var otp by remember { mutableStateOf(SAMPLE_LOGIN_OTP) }
     val snackbarHostState = remember { SnackbarHostState() }
     val otpSentForMobile = state.isOtpSent && state.pendingMobile == ValidationUtils.normalizedMobile(mobile)
 
@@ -120,6 +120,15 @@ fun LoginScreen(
                         )
                     }
                 }
+                Text(
+                    text = "Sample login: $SAMPLE_LOGIN_MOBILE / OTP $SAMPLE_LOGIN_OTP",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.SemiBold
+                )
                 Spacer(Modifier.height(14.dp))
                 OtpActionButton(
                     text = if (otpSentForMobile) "Resend WhatsApp OTP" else "Send WhatsApp OTP",
@@ -211,6 +220,9 @@ private fun AuthField(
         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = PrimaryGreen)
     )
 }
+
+private const val SAMPLE_LOGIN_MOBILE = "9699353648"
+private const val SAMPLE_LOGIN_OTP = "123456"
 
 @Composable
 private fun OtpActionButton(text: String, loading: Boolean, onClick: () -> Unit) {
