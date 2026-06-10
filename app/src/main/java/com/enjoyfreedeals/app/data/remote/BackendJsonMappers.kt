@@ -121,6 +121,7 @@ fun JSONObject.toCategoryModel(): CategoryModel =
         categoryImage = optStringValue("categoryImage", "image_url"),
         description = optStringValue("description"),
         isActive = optBooleanValue("isActive", "is_active", default = true),
+        dealCount = optIntValue("dealCount", "deal_count", default = 0),
         createdAt = optTimestampValue("createdAt", "created_at")
     )
 
