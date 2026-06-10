@@ -88,12 +88,12 @@ class PriceComparisonRepository(private val context: Context) {
     }
 
     private fun platformUrl(platform: String): String = when (platform.lowercase()) {
-        "amazon" -> "https://www.amazon.in/"
-        "flipkart" -> "https://www.flipkart.com/"
-        "meesho" -> "https://www.meesho.com/"
-        "croma" -> "https://www.croma.com/"
-        "boat" -> "https://www.boat-lifestyle.com/"
-        "reliance digital" -> "https://www.reliancedigital.in/"
+        "amazon" -> "https://www.amazon.in/dp/B0XXXXXXX"
+        "flipkart" -> "https://www.flipkart.com/sample-product/p/itmxxxxxxx"
+        "meesho" -> "https://www.meesho.com/sample-product/p/demoearbuds1"
+        "croma" -> "https://www.croma.com/sample-product/p/300002"
+        "boat" -> "https://www.boat-lifestyle.com/products/sample-product"
+        "reliance digital" -> "https://www.reliancedigital.in/sample-product/p/491000002"
         else -> "https://enjoyfreedeals-web.vercel.app/deals"
     }
 

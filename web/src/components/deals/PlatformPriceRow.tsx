@@ -13,6 +13,8 @@ export default function PlatformPriceRow({ price, onViewDeal }: PlatformPriceRow
   const delivery = price.delivery_charge && price.delivery_charge > 0
     ? `Delivery ₹${price.delivery_charge.toLocaleString("en-IN")}`
     : "Free delivery";
+  const hasActualDealLink = price.is_available && isActualProductUrl(price.platform, price.product_url);
+  const buttonLabel = hasActualDealLink ? "View Deal" : "Actual deal link unavailable";
 
   return (
     <div className={`rounded-xl border p-3 transition-colors ${price.is_lowest_price ? "border-emerald-500 bg-emerald-50" : "border-border bg-card"}`}>
@@ -50,13 +52,36 @@ export default function PlatformPriceRow({ price, onViewDeal }: PlatformPriceRow
           size="sm"
           variant={price.is_lowest_price ? "default" : "outline"}
           className="shrink-0 gap-1"
-          disabled={!price.is_available || !price.product_url}
-          onClick={() => onViewDeal(price.product_url)}
+          disabled={!hasActualDealLink}
+          onClick={() => {
+            if (import.meta.env.DEV) console.info("[price-comparison] Opening comparison product URL", price.product_url);
+            onViewDeal(price.product_url);
+          }}
         >
-          {price.product_url ? "View" : "Link unavailable"}
-          {price.product_url && <ExternalLink className="h-3.5 w-3.5" />}
+          {buttonLabel}
+          {hasActualDealLink && <ExternalLink className="h-3.5 w-3.5" />}
         </Button>
       </div>
     </div>
   );
+}
+
+function isActualProductUrl(platform: string, url: string | null | undefined) {
+  if (!url || !/^https?:\/\//i.test(url)) return false;
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const path = decodeURIComponent(parsed.pathname || "").toLowerCase();
+    const key = platform.toLowerCase().replace(/[^a-z0-9]+/g, "");
+    if (!path || path === "/") return false;
+    if (key === "amazon") return /\/(?:dp|gp\/product)\/[a-z0-9]{8,}/i.test(path);
+    if (key === "flipkart") return host.includes("flipkart.") && (path.includes("/p/") || /\/itm/i.test(path));
+    if (key === "meesho") return host.includes("meesho.") && path.includes("/p/");
+    if (key === "myntra") return host.includes("myntra.") && (path.includes("/buy") || path.includes("/product/"));
+    if (["ajio", "croma", "nykaa"].includes(key)) return path.includes("/p/");
+    if (key === "tatacliq") return path.includes("/p-");
+    return path.split("/").filter(Boolean).length >= 2;
+  } catch {
+    return false;
+  }
 }

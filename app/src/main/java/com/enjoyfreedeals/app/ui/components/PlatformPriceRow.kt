@@ -1,5 +1,6 @@
 package com.enjoyfreedeals.app.ui.components
 
+import android.util.Log
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +35,7 @@ fun PlatformPriceRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val hasActualDealLink = price.available && isActualProductUrl(price.platform, price.redirectUrl)
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -42,7 +44,10 @@ fun PlatformPriceRow(
                 color = if (price.isLowestPrice) PrimaryGreen.copy(alpha = 0.34f) else GreyText.copy(alpha = 0.12f),
                 shape = RoundedCornerShape(18.dp)
             )
-            .clickable(enabled = price.available && price.redirectUrl.isNotBlank(), onClick = onClick),
+            .clickable(enabled = hasActualDealLink) {
+                Log.d("PriceComparison", "Opening comparison product URL: ${price.redirectUrl}")
+                onClick()
+            },
         shape = RoundedCornerShape(18.dp),
         color = if (price.isLowestPrice) SoftGreen.copy(alpha = 0.84f) else MaterialTheme.colorScheme.surface
     ) {
@@ -85,14 +90,35 @@ fun PlatformPriceRow(
                     Text("${it.toInt()}% OFF", color = PrimaryGreen, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
                 }
                 Button(
-                    enabled = price.available && price.redirectUrl.isNotBlank(),
-                    onClick = onClick,
+                    enabled = hasActualDealLink,
+                    onClick = {
+                        Log.d("PriceComparison", "Opening comparison product URL: ${price.redirectUrl}")
+                        onClick()
+                    },
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(if (price.redirectUrl.isBlank()) "Link unavailable" else "View")
+                    Text(if (hasActualDealLink) "View" else "Actual deal link unavailable")
                 }
             }
             Spacer(Modifier.width(12.dp))
         }
+    }
+}
+
+private fun isActualProductUrl(platform: String, url: String): Boolean {
+    if (!url.startsWith("http://", ignoreCase = true) && !url.startsWith("https://", ignoreCase = true)) return false
+    val uri = runCatching { java.net.URI(url) }.getOrNull() ?: return false
+    val host = uri.host.orEmpty().lowercase()
+    val path = uri.path.orEmpty().lowercase()
+    val key = platform.lowercase().replace(Regex("[^a-z0-9]+"), "")
+    if (path.isBlank() || path == "/") return false
+    return when (key) {
+        "amazon" -> Regex("/(dp|gp/product)/[a-z0-9]{8,}", RegexOption.IGNORE_CASE).containsMatchIn(path)
+        "flipkart" -> host.contains("flipkart.") && (path.contains("/p/") || path.contains("/itm"))
+        "meesho" -> host.contains("meesho.") && path.contains("/p/")
+        "myntra" -> host.contains("myntra.") && (path.contains("/buy") || path.contains("/product/"))
+        "ajio", "croma", "nykaa" -> path.contains("/p/")
+        "tatacliq" -> path.contains("/p-")
+        else -> path.split("/").filter { it.isNotBlank() }.size >= 2
     }
 }

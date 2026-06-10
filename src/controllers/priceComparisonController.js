@@ -7,7 +7,7 @@ async function getPriceComparisons(req, res, next) {
     if (productId) {
       const comparison = await priceComparisonRepository.getPriceComparisonSummary(productId);
       if (!comparison) {
-        return res.status(404).json({ success: false, message: "No price comparison found" });
+        return res.json({ success: false, message: "No valid product comparison URLs found" });
       }
       return res.json({ success: true, ...comparison });
     }
@@ -22,7 +22,7 @@ async function getPriceComparison(req, res, next) {
   try {
     const comparison = await priceComparisonRepository.getPriceComparisonSummary(req.params.productId);
     if (!comparison) {
-      return res.status(404).json({ success: false, message: "No price comparison found" });
+      return res.json({ success: false, message: "No valid product comparison URLs found" });
     }
     return res.json({ success: true, ...comparison });
   } catch (error) {
