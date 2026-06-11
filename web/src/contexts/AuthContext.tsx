@@ -2,12 +2,17 @@ import { createContext, useContext, useEffect, useState, useCallback } from "rea
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
+import { clearUserSession, getUserSession, type MobileUserSession } from "@/lib/auth";
 
 type Profile = Tables<"profiles">;
 
 interface AuthContextType {
   user: User | null;
   profile: Profile | null;
+  mobileSession: MobileUserSession | null;
+  displayName: string;
+  displayMobile: string;
+  isMobileLoggedIn: boolean;
   isAdmin: boolean;
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -20,6 +25,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [mobileSession, setMobileSession] = useState<MobileUserSession | null>(() => getUserSession());
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -41,6 +47,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    const refreshMobileSession = () => setMobileSession(getUserSession());
+    window.addEventListener("storage", refreshMobileSession);
+    window.addEventListener("enjoyfreedeals-session-change", refreshMobileSession);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         const currentUser = session?.user ?? null;
@@ -71,7 +81,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener("storage", refreshMobileSession);
+      window.removeEventListener("enjoyfreedeals-session-change", refreshMobileSession);
+    };
   }, [fetchProfile, checkAdmin]);
 
   const signIn = async (email: string, password: string) => {
@@ -92,11 +106,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    clearUserSession();
+    setMobileSession(null);
     await supabase.auth.signOut();
   };
 
+  const displayName = profile?.full_name || mobileSession?.full_name || user?.email || "";
+  const displayMobile = mobileSession?.mobile || "";
+  const isMobileLoggedIn = Boolean(mobileSession);
+
   return (
-    <AuthContext.Provider value={{ user, profile, isAdmin, isLoading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, profile, mobileSession, displayName, displayMobile, isMobileLoggedIn, isAdmin, isLoading, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

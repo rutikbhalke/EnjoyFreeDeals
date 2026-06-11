@@ -17,6 +17,7 @@ import { usePriceHistory } from "@/hooks/usePriceHistory";
 import { usePriceComparison } from "@/hooks/usePriceComparison";
 import PriceHistoryChart from "@/components/deals/PriceHistoryChart";
 import PriceComparisonPanel from "@/components/deals/PriceComparisonPanel";
+import BuyScoreCard from "@/components/deals/BuyScoreCard";
 import WatchDealButton from "@/components/deals/WatchDealButton";
 import DealVoteButtons from "@/components/deals/DealVoteButtons";
 import DealCommentSection from "@/components/deals/DealCommentSection";
@@ -72,6 +73,19 @@ export default function DealDetailPage() {
       : null;
 
   const updatedText = formatUpdatedTime(deal.updated_at || deal.created_at);
+  const historyPrices = (priceHistory || [])
+    .map((point: any) => Number(point.price || point.price_amount || point.current_price || 0))
+    .filter((price) => Number.isFinite(price) && price > 0);
+  const buyScoreInput = {
+    currentPrice: deal.discounted_price,
+    averagePrice: historyPrices.length ? historyPrices.reduce((sum, price) => sum + price, 0) / historyPrices.length : deal.original_price,
+    lowestPrice: deal.lowest_price || (historyPrices.length ? Math.min(...historyPrices) : deal.discounted_price),
+    highestPrice: historyPrices.length ? Math.max(...historyPrices) : deal.original_price,
+    discountPercent: deal.discount_percentage,
+    dealScore: deal.deal_score,
+    isHotDeal: deal.is_hot_deal,
+    isBestPrice: deal.is_best_price,
+  };
 
   const copyCoupon = () => {
     if (deal.coupon_code) {
@@ -261,11 +275,16 @@ export default function DealDetailPage() {
               <PriceHistoryChart history={priceHistory} currentPrice={deal.discounted_price} />
             )}
 
+            <BuyScoreCard input={buyScoreInput} className="xl:hidden" />
+
             {/* Comments Section */}
             <DealCommentSection dealId={deal.id} />
           </div>
 
           <aside className="xl:sticky xl:top-24">
+            <div className="mb-6 hidden xl:block">
+              <BuyScoreCard input={buyScoreInput} />
+            </div>
             <PriceComparisonPanel
               comparison={priceComparison}
               isLoading={isComparisonLoading}

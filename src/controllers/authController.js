@@ -7,6 +7,7 @@ async function requestWhatsAppOtp(req, res, next) {
     return res.json({
       success: true,
       message: result.message || "WhatsApp OTP sent.",
+      is_test_user: Boolean(result.isTestUser || result.sampleLogin),
       data: result
     });
   } catch (error) {
@@ -20,7 +21,11 @@ async function verifyWhatsAppOtp(req, res, next) {
     return res.json({
       success: true,
       message: "OTP verified successfully",
-      user: authResult.user,
+      user: {
+        ...authResult.user,
+        full_name: authResult.user?.name || "",
+        is_test_user: Boolean(authResult.user?.isTestUser)
+      },
       token: authResult.accessToken,
       data: authResult
     });

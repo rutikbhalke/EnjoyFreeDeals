@@ -29,6 +29,8 @@ export type BackendDeal = {
   couponCode?: string | null;
   cashbackPercentage?: number | null;
   isHotDeal?: boolean;
+  isBestPrice?: boolean;
+  dealScore?: number | null;
   isFeatured?: boolean;
   clickCount?: number;
   voteScore?: number;
@@ -67,6 +69,9 @@ export type WebDeal = {
   lowest_price: number | null;
   best_platform: string | null;
   comparison_count: number;
+  is_hot_deal: boolean;
+  is_best_price: boolean;
+  deal_score: number | null;
   last_price_checked_at: string | null;
   stores: { name: string; logo_url: string | null; slug: string } | null;
   categories: { name: string; slug: string } | null;
@@ -208,6 +213,9 @@ export function mapBackendDeal(deal: BackendDeal): WebDeal {
     lowest_price: numberOrNull(deal.lowestPrice),
     best_platform: deal.bestPlatform || null,
     comparison_count: Number(deal.comparisonCount || 0),
+    is_hot_deal: Boolean(deal.isHotDeal),
+    is_best_price: Boolean(deal.isBestPrice),
+    deal_score: numberOrNull(deal.dealScore),
     last_price_checked_at: deal.lastPriceCheckedAt || null,
     stores: {
       name: storeName,

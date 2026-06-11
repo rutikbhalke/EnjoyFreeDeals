@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import SEO, { SITE_URL } from "@/components/SEO";
 
 export default function ProfilePage() {
-  const { user, profile } = useAuth();
+  const { user, profile, mobileSession, displayName, displayMobile, isMobileLoggedIn } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [fullName, setFullName] = useState(profile?.full_name ?? "");
@@ -63,8 +63,8 @@ export default function ProfilePage() {
 
   const isLoading = !profile && !!user;
 
-  if (!user) {
-    navigate("/auth");
+  if (!user && !isMobileLoggedIn) {
+    navigate("/login");
     return null;
   }
 
@@ -98,7 +98,7 @@ export default function ProfilePage() {
 
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
-    : user.email?.slice(0, 2).toUpperCase() ?? "U";
+    : displayName?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "U";
 
   const handleSave = async () => {
     setSaving(true);
@@ -136,8 +136,8 @@ export default function ProfilePage() {
               <AvatarFallback className="text-lg">{initials}</AvatarFallback>
             </Avatar>
             <div>
-              <CardTitle>{profile?.full_name || "User"}</CardTitle>
-              <CardDescription>{user.email}</CardDescription>
+              <CardTitle>{profile?.full_name || mobileSession?.full_name || "User"}</CardTitle>
+              <CardDescription>{user?.email || displayMobile || "Mobile OTP login"}</CardDescription>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -149,9 +149,12 @@ export default function ProfilePage() {
               <Label htmlFor="avatarUrl">Avatar URL</Label>
               <Input id="avatarUrl" value={avatarUrl} onChange={(e) => setAvatarUrl(e.target.value)} placeholder="https://..." />
             </div>
-            <Button onClick={handleSave} disabled={saving} className="gap-2">
+            <Button onClick={handleSave} disabled={saving || !user} className="gap-2">
               <Save className="h-4 w-4" />{saving ? "Saving…" : "Save Changes"}
             </Button>
+            {!user && (
+              <p className="text-xs text-muted-foreground">Mobile OTP profile editing will be available after account sync.</p>
+            )}
           </CardContent>
         </Card>
 

@@ -63,6 +63,7 @@ function AnimatedRoutes() {
           <Route path="/deals/:slug" element={<DealDetailPage />} />
           <Route path="/stores" element={<StoresPage />} />
           <Route path="/categories" element={<CategoriesPage />} />
+          <Route path="/login" element={<LoginPage />} />
           <Route path="/auth" element={<LoginPage />} />
           <Route path="/auth/signup" element={<SignupPage />} />
           <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />

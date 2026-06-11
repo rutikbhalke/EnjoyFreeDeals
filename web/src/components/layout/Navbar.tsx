@@ -15,7 +15,7 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
-  const { user, profile, isAdmin, signOut } = useAuth();
+  const { user, profile, mobileSession, displayName, displayMobile, isMobileLoggedIn, isAdmin, signOut } = useAuth();
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
@@ -42,9 +42,11 @@ export default function Navbar() {
     }
   };
 
-  const initials = profile?.full_name
-    ? profile.full_name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
+  const initials = displayName
+    ? displayName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
     : user?.email?.slice(0, 2).toUpperCase() ?? "U";
+  const isLoggedIn = Boolean(user || isMobileLoggedIn);
+  const accountLabel = displayName || user?.email || mobileSession?.mobile || "User";
 
   return (
     <header className={`sticky top-0 z-50 border-b bg-card/80 backdrop-blur-xl transition-shadow duration-300 ${scrolled ? "shadow-md border-transparent" : "border-border"}`}>
@@ -94,11 +96,13 @@ export default function Navbar() {
             <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-transform dark:rotate-0 dark:scale-100" />
           </Button>
 
-          {user ? (
+          {isLoggedIn ? (
             <>
-              <Button variant="outline" size="sm" className="gap-1" asChild>
-                <Link to="/submit-deal"><Plus className="h-3.5 w-3.5" />Submit Deal</Link>
-              </Button>
+              {user && (
+                <Button variant="outline" size="sm" className="gap-1" asChild>
+                  <Link to="/submit-deal"><Plus className="h-3.5 w-3.5" />Submit Deal</Link>
+                </Button>
+              )}
               <NotificationBell />
               <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -110,7 +114,10 @@ export default function Navbar() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <div className="px-2 py-1.5 text-sm font-medium truncate">{profile?.full_name || user.email}</div>
+                <div className="px-2 py-1.5">
+                  <div className="truncate text-sm font-medium">{accountLabel}</div>
+                  {displayMobile && <div className="truncate text-xs text-muted-foreground">{displayMobile}</div>}
+                </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link to="/profile" className="flex items-center gap-2"><User className="h-4 w-4" />My Profile</Link>
@@ -128,14 +135,14 @@ export default function Navbar() {
             </>
           ) : (
             <Button size="sm" className="ml-2" asChild>
-              <Link to="/auth">Sign In</Link>
+              <Link to="/login">Login</Link>
             </Button>
           )}
         </nav>
 
         {/* Mobile menu */}
         <div className="flex items-center gap-2 md:hidden">
-          {user ? (
+          {isLoggedIn ? (
             <>
               <NotificationBell />
               <DropdownMenu>
@@ -148,7 +155,10 @@ export default function Navbar() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
-                <div className="px-2 py-1.5 text-sm font-medium truncate">{profile?.full_name || user.email}</div>
+                <div className="px-2 py-1.5">
+                  <div className="truncate text-sm font-medium">{accountLabel}</div>
+                  {displayMobile && <div className="truncate text-xs text-muted-foreground">{displayMobile}</div>}
+                </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <Link to="/profile" className="flex items-center gap-2"><User className="h-4 w-4" />My Profile</Link>
@@ -166,7 +176,7 @@ export default function Navbar() {
             </>
           ) : (
             <Button size="sm" asChild>
-              <Link to="/auth">Sign In</Link>
+              <Link to="/login">Login</Link>
             </Button>
           )}
           <Sheet>
@@ -202,9 +212,11 @@ export default function Navbar() {
                 <Button variant="ghost" className="justify-start gap-3 h-11" asChild>
                   <Link to="/blog"><BookOpen className="h-4 w-4 text-primary" />Blog</Link>
                 </Button>
-                <Button variant="ghost" className="justify-start gap-3 h-11" asChild>
-                  <Link to="/submit-deal"><Plus className="h-4 w-4 text-primary" />Submit Deal</Link>
-                </Button>
+                {user && (
+                  <Button variant="ghost" className="justify-start gap-3 h-11" asChild>
+                    <Link to="/submit-deal"><Plus className="h-4 w-4 text-primary" />Submit Deal</Link>
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   className="justify-start gap-3 h-11"
