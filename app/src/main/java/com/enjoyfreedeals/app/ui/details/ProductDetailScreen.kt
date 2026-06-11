@@ -29,6 +29,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -37,6 +40,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.enjoyfreedeals.app.R
 import com.enjoyfreedeals.app.data.model.DealModel
@@ -49,6 +53,7 @@ import com.enjoyfreedeals.app.theme.GreyText
 import com.enjoyfreedeals.app.theme.PrimaryGreen
 import com.enjoyfreedeals.app.theme.PrimaryRed
 import com.enjoyfreedeals.app.theme.SoftYellow
+import com.enjoyfreedeals.app.ui.components.BuyScoreCard
 import com.enjoyfreedeals.app.ui.components.DealCard
 import com.enjoyfreedeals.app.ui.components.EmptyState
 import com.enjoyfreedeals.app.ui.components.PremiumBackground
@@ -60,6 +65,7 @@ import com.enjoyfreedeals.app.ui.components.formatTimeAgo
 import com.enjoyfreedeals.app.ui.components.formatUpdatedStatus
 import com.enjoyfreedeals.app.ui.components.preferredUpdateTime
 import com.enjoyfreedeals.app.utils.LocalAppStrings
+import com.enjoyfreedeals.app.viewmodel.BuyScoreViewModel
 import java.util.Locale
 
 @Composable
@@ -73,7 +79,8 @@ fun ProductDetailScreen(
     onSimilarDealClick: (DealModel) -> Unit,
     priceHistory: List<PricePointModel> = emptyList(),
     isPriceAlertEnabled: Boolean = false,
-    onPriceAlertClick: (DealModel) -> Unit = {}
+    onPriceAlertClick: (DealModel) -> Unit = {},
+    buyScoreViewModel: BuyScoreViewModel = viewModel()
 ) {
     val strings = LocalAppStrings.current
     PremiumBackground {
@@ -91,6 +98,11 @@ fun ProductDetailScreen(
         val similarDeals = allDeals
             .filter { it.dealId != deal.dealId && it.categoryId == deal.categoryId }
             .take(6)
+        val buyScoreState by buyScoreViewModel.uiState.collectAsState()
+
+        LaunchedEffect(deal.dealId, deal.updatedAt, deal.currentPrice) {
+            buyScoreViewModel.loadBuyScore(deal)
+        }
 
         LazyColumn(
             contentPadding = PaddingValues(18.dp),
@@ -159,6 +171,15 @@ fun ProductDetailScreen(
                             Badge("Apply at checkout", PrimaryRed, Color.White)
                         }
                     }
+                }
+            }
+            buyScoreState.buyScoreModel?.let { buyScore ->
+                item {
+                    BuyScoreCard(
+                        buyScoreModel = buyScore,
+                        selectedRange = buyScoreState.selectedRange,
+                        onRangeSelected = buyScoreViewModel::selectRange
+                    )
                 }
             }
             item {
