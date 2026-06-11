@@ -86,6 +86,7 @@ export type PlatformPrice = {
   is_lowest_price: boolean;
   is_available: boolean;
   last_checked_at: string | null;
+  is_direct_link?: boolean;
 };
 
 export type PriceComparison = {
@@ -264,18 +265,34 @@ function slugify(value?: string | null) {
     .replace(/^-|-$/g, "") || "other-deals";
 }
 
+function buildSearchUrl(platform: string, productName: string) {
+  const query = productName.trim();
+  if (!query) return "";
+  const encoded = encodeURIComponent(query);
+  const key = platform.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  switch (key) {
+    case "amazon": return `https://www.amazon.in/s?k=${encoded}`;
+    case "flipkart": return `https://www.flipkart.com/search?q=${encoded}`;
+    case "meesho": return `https://www.meesho.com/search?q=${encoded}`;
+    case "croma": return `https://www.croma.com/searchB?q=${encoded}`;
+    case "boat": return `https://www.boat-lifestyle.com/search?q=${encoded}`;
+    case "reliancedigital": return `https://www.reliancedigital.in/search?q=${encoded}`;
+    default: return `https://www.google.com/search?q=${encoded}+${encodeURIComponent(platform)}+price`;
+  }
+}
+
 function demoPriceComparison(productId: string): PriceComparison {
   const now = new Date().toISOString();
-  // Demo URLs are only for development. Real scraper/API data must save real product URLs.
-  const rows: Array<[string, number, number, string]> = [
-    ["Meesho", 899, 1899, "https://www.meesho.com/sample-product/p/demoearbuds1"],
-    ["Flipkart", 949, 1999, "https://www.flipkart.com/sample-product/p/itmxxxxxxx"],
-    ["Amazon", 999, 1999, "https://www.amazon.in/dp/B0XXXXXXX"],
-    ["Croma", 1049, 2099, "https://www.croma.com/sample-product/p/300002"],
-    ["Boat", 1099, 2499, "https://www.boat-lifestyle.com/products/sample-product"],
-    ["Reliance Digital", 1199, 2499, "https://www.reliancedigital.in/sample-product/p/491000002"],
+  const name = "product";
+  const rows: Array<[string, number, number]> = [
+    ["Meesho", 899, 1899],
+    ["Flipkart", 949, 1999],
+    ["Amazon", 999, 1999],
+    ["Croma", 1049, 2099],
+    ["Boat", 1099, 2499],
+    ["Reliance Digital", 1199, 2499],
   ];
-  const prices = rows.map(([platform, price, originalPrice, productUrl]) => ({
+  const prices = rows.map(([platform, price, originalPrice]) => ({
     platform,
     platform_logo_url: platformLogo(platform),
     price,
@@ -285,9 +302,10 @@ function demoPriceComparison(productId: string): PriceComparison {
     delivery_charge: 0,
     rating: 4.2,
     review_count: 0,
-    product_url: productUrl,
+    product_url: buildSearchUrl(platform, name),
     is_lowest_price: platform === "Meesho",
     is_available: true,
+    is_direct_link: false,
     last_checked_at: now,
   }));
   return {

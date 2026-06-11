@@ -1,5 +1,5 @@
 -- Development seed: add multiple platform comparison rows for existing deals.
--- Demo URLs are actual-looking product paths for UI testing only.
+-- URLs use platform search pages so users land on relevant results.
 -- Real production comparison rows must use verified platform product URLs.
 
 with selected_deals as (
@@ -45,7 +45,7 @@ comparison_parent as (
     original_price,
     greatest(deal_price - 50, 1),
     case when original_price > 0 then round(((original_price - greatest(deal_price - 50, 1)) / original_price) * 100, 2) else null end,
-    'https://www.meesho.com/demo-product/p/demo',
+    'https://www.meesho.com/search?q=' || replace(title, ' ', '+'),
     'Meesho',
     coupon_code,
     4.2,
@@ -69,19 +69,29 @@ cleared_platforms as (
   returning p.id
 ),
 platform_rows as (
-  select cp.comparison_id, sd.id as deal_id, sd.original_price, sd.coupon_code, 'Meesho' as platform, greatest(sd.deal_price - 50, 1) as price, 'https://www.meesho.com/demo-product/p/demo' as product_url
+  select cp.comparison_id, sd.id as deal_id, sd.original_price, sd.coupon_code, sd.title,
+    'Meesho' as platform, greatest(sd.deal_price - 50, 1) as price,
+    'https://www.meesho.com/search?q=' || replace(sd.title, ' ', '+') as product_url
   from comparison_parent cp join selected_deals sd on sd.id = cp.deal_id
   union all
-  select cp.comparison_id, sd.id, sd.original_price, sd.coupon_code, 'Flipkart', sd.deal_price + 50, 'https://www.flipkart.com/demo-product/p/demo'
+  select cp.comparison_id, sd.id, sd.original_price, sd.coupon_code, sd.title,
+    'Flipkart', sd.deal_price + 50,
+    'https://www.flipkart.com/search?q=' || replace(sd.title, ' ', '+')
   from comparison_parent cp join selected_deals sd on sd.id = cp.deal_id
   union all
-  select cp.comparison_id, sd.id, sd.original_price, sd.coupon_code, 'Amazon', sd.deal_price + 100, 'https://www.amazon.in/dp/B0DEMO1234'
+  select cp.comparison_id, sd.id, sd.original_price, sd.coupon_code, sd.title,
+    'Amazon', sd.deal_price + 100,
+    'https://www.amazon.in/s?k=' || replace(sd.title, ' ', '+')
   from comparison_parent cp join selected_deals sd on sd.id = cp.deal_id
   union all
-  select cp.comparison_id, sd.id, sd.original_price, sd.coupon_code, 'Croma', sd.deal_price + 150, 'https://www.croma.com/demo-product/p/demo'
+  select cp.comparison_id, sd.id, sd.original_price, sd.coupon_code, sd.title,
+    'Croma', sd.deal_price + 150,
+    'https://www.croma.com/searchB?q=' || replace(sd.title, ' ', '+')
   from comparison_parent cp join selected_deals sd on sd.id = cp.deal_id
   union all
-  select cp.comparison_id, sd.id, sd.original_price, sd.coupon_code, 'Reliance Digital', sd.deal_price + 200, 'https://www.reliancedigital.in/demo-product/p/491000000'
+  select cp.comparison_id, sd.id, sd.original_price, sd.coupon_code, sd.title,
+    'Reliance Digital', sd.deal_price + 200,
+    'https://www.reliancedigital.in/search?q=' || replace(sd.title, ' ', '+')
   from comparison_parent cp join selected_deals sd on sd.id = cp.deal_id
 )
 insert into public.price_comparison_platforms (

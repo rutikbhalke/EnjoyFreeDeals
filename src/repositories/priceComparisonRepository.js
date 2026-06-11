@@ -2,7 +2,7 @@ const { supabaseAdmin } = require("../config/supabaseClient");
 const { isMissingTableError, throwIfSupabaseError } = require("../utils/supabaseErrors");
 const { getPlatformLogo } = require("../../lib/platformLogos");
 const { normalizePlatformName, isSupportedPlatform } = require("../../lib/platformDetector");
-const { isActualProductUrl, normalizeUrl } = require("../../lib/urlUtils");
+const { buildSearchUrl, isActualProductUrl, normalizeUrl } = require("../../lib/urlUtils");
 
 const TABLE = "price_comparisons";
 const PLATFORM_TABLE = "price_comparison_platforms";
@@ -404,7 +404,7 @@ function withDemoRows(comparison, deal) {
 
 function demoPlatformRows(title, productUrl, now) {
   const value = String(title || "").toLowerCase();
-  const rows = comparisonPreset(value);
+  const rows = comparisonPreset(value, title);
   return rows.map(({ platform, price, originalPrice, url }) => ({
     id: `demo-${String(platform).toLowerCase()}`,
     platform,
@@ -422,6 +422,7 @@ function demoPlatformRows(title, productUrl, now) {
     available: true,
     isAvailable: true,
     is_available: true,
+    is_direct_link: false,
     deliveryInfo: "Free delivery",
     delivery_info: "Free delivery",
     deliveryCharge: 0,
@@ -437,58 +438,59 @@ function demoPlatformRows(title, productUrl, now) {
   }));
 }
 
-function comparisonPreset(value) {
+function comparisonPreset(value, productName) {
+  const name = String(productName || value || "").trim();
   if (/shoe|sneaker|adidas|nike|puma|decathlon|fashion/.test(value)) {
     return [
-      demoRow("Myntra", 1899, 3999, "https://www.myntra.com/sports-shoes/sample-brand/sample-running-shoes/12345678/buy"),
-      demoRow("Ajio", 1949, 3999, "https://www.ajio.com/sample-running-shoes/p/469000000_black"),
-      demoRow("Flipkart", 1999, 3999, "https://www.flipkart.com/sample-running-shoes/p/itmshoe123"),
-      demoRow("Amazon", 2099, 3999, "https://www.amazon.in/dp/B0SHOE123"),
-      demoRow("Meesho", 1799, 3499, "https://www.meesho.com/sample-running-shoes/p/demoshoe1")
+      demoRow("Myntra", 1899, 3999, buildSearchUrl("Myntra", name)),
+      demoRow("Ajio", 1949, 3999, buildSearchUrl("Ajio", name)),
+      demoRow("Flipkart", 1999, 3999, buildSearchUrl("Flipkart", name)),
+      demoRow("Amazon", 2099, 3999, buildSearchUrl("Amazon", name)),
+      demoRow("Meesho", 1799, 3499, buildSearchUrl("Meesho", name))
     ];
   }
   if (/beauty|skin|cream|makeup|serum|mamaearth|nykaa|purplle/.test(value)) {
     return [
-      demoRow("Purplle", 449, 899, "https://www.purplle.com/product/sample-vitamin-c-serum-30ml"),
-      demoRow("Nykaa", 499, 999, "https://www.nykaa.com/sample-vitamin-c-serum/p/123456"),
-      demoRow("Mamaearth", 499, 999, "https://mamaearth.in/product/sample-vitamin-c-serum"),
-      demoRow("Flipkart", 519, 999, "https://www.flipkart.com/sample-vitamin-c-serum/p/itmbeauty123"),
-      demoRow("Amazon", 529, 999, "https://www.amazon.in/dp/B0BEAUTY123")
+      demoRow("Purplle", 449, 899, buildSearchUrl("Purplle", name)),
+      demoRow("Nykaa", 499, 999, buildSearchUrl("Nykaa", name)),
+      demoRow("Flipkart", 519, 999, buildSearchUrl("Flipkart", name)),
+      demoRow("Amazon", 529, 999, buildSearchUrl("Amazon", name)),
+      demoRow("Meesho", 499, 999, buildSearchUrl("Meesho", name))
     ];
   }
   if (/grocery|atta|rice|oil|snack|combo|basket|blinkit|zepto|jiomart/.test(value)) {
     return [
-      demoRow("JioMart", 699, 999, "https://www.jiomart.com/p/groceries/sample-grocery-combo/590000000"),
-      demoRow("BigBasket", 749, 999, "https://www.bigbasket.com/pd/123456/sample-grocery-combo"),
-      demoRow("Blinkit", 729, 999, "https://blinkit.com/prn/sample-grocery-combo/prid/123456"),
-      demoRow("Zepto", 719, 999, "https://www.zeptonow.com/pn/sample-grocery-combo/pvid/demo123"),
-      demoRow("Swiggy Instamart", 735, 999, "https://www.swiggy.com/instamart/item/sample-grocery-combo")
+      demoRow("JioMart", 699, 999, buildSearchUrl("JioMart", name)),
+      demoRow("BigBasket", 749, 999, buildSearchUrl("BigBasket", name)),
+      demoRow("Flipkart", 729, 999, buildSearchUrl("Flipkart", name)),
+      demoRow("Amazon", 799, 1099, buildSearchUrl("Amazon", name)),
+      demoRow("Meesho", 719, 999, buildSearchUrl("Meesho", name))
     ];
   }
   if (/watch|noise|smartwatch/.test(value)) {
     return [
-      demoRow("Noise", 1299, 4999, "https://www.gonoise.com/products/sample-smart-watch"),
-      demoRow("Flipkart", 1399, 4999, "https://www.flipkart.com/sample-smart-watch/p/itmwatch123"),
-      demoRow("Amazon", 1499, 4999, "https://www.amazon.in/dp/B0WATCH123"),
-      demoRow("TataCliq", 1599, 4999, "https://www.tatacliq.com/sample-smart-watch/p-mp000000000"),
-      demoRow("Croma", 1699, 4999, "https://www.croma.com/sample-smart-watch/p/300000")
+      demoRow("Noise", 1299, 4999, buildSearchUrl("Noise", name)),
+      demoRow("Flipkart", 1399, 4999, buildSearchUrl("Flipkart", name)),
+      demoRow("Amazon", 1499, 4999, buildSearchUrl("Amazon", name)),
+      demoRow("Croma", 1699, 4999, buildSearchUrl("Croma", name)),
+      demoRow("Reliance Digital", 1599, 4999, buildSearchUrl("Reliance Digital", name))
     ];
   }
   if (/mobile|phone|iphone|samsung|oneplus|realme|xiaomi|\bmi\b/.test(value)) {
     return [
-      demoRow("Flipkart", 12499, 18999, "https://www.flipkart.com/sample-mobile-phone/p/itmmobile123"),
-      demoRow("JioMart", 12899, 18999, "https://www.jiomart.com/p/electronics/sample-mobile-phone/590000001"),
-      demoRow("Reliance Digital", 12949, 18999, "https://www.reliancedigital.in/sample-mobile-phone/p/491000001"),
-      demoRow("Amazon", 12999, 17999, "https://www.amazon.in/dp/B0MOBILE123"),
-      demoRow("Croma", 13299, 19999, "https://www.croma.com/sample-mobile-phone/p/300001")
+      demoRow("Flipkart", 12499, 18999, buildSearchUrl("Flipkart", name)),
+      demoRow("JioMart", 12899, 18999, buildSearchUrl("JioMart", name)),
+      demoRow("Reliance Digital", 12949, 18999, buildSearchUrl("Reliance Digital", name)),
+      demoRow("Amazon", 12999, 17999, buildSearchUrl("Amazon", name)),
+      demoRow("Croma", 13299, 19999, buildSearchUrl("Croma", name))
     ];
   }
   return [
-    demoRow("Meesho", 899, 1899, "https://www.meesho.com/sample-product/p/demoearbuds1"),
-    demoRow("Flipkart", 949, 1999, "https://www.flipkart.com/sample-product/p/itmxxxxxxx"),
-    demoRow("Amazon", 999, 1999, "https://www.amazon.in/dp/B0XXXXXXX"),
-    demoRow("Croma", 1049, 2099, "https://www.croma.com/sample-product/p/300002"),
-    demoRow("Boat", 1099, 2499, "https://www.boat-lifestyle.com/products/sample-product")
+    demoRow("Meesho", 899, 1899, buildSearchUrl("Meesho", name)),
+    demoRow("Flipkart", 949, 1999, buildSearchUrl("Flipkart", name)),
+    demoRow("Amazon", 999, 1999, buildSearchUrl("Amazon", name)),
+    demoRow("Croma", 1049, 2099, buildSearchUrl("Croma", name)),
+    demoRow("Boat", 1099, 2499, buildSearchUrl("Boat", name))
   ];
 }
 
@@ -497,12 +499,16 @@ function demoRow(platform, price, originalPrice, url) {
 }
 
 function normalizeResponsePrices(rows, comparison) {
+  const productName = comparison.productName || comparison.productUrl || "";
   const prices = (rows || [])
     .map((price) => {
       const platform = price.platform || "";
-      const productUrl = normalizeUrl(price.productUrl || price.product_url || price.affiliateUrl || price.affiliate_url || "");
-      const hasActualUrl = isActualProductUrl(platform, productUrl);
-      const isAvailable = price.available !== false && price.is_available !== false && hasActualUrl;
+      const rawUrl = normalizeUrl(price.productUrl || price.product_url || price.affiliateUrl || price.affiliate_url || "");
+      const hasActualUrl = isActualProductUrl(platform, rawUrl);
+      // Keep the platform available even without a direct product link.
+      // Fall back to a search URL so the user lands on relevant results.
+      const finalUrl = hasActualUrl ? rawUrl : (buildSearchUrl(platform, productName) || rawUrl);
+      const isAvailable = price.available !== false && price.is_available !== false;
       return {
         id: price.id || `${comparison.productId}-${platform}`,
         platform,
@@ -520,13 +526,14 @@ function normalizeResponsePrices(rows, comparison) {
         rating: nullableNumber(price.rating),
         reviewCount: Number(price.reviewCount || price.review_count || 0),
         review_count: Number(price.reviewCount || price.review_count || 0),
-        productUrl,
-        product_url: productUrl,
-        affiliateUrl: productUrl,
-        affiliate_url: productUrl,
+        productUrl: finalUrl,
+        product_url: finalUrl,
+        affiliateUrl: finalUrl,
+        affiliate_url: finalUrl,
         available: isAvailable,
         isAvailable,
         is_available: isAvailable,
+        is_direct_link: hasActualUrl,
         isLowestPrice: false,
         is_lowest_price: false,
         lastCheckedAt: price.lastCheckedAt || price.last_checked_at || price.lastUpdated || price.last_updated || comparison.lastUpdated,
