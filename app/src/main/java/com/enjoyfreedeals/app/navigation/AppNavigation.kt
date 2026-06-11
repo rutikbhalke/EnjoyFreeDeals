@@ -36,10 +36,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.enjoyfreedeals.app.data.model.DealModel
 import com.enjoyfreedeals.app.ui.about.AboutScreen
 import com.enjoyfreedeals.app.ui.auth.LoginScreen
@@ -69,8 +71,10 @@ import com.enjoyfreedeals.app.viewmodel.CategoryViewModel
 import com.enjoyfreedeals.app.viewmodel.DealsViewModel
 import com.enjoyfreedeals.app.viewmodel.HomeViewModel
 import com.enjoyfreedeals.app.viewmodel.NotificationViewModel
+import com.enjoyfreedeals.app.viewmodel.ProductDetailViewModel
 import com.enjoyfreedeals.app.viewmodel.ProfileViewModel
 import com.enjoyfreedeals.app.viewmodel.SettingsViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 
 @Composable
 fun AppNavigation(
@@ -184,7 +188,7 @@ private fun MainScaffold(
 
     fun openDealDetails(deal: DealModel) {
         dealsViewModel.selectDeal(deal)
-        navController.navigate(Route.ProductDetail)
+        navController.navigate(Route.productDetail(deal.dealId))
     }
 
     fun openPriceAlert(deal: DealModel) {
@@ -444,8 +448,22 @@ private fun MainScaffold(
                         onViewDeal = ::viewDeal
                     )
                 }
-                composable(Route.ProductDetail) {
-                    val selectedDeal = dealsState.selectedDeal
+                composable(
+                    route = Route.ProductDetail,
+                    arguments = listOf(navArgument(Route.DealIdArg) { type = NavType.StringType })
+                ) { backStackEntry ->
+                    val dealId = backStackEntry.arguments?.getString(Route.DealIdArg).orEmpty()
+                    val productDetailViewModel: ProductDetailViewModel = viewModel(key = "product-detail-$dealId")
+                    val detailState by productDetailViewModel.uiState.collectAsState()
+                    LaunchedEffect(dealId) {
+                        if (dealId.isNotBlank()) {
+                            productDetailViewModel.load(dealId)
+                        }
+                    }
+                    val selectedDeal = detailState.deal
+                        ?: dealsState.selectedDeal?.takeIf { it.dealId == dealId || it.productId == dealId }
+                        ?: dealsState.allDeals.firstOrNull { it.dealId == dealId || it.productId == dealId }
+                        ?: homeState.deals.firstOrNull { it.dealId == dealId || it.productId == dealId }
                     ProductDetailScreen(
                         deal = selectedDeal,
                         allDeals = dealsState.allDeals.ifEmpty { homeState.deals },
@@ -461,7 +479,9 @@ private fun MainScaffold(
                             }
                         },
                         onSimilarDealClick = ::openDealDetails,
-                        priceHistory = selectedDeal?.let { dealsState.priceHistory[it.dealId] }.orEmpty(),
+                        priceHistory = detailState.priceHistory.ifEmpty {
+                            selectedDeal?.let { dealsState.priceHistory[it.dealId] }.orEmpty()
+                        },
                         isPriceAlertEnabled = selectedDeal?.let { dealsState.priceDropAlerts.contains(it.dealId) } == true,
                         onPriceAlertClick = ::openPriceAlert
                     )
@@ -508,9 +528,12 @@ private object Route {
     const val Settings = "settings"
     const val LanguageSettings = "language_settings"
     const val About = "about"
-    const val ProductDetail = "product_detail"
+    const val DealIdArg = "dealId"
+    const val ProductDetail = "product_detail/{$DealIdArg}"
     const val ProductPriceHistory = "product_price_history"
     const val PriceAlert = "price_alert"
+
+    fun productDetail(dealId: String): String = "product_detail/$dealId"
 }
 
 private data class BottomTab(val route: String, val label: (com.enjoyfreedeals.app.utils.AppStrings) -> String, val icon: ImageVector)

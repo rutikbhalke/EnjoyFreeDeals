@@ -61,6 +61,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
@@ -390,11 +391,10 @@ fun DealCard(
                         Spacer(Modifier.width(8.dp))
                         Text(if (deal.couponCode.isNotBlank()) "Get Coupon" else strings.viewDeal, fontWeight = FontWeight.Bold)
                     }
-                    Button(
+                    OutlinedButton(
                         onClick = { onOpenDetails?.invoke(deal) },
                         modifier = Modifier.weight(1f),
                         enabled = onOpenDetails != null,
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentYellow, contentColor = DarkText),
                         shape = RoundedCornerShape(16.dp)
                     ) {
                         Text(strings.viewDetails, fontWeight = FontWeight.Bold)
