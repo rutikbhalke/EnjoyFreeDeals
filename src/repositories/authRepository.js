@@ -78,7 +78,7 @@ async function verifyWhatsAppOtp(payload) {
   console.info("[WhatsApp OTP] Verification received", { mobile: maskMobile(input.mobile) });
 
   if (isConfiguredTestMobile(input.mobile)) {
-    if (input.otp !== configuredTestOtp()) {
+    if (!isConfiguredTestOtp(input.otp)) {
       console.info("[WhatsApp OTP] Test OTP verification failed", { mobile: maskMobile(input.mobile) });
       throwBadRequest("Invalid OTP");
     }
@@ -490,7 +490,27 @@ function configuredTestMobile() {
 }
 
 function configuredTestOtp() {
-  return String(process.env.TEST_OTP || process.env.SAMPLE_LOGIN_OTP || process.env.FIXED_LOGIN_OTP || "123456").replace(/\D/g, "");
+  return configuredTestOtps()[0] || "123457";
+}
+
+function configuredTestOtps() {
+  const configured = [
+    process.env.TEST_OTP,
+    process.env.SAMPLE_LOGIN_OTP,
+    process.env.FIXED_LOGIN_OTP,
+    process.env.TEST_OTPS
+  ]
+    .filter(Boolean)
+    .flatMap((value) => String(value).split(","))
+    .map((value) => value.replace(/\D/g, ""))
+    .filter((value) => value.length >= 4 && value.length <= 8);
+
+  return Array.from(new Set([...configured, "123457", "123456"]));
+}
+
+function isConfiguredTestOtp(otp) {
+  const normalizedOtp = String(otp || "").replace(/\D/g, "");
+  return configuredTestOtps().includes(normalizedOtp);
 }
 
 function isConfiguredTestMobile(mobile) {

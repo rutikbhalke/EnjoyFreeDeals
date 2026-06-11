@@ -41,7 +41,7 @@ insert into public.otp_verifications (
 )
 values (
   '9699353648',
-  '123456',
+  '123457',
   now() + interval '365 days',
   false,
   true
