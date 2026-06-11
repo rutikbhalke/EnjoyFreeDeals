@@ -57,13 +57,13 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 )
             }
             repository.requestWhatsAppOtp(normalizedMobile)
-                .onSuccess {
+                .onSuccess { message ->
                     _uiState.update {
                         it.copy(
                             isLoading = false,
                             isOtpSent = true,
                             pendingMobile = normalizedMobile,
-                            successMessage = "WhatsApp OTP sent."
+                            successMessage = message
                         )
                     }
                 }

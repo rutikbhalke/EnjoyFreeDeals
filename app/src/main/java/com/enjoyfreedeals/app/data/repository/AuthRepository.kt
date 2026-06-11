@@ -1,6 +1,7 @@
 package com.enjoyfreedeals.app.data.repository
 
 import android.content.Context
+import android.util.Log
 import com.enjoyfreedeals.app.data.model.UserModel
 import com.enjoyfreedeals.app.data.remote.BackendClient
 import org.json.JSONObject
@@ -19,13 +20,18 @@ class AuthRepository(private val context: Context) {
     fun currentUser(): UserModel? =
         AuthSessionStore.currentUser(context)
 
-    suspend fun requestWhatsAppOtp(mobile: String): Result<Unit> =
+    suspend fun requestWhatsAppOtp(mobile: String): Result<String> =
         runCatching {
-            backendClient.post(
+            Log.d(TAG, "Request OTP API: /api/auth/whatsapp/request-otp")
+            val response = backendClient.post(
                 "/api/auth/whatsapp/request-otp",
                 JSONObject().put("mobile", mobile.trim())
             )
-        }.map { }
+            Log.d(TAG, "Request OTP success=${response.optBoolean("success", false)}")
+            response.optJSONObject("data")?.optString("message")?.takeIf { it.isNotBlank() }
+                ?: response.optString("message").takeIf { it.isNotBlank() }
+                ?: "WhatsApp OTP sent."
+        }
 
     suspend fun verifyWhatsAppOtp(
         mobile: String,
@@ -35,7 +41,9 @@ class AuthRepository(private val context: Context) {
             .put("mobile", mobile.trim())
             .put("otp", otp.trim())
 
+        Log.d(TAG, "Verify OTP API: /api/auth/whatsapp/verify-otp")
         val response = backendClient.post("/api/auth/whatsapp/verify-otp", payload)
+        Log.d(TAG, "Verify OTP success=${response.optBoolean("success", false)}")
         persistAuthResponse(response)
     }
 
@@ -66,4 +74,7 @@ class AuthRepository(private val context: Context) {
             profileImage = optString("profileImage")
         )
 
+    companion object {
+        private const val TAG = "AuthRepository"
+    }
 }

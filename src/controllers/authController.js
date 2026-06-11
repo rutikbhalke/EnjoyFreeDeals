@@ -4,7 +4,11 @@ const { sendSuccess } = require("../utils/responses");
 async function requestWhatsAppOtp(req, res, next) {
   try {
     const result = await authRepository.requestWhatsAppOtp(req.body);
-    return sendSuccess(res, result);
+    return res.json({
+      success: true,
+      message: result.message || "WhatsApp OTP sent.",
+      data: result
+    });
   } catch (error) {
     next(error);
   }
@@ -13,7 +17,13 @@ async function requestWhatsAppOtp(req, res, next) {
 async function verifyWhatsAppOtp(req, res, next) {
   try {
     const authResult = await authRepository.verifyWhatsAppOtp(req.body);
-    return sendSuccess(res, authResult);
+    return res.json({
+      success: true,
+      message: "OTP verified successfully",
+      user: authResult.user,
+      token: authResult.accessToken,
+      data: authResult
+    });
   } catch (error) {
     next(error);
   }

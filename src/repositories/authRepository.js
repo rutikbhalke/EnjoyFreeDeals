@@ -4,6 +4,7 @@ const { generateOtp, hashOtp, sendWhatsAppOtp } = require("../services/whatsappO
 const { throwIfSupabaseError } = require("../utils/supabaseErrors");
 
 const PROFILES_TABLE = "profiles";
+const OTP_VERIFICATIONS_TABLE = "otp_verifications";
 const OTP_TTL_MS = Number(process.env.WHATSAPP_OTP_TTL_SECONDS || 300) * 1000;
 const OTP_RESEND_MS = Number(process.env.WHATSAPP_OTP_RESEND_SECONDS || 45) * 1000;
 const OTP_MAX_ATTEMPTS = Number(process.env.WHATSAPP_OTP_MAX_ATTEMPTS || 5);
@@ -12,16 +13,38 @@ const whatsappOtpStore = new Map();
 
 async function requestWhatsAppOtp(payload) {
   const mobile = normalizeMobile(payload?.mobile || payload?.phone);
-  const sampleLogin = await findSampleOtpLogin(mobile);
-  if (sampleLogin) {
-    whatsappOtpStore.set(mobile, {
-      hash: hashOtp(mobile, sampleLogin.otp),
-      expiresAt: Date.now() + OTP_TTL_MS,
-      sentAt: Date.now(),
-      attempts: 0
+  console.info("[WhatsApp OTP] Request received", { mobile: maskMobile(mobile) });
+
+  if (isConfiguredTestMobile(mobile)) {
+    const testOtp = configuredTestOtp();
+    await storeOtpVerification({
+      mobile,
+      otp: testOtp,
+      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      isTestUser: true
     });
+    console.info("[WhatsApp OTP] Test OTP mode used", { mobile: maskMobile(mobile) });
     return {
       mobile,
+      message: `Test OTP enabled. Use OTP ${testOtp}.`,
+      expiresInSeconds: 365 * 24 * 60 * 60,
+      resendAfterSeconds: 0,
+      isTestUser: true
+    };
+  }
+
+  const sampleLogin = await findSampleOtpLogin(mobile);
+  if (sampleLogin) {
+    await storeOtpVerification({
+      mobile,
+      otp: sampleLogin.otp,
+      expiresAt: new Date(Date.now() + OTP_TTL_MS),
+      isTestUser: true
+    });
+    setMemoryOtp(mobile, sampleLogin.otp, OTP_TTL_MS);
+    return {
+      mobile,
+      message: "Sample OTP enabled.",
       expiresInSeconds: Math.floor(OTP_TTL_MS / 1000),
       resendAfterSeconds: 0,
       sampleLogin: true
@@ -34,16 +57,17 @@ async function requestWhatsAppOtp(payload) {
   }
 
   const otp = generateOtp();
-  const otpRecord = {
-    hash: hashOtp(mobile, otp),
-    expiresAt: Date.now() + OTP_TTL_MS,
-    sentAt: Date.now(),
-    attempts: 0
-  };
   await sendWhatsAppOtp(mobile, otp);
-  whatsappOtpStore.set(mobile, otpRecord);
+  await storeOtpVerification({
+    mobile,
+    otp,
+    expiresAt: new Date(Date.now() + OTP_TTL_MS),
+    isTestUser: false
+  });
+  setMemoryOtp(mobile, otp, OTP_TTL_MS);
   return {
     mobile,
+    message: "WhatsApp OTP sent.",
     expiresInSeconds: Math.floor(OTP_TTL_MS / 1000),
     resendAfterSeconds: Math.floor(OTP_RESEND_MS / 1000)
   };
@@ -51,12 +75,34 @@ async function requestWhatsAppOtp(payload) {
 
 async function verifyWhatsAppOtp(payload) {
   const input = normalizeWhatsAppOtpPayload(payload);
-  const sampleLogin = await findSampleOtpLogin(input.mobile);
-  if (sampleLogin && input.otp === sampleLogin.otp) {
-    whatsappOtpStore.delete(input.mobile);
-    input.name = input.name || sampleLogin.name;
+  console.info("[WhatsApp OTP] Verification received", { mobile: maskMobile(input.mobile) });
+
+  if (isConfiguredTestMobile(input.mobile)) {
+    if (input.otp !== configuredTestOtp()) {
+      console.info("[WhatsApp OTP] Test OTP verification failed", { mobile: maskMobile(input.mobile) });
+      throwBadRequest("Invalid OTP");
+    }
+    await storeOtpVerification({
+      mobile: input.mobile,
+      otp: input.otp,
+      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+      isTestUser: true
+    });
+    input.name = input.name || "EnjoyFreeDeals Test User";
+    input.isTestUser = true;
+    console.info("[WhatsApp OTP] Test OTP verification success", { mobile: maskMobile(input.mobile) });
   } else {
-    consumeWhatsAppOtp(input.mobile, input.otp);
+    const sampleLogin = await findSampleOtpLogin(input.mobile);
+    if (sampleLogin && input.otp === sampleLogin.otp) {
+      whatsappOtpStore.delete(input.mobile);
+      input.name = input.name || sampleLogin.name;
+      input.isTestUser = true;
+    } else {
+      const consumed = await consumeStoredOtpVerification(input.mobile, input.otp);
+      if (!consumed) {
+        consumeWhatsAppOtp(input.mobile, input.otp);
+      }
+    }
   }
   const authUser = await ensureWhatsAppAuthUser(input);
   const session = await signInWithPassword(whatsAppEmail(input.mobile), whatsappPassword(input.mobile));
@@ -65,6 +111,7 @@ async function verifyWhatsAppOtp(payload) {
     email: input.email,
     mobile: input.mobile
   });
+  console.info("[WhatsApp OTP] Profile created/updated", { mobile: maskMobile(input.mobile), userId: authUser.id });
   return toAuthResponse(session, authUser, profile, input.mobile);
 }
 
@@ -216,6 +263,111 @@ function consumeWhatsAppOtp(mobile, otp) {
   whatsappOtpStore.delete(mobile);
 }
 
+function setMemoryOtp(mobile, otp, ttlMs) {
+  whatsappOtpStore.set(mobile, {
+    hash: hashOtp(mobile, otp),
+    expiresAt: Date.now() + ttlMs,
+    sentAt: Date.now(),
+    attempts: 0
+  });
+}
+
+async function storeOtpVerification({ mobile, otp, expiresAt, isTestUser }) {
+  const normalizedMobile = normalizeMobile(mobile);
+  const localMobile = normalizedMobile.slice(-10);
+  await supabaseAdmin
+    .from(OTP_VERIFICATIONS_TABLE)
+    .delete()
+    .in("mobile", mobileVariants(normalizedMobile));
+
+  const row = {
+    mobile: normalizedMobile,
+    otp_code: otp,
+    otp_hash: hashOtp(normalizedMobile, otp),
+    expires_at: expiresAt.toISOString(),
+    used: false,
+    is_test_user: Boolean(isTestUser),
+    updated_at: new Date().toISOString()
+  };
+
+  const { error } = await supabaseAdmin
+    .from(OTP_VERIFICATIONS_TABLE)
+    .insert(row);
+
+  if (!error) return true;
+
+  const fallbackRow = {
+    mobile: normalizedMobile,
+    otp_hash: row.otp_hash,
+    expires_at: row.expires_at,
+    used: false
+  };
+  const { error: fallbackError } = await supabaseAdmin
+    .from(OTP_VERIFICATIONS_TABLE)
+    .insert(fallbackRow);
+
+  if (fallbackError) {
+    console.warn("[WhatsApp OTP] Database OTP write skipped", {
+      mobile: maskMobile(localMobile),
+      error: fallbackError.message
+    });
+    return false;
+  }
+
+  return true;
+}
+
+async function consumeStoredOtpVerification(mobile, otp) {
+  const variants = mobileVariants(mobile);
+  let rows = [];
+  try {
+    const { data, error } = await supabaseAdmin
+      .from(OTP_VERIFICATIONS_TABLE)
+      .select("id, mobile, otp_code, otp_hash, expires_at, used, is_test_user")
+      .in("mobile", variants)
+      .eq("used", false)
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    if (error) {
+      console.warn("[WhatsApp OTP] Database OTP read skipped", { mobile: maskMobile(mobile), error: error.message });
+      return false;
+    }
+    rows = data || [];
+  } catch (error) {
+    console.warn("[WhatsApp OTP] Database OTP read failed", { mobile: maskMobile(mobile), error: error.message });
+    return false;
+  }
+
+  const now = Date.now();
+  const matchingRow = rows.find((row) => {
+    const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : 0;
+    const directMatch = row.otp_code && String(row.otp_code).replace(/\D/g, "") === otp;
+    const hashMatch = row.otp_hash && row.otp_hash === hashOtp(normalizeMobile(mobile), otp);
+    return expiresAt > now && (directMatch || hashMatch);
+  });
+
+  if (!matchingRow) {
+    if (rows.length) throwBadRequest("Invalid OTP");
+    return false;
+  }
+
+  if (!matchingRow.is_test_user) {
+    const { error } = await supabaseAdmin
+      .from(OTP_VERIFICATIONS_TABLE)
+      .update({ used: true, updated_at: new Date().toISOString() })
+      .eq("id", matchingRow.id);
+    if (error) {
+      console.warn("[WhatsApp OTP] Database OTP used update skipped", {
+        mobile: maskMobile(mobile),
+        error: error.message
+      });
+    }
+  }
+
+  return true;
+}
+
 async function findSampleOtpLogin(mobile) {
   let data = null;
   let error = null;
@@ -223,10 +375,10 @@ async function findSampleOtpLogin(mobile) {
     const result = await supabaseAdmin
       .from(SAMPLE_OTP_TABLE)
       .select("mobile, otp_code, display_name, is_active")
-      .eq("mobile", mobile)
+      .in("mobile", mobileVariants(mobile))
       .eq("is_active", true)
-      .maybeSingle();
-    data = result.data;
+      .limit(1);
+    data = (result.data || [])[0] || null;
     error = result.error;
   } catch {
     return fallbackSampleOtpLogin(mobile);
@@ -251,9 +403,9 @@ function fallbackSampleOtpLogin(mobile) {
     return null;
   }
 
-  const fallbackOtp = String(process.env.SAMPLE_LOGIN_OTP || process.env.FIXED_LOGIN_OTP || "123456").replace(/\D/g, "");
+  const fallbackOtp = String(process.env.SAMPLE_LOGIN_OTP || process.env.FIXED_LOGIN_OTP || configuredTestOtp()).replace(/\D/g, "");
   if (fallbackOtp.length < 4) return null;
-  const sampleMobile = normalizeMobile(process.env.SAMPLE_LOGIN_MOBILE || process.env.FIXED_LOGIN_MOBILE || "9699353648");
+  const sampleMobile = normalizeMobile(process.env.SAMPLE_LOGIN_MOBILE || process.env.FIXED_LOGIN_MOBILE || configuredTestMobile());
   if (sampleMobile && mobile !== sampleMobile) return null;
 
   return {
@@ -274,7 +426,8 @@ async function ensureWhatsAppAuthUser(input) {
       full_name: input.name || existing.user_metadata?.full_name || input.mobile,
       mobile: input.mobile,
       whatsapp_login: true,
-      email: input.email || existing.user_metadata?.email || ""
+      email: input.email || existing.user_metadata?.email || "",
+      is_test_user: Boolean(input.isTestUser || existing.user_metadata?.is_test_user)
     };
     const { data, error } = await supabaseAdmin.auth.admin.updateUserById(existing.id, {
       password,
@@ -288,7 +441,8 @@ async function ensureWhatsAppAuthUser(input) {
     full_name: input.name || input.mobile,
     mobile: input.mobile,
     whatsapp_login: true,
-    email: input.email || ""
+    email: input.email || "",
+    is_test_user: Boolean(input.isTestUser)
   };
   const { data, error } = await supabaseAdmin.auth.admin.createUser({
     email,
@@ -329,6 +483,30 @@ function isDevelopment() {
 
 function isTestOtpEnabled() {
   return /^true$/i.test(String(process.env.USE_TEST_OTP || ""));
+}
+
+function configuredTestMobile() {
+  return process.env.TEST_MOBILE || process.env.SAMPLE_LOGIN_MOBILE || process.env.FIXED_LOGIN_MOBILE || "9699353648";
+}
+
+function configuredTestOtp() {
+  return String(process.env.TEST_OTP || process.env.SAMPLE_LOGIN_OTP || process.env.FIXED_LOGIN_OTP || "123456").replace(/\D/g, "");
+}
+
+function isConfiguredTestMobile(mobile) {
+  if (!isTestOtpEnabled()) return false;
+  return normalizeMobile(mobile) === normalizeMobile(configuredTestMobile());
+}
+
+function mobileVariants(mobile) {
+  const normalized = normalizeMobile(mobile);
+  return Array.from(new Set([normalized, normalized.slice(-10)]));
+}
+
+function maskMobile(mobile) {
+  const digits = String(mobile || "").replace(/\D/g, "");
+  if (digits.length <= 4) return "****";
+  return `${"*".repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}`;
 }
 
 function throwBadRequest(message) {
@@ -383,6 +561,7 @@ function toApiUser(authUser, profile, mobileOverride) {
       ? metadata.email || ""
       : profileEmail || metadata.email || (metadata.whatsapp_login ? "" : authUser.email || ""),
     mobile: mobileOverride || metadata.mobile || "",
+    isTestUser: Boolean(metadata.is_test_user),
     profileImage: profile?.avatar_url || metadata.avatar_url || "",
     referralCode: profile?.referral_code || "",
     createdAt: profile?.created_at || authUser.created_at || null,
