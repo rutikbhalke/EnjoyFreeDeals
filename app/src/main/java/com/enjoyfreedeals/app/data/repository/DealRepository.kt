@@ -73,11 +73,11 @@ class DealRepository(private val context: Context) {
     }
 
     fun getPriceHistory(dealId: String): Flow<List<PricePointModel>> = flow {
-        val history =
-            backendClient.get("/api/deals/${dealId.urlEncode()}/price-history", AuthSessionStore.accessToken(context))
-                .dataArray()
-                .toJsonObjects()
-                .map { it.toPricePointModel(dealId) }
+        val response = backendClient.get("/api/price-history?productId=${dealId.urlEncode()}", AuthSessionStore.accessToken(context))
+        val historyArray = response.optJSONArray("history") ?: response.dataArray()
+        val history = historyArray
+            .toJsonObjects()
+            .map { it.toPricePointModel(dealId) }
         emit(history)
     }
 

@@ -21,7 +21,7 @@ export default function PlatformPriceRow({ price, onViewDeal }: PlatformPriceRow
 
   return (
     <div className={`rounded-xl border p-3 transition-colors ${price.is_lowest_price ? "border-emerald-500 bg-emerald-50" : "border-border bg-card"}`}>
-      <div className="flex items-start gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border bg-white">
           {price.platform_logo_url ? (
             <img src={price.platform_logo_url} alt={price.platform} className="h-6 w-6 object-contain" />
@@ -54,7 +54,7 @@ export default function PlatformPriceRow({ price, onViewDeal }: PlatformPriceRow
         <Button
           size="sm"
           variant={price.is_lowest_price ? "default" : "outline"}
-          className="shrink-0 gap-1"
+          className="w-full shrink-0 gap-1 sm:w-auto"
           disabled={!hasUrl}
           onClick={() => {
             if (import.meta.env.DEV) console.info("[price-comparison] Opening comparison product URL", price.product_url);

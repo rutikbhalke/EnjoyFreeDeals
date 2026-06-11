@@ -10,6 +10,7 @@ import com.enjoyfreedeals.app.data.model.StorePriceModel
 import com.enjoyfreedeals.app.data.remote.BackendClient
 import com.enjoyfreedeals.app.data.remote.toJsonObjects
 import com.enjoyfreedeals.app.data.remote.toStorePriceModel
+import com.enjoyfreedeals.app.data.remote.toPricePointModel as toBackendPricePointModel
 import com.enjoyfreedeals.app.data.model.supabase.ProductPriceStatsDto
 import com.enjoyfreedeals.app.data.model.supabase.toPricePointModel
 import com.enjoyfreedeals.app.data.model.supabase.toPriceStatsModel
@@ -67,17 +68,41 @@ class ProductRepository(@Suppress("unused") private val context: Context) {
 
     suspend fun getPriceHistory(productId: String): List<PricePointModel> {
         val fallback = MockPriceHistory.priceHistory[productId].orEmpty()
+        val backendHistory = runCatching {
+            val encodedProductId = URLEncoder.encode(productId, Charsets.UTF_8.name())
+            val response = backend.get("/api/price-history?productId=$encodedProductId")
+            response.optJSONArray("history")
+                ?.toJsonObjects()
+                ?.map { it.toBackendPricePointModel(productId) }
+                ?.sortedBy { it.recordedAt }
+                .orEmpty()
+        }.onFailure {
+            Log.w("PriceHistory", "Backend failed, using fallback data", it)
+        }.getOrDefault(emptyList())
+        if (backendHistory.isNotEmpty()) return backendHistory
         if (!SupabaseConfig.isConfigured) return fallback
-        return runCatching {
+        val supabaseRows = runCatching {
             supabase.priceHistory()
                 .filter { it.productId == productId }
                 .map { it.toPricePointModel() }
                 .sortedBy { it.recordedAt }
         }.getOrDefault(emptyList())
+        return supabaseRows.ifEmpty { fallback }
     }
 
     suspend fun getPriceStatsModel(productId: String, currentPrice: Double): PriceStatsModel? =
         getPriceStats(productId)?.toPriceStatsModel(currentPrice)
+            ?: getPriceHistory(productId).takeIf { it.isNotEmpty() }?.let { history ->
+                val prices = history.map { it.price }.filter { it > 0.0 }
+                PriceStatsModel(
+                    currentPrice = currentPrice,
+                    averagePrice = prices.average().takeIf { it.isFinite() } ?: currentPrice,
+                    highestPrice = prices.maxOrNull() ?: currentPrice,
+                    lowestPrice = prices.minOrNull() ?: currentPrice,
+                    dropFromAveragePercent = 0,
+                    isLowestPriceNow = currentPrice <= (prices.minOrNull() ?: currentPrice)
+                )
+            }
 
     private fun mockDeal(productId: String) =
         MockDeals.deals.firstOrNull { it.dealId == productId || it.productId == productId }

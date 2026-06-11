@@ -58,7 +58,8 @@ import com.enjoyfreedeals.app.ui.components.DealCard
 import com.enjoyfreedeals.app.ui.components.EmptyState
 import com.enjoyfreedeals.app.ui.components.PremiumBackground
 import com.enjoyfreedeals.app.ui.components.PriceComparisonSection
-import com.enjoyfreedeals.app.ui.components.PriceTrackingPanel
+import com.enjoyfreedeals.app.ui.components.PriceHistoryGraph
+import com.enjoyfreedeals.app.ui.components.PriceSummaryCards
 import com.enjoyfreedeals.app.ui.components.SectionTitle
 import com.enjoyfreedeals.app.ui.components.formatPrice
 import com.enjoyfreedeals.app.ui.components.formatTimeAgo
@@ -91,10 +92,10 @@ fun ProductDetailScreen(
             return@PremiumBackground
         }
 
-        val stats = DealRepository.calculatePriceStats(deal, emptyList())
         val detailHistory = priceHistory.ifEmpty {
             listOf(DealRepository.buildPriceHistoryRecord(deal, emptyList(), deal.priceCheckedAt))
         }
+        val stats = DealRepository.calculatePriceStats(deal, detailHistory)
         val similarDeals = allDeals
             .filter { it.dealId != deal.dealId && it.categoryId == deal.categoryId }
             .take(6)
@@ -183,18 +184,16 @@ fun ProductDetailScreen(
                 }
             }
             item {
+                PriceHistoryGraph(historyPoints = detailHistory)
+            }
+            item {
+                PriceSummaryCards(stats = stats)
+            }
+            item {
                 PriceComparisonSection(
                     prices = deal.comparisonPrices,
                     lastCheckedAt = deal.lastPriceCheckedAt ?: deal.priceCheckedAt,
                     onStoreClick = onStorePriceClick
-                )
-            }
-            item {
-                PriceTrackingPanel(
-                    deal = deal,
-                    history = detailHistory,
-                    isAlertEnabled = isPriceAlertEnabled,
-                    onToggleAlert = onPriceAlertClick
                 )
             }
             item {

@@ -16,11 +16,11 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { usePriceHistory } from "@/hooks/usePriceHistory";
 import { usePriceComparison } from "@/hooks/usePriceComparison";
 import PriceHistoryChart from "@/components/deals/PriceHistoryChart";
+import PriceSummaryCards from "@/components/deals/PriceSummaryCards";
 import PriceComparisonPanel from "@/components/deals/PriceComparisonPanel";
 import BuyScoreCard from "@/components/deals/BuyScoreCard";
 import WatchDealButton from "@/components/deals/WatchDealButton";
 import DealVoteButtons from "@/components/deals/DealVoteButtons";
-import DealCommentSection from "@/components/deals/DealCommentSection";
 import { formatUpdatedTime } from "@/lib/api";
 
 export default function DealDetailPage() {
@@ -30,7 +30,7 @@ export default function DealDetailPage() {
   const { trackAndOpen } = useDealClickTracker();
   const { trackDealView } = useActivityTracker();
   const isMobile = useIsMobile();
-  const { data: priceHistory } = usePriceHistory(deal?.id);
+  const { data: priceHistorySummary } = usePriceHistory(deal?.id);
   const { data: priceComparison, isLoading: isComparisonLoading } = usePriceComparison(deal?.id);
 
   // Track deal view on page load
@@ -73,14 +73,22 @@ export default function DealDetailPage() {
       : null;
 
   const updatedText = formatUpdatedTime(deal.updated_at || deal.created_at);
-  const historyPrices = (priceHistory || [])
+  const history = priceHistorySummary?.history || [];
+  const historyPrices = history
     .map((point: any) => Number(point.price || point.price_amount || point.current_price || 0))
     .filter((price) => Number.isFinite(price) && price > 0);
+  const currentPrice = Number(deal.discounted_price || deal.lowest_price || deal.original_price || 0);
+  const fallbackAverage = historyPrices.length ? historyPrices.reduce((sum, price) => sum + price, 0) / historyPrices.length : currentPrice;
+  const priceSummary = {
+    averagePrice: priceHistorySummary?.average_price || Math.round(fallbackAverage || 0),
+    lowestPrice: priceHistorySummary?.lowest_price || (historyPrices.length ? Math.min(...historyPrices) : currentPrice),
+    highestPrice: priceHistorySummary?.highest_price || (historyPrices.length ? Math.max(...historyPrices) : Number(deal.original_price || currentPrice)),
+  };
   const buyScoreInput = {
     currentPrice: deal.discounted_price,
-    averagePrice: historyPrices.length ? historyPrices.reduce((sum, price) => sum + price, 0) / historyPrices.length : deal.original_price,
-    lowestPrice: deal.lowest_price || (historyPrices.length ? Math.min(...historyPrices) : deal.discounted_price),
-    highestPrice: historyPrices.length ? Math.max(...historyPrices) : deal.original_price,
+    averagePrice: priceSummary.averagePrice || deal.original_price,
+    lowestPrice: deal.lowest_price || priceSummary.lowestPrice || deal.discounted_price,
+    highestPrice: priceSummary.highestPrice || deal.original_price,
     discountPercent: deal.discount_percentage,
     dealScore: deal.deal_score,
     isHotDeal: deal.is_hot_deal,
@@ -270,21 +278,18 @@ export default function DealDetailPage() {
               </div>
             </div>
 
-            {/* Price History Chart */}
-            {priceHistory && priceHistory.length >= 2 && (
-              <PriceHistoryChart history={priceHistory} currentPrice={deal.discounted_price} />
-            )}
+            <BuyScoreCard input={buyScoreInput} />
 
-            <BuyScoreCard input={buyScoreInput} className="xl:hidden" />
+            <PriceHistoryChart history={history} currentPrice={deal.discounted_price} />
 
-            {/* Comments Section */}
-            <DealCommentSection dealId={deal.id} />
+            <PriceSummaryCards
+              averagePrice={priceSummary.averagePrice}
+              lowestPrice={priceSummary.lowestPrice}
+              highestPrice={priceSummary.highestPrice}
+            />
           </div>
 
           <aside className="xl:sticky xl:top-24">
-            <div className="mb-6 hidden xl:block">
-              <BuyScoreCard input={buyScoreInput} />
-            </div>
             <PriceComparisonPanel
               comparison={priceComparison}
               isLoading={isComparisonLoading}

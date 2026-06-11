@@ -1,9 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { apiGet } from "@/lib/api";
 
 export interface PriceHistoryPoint {
   price: number;
   recorded_at: string;
+  date?: string;
+  platform?: string | null;
+}
+
+export interface PriceHistorySummary {
+  product_id: string;
+  history: PriceHistoryPoint[];
+  average_price: number;
+  lowest_price: number;
+  highest_price: number;
 }
 
 export function usePriceHistory(dealId: string | undefined) {
@@ -11,13 +21,15 @@ export function usePriceHistory(dealId: string | undefined) {
     queryKey: ["price-history", dealId],
     enabled: !!dealId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("price_history")
-        .select("price, recorded_at")
-        .eq("deal_id", dealId!)
-        .order("recorded_at", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as PriceHistoryPoint[];
+      const summary = await apiGet<PriceHistorySummary>(`/api/price-history?productId=${encodeURIComponent(dealId!)}`);
+      return {
+        ...summary,
+        history: (summary.history || []).map((point) => ({
+          ...point,
+          recorded_at: point.recorded_at || point.date || new Date().toISOString(),
+          price: Number(point.price || 0),
+        })),
+      };
     },
   });
 }
