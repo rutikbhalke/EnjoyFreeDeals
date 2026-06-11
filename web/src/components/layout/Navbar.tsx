@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Search, Menu, LogOut, Shield, User, Tag, Store, Grid3X3, Plus, BookOpen, Sun, Moon } from "lucide-react";
+import { Search, Menu, LogOut, Shield, User, Tag, Store, Grid3X3, Plus, BookOpen, Sun, Moon, TrendingUp, Ticket } from "lucide-react";
 import { useTheme } from "next-themes";
 import logo from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
@@ -61,6 +61,8 @@ export default function Navbar() {
             <input
               ref={searchRef}
               type="text"
+
+
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search deals, stores, coupons..."
@@ -74,6 +76,12 @@ export default function Navbar() {
         <nav className="hidden md:flex items-center gap-1">
           <Button variant="ghost" size="sm" className="relative after:absolute after:bottom-0 after:left-1/2 after:-translate-x-1/2 after:h-0.5 after:w-0 after:bg-primary after:transition-all after:duration-300 hover:after:w-3/4 after:rounded-full" asChild>
             <Link to="/deals">All Deals</Link>
+          </Button>
+          <Button variant="ghost" size="sm" className="relative after:absolute after:bottom-0 after:left-1/2 after:-translate-x-1/2 after:h-0.5 after:w-0 after:bg-primary after:transition-all after:duration-300 hover:after:w-3/4 after:rounded-full" asChild>
+            <Link to="/price-history">Price History</Link>
+          </Button>
+          <Button variant="ghost" size="sm" className="relative after:absolute after:bottom-0 after:left-1/2 after:-translate-x-1/2 after:h-0.5 after:w-0 after:bg-primary after:transition-all after:duration-300 hover:after:w-3/4 after:rounded-full" asChild>
+            <Link to="/coupons">Coupons</Link>
           </Button>
           <Button variant="ghost" size="sm" className="relative after:absolute after:bottom-0 after:left-1/2 after:-translate-x-1/2 after:h-0.5 after:w-0 after:bg-primary after:transition-all after:duration-300 hover:after:w-3/4 after:rounded-full" asChild>
             <Link to="/stores">Stores</Link>
@@ -202,6 +210,12 @@ export default function Navbar() {
               <nav className="mt-6 flex flex-col gap-1">
                 <Button variant="ghost" className="justify-start gap-3 h-11" asChild>
                   <Link to="/deals"><Tag className="h-4 w-4 text-primary" />All Deals</Link>
+                </Button>
+                <Button variant="ghost" className="justify-start gap-3 h-11" asChild>
+                  <Link to="/price-history"><TrendingUp className="h-4 w-4 text-primary" />Price History</Link>
+                </Button>
+                <Button variant="ghost" className="justify-start gap-3 h-11" asChild>
+                  <Link to="/coupons"><Ticket className="h-4 w-4 text-primary" />Coupons</Link>
                 </Button>
                 <Button variant="ghost" className="justify-start gap-3 h-11" asChild>
                   <Link to="/stores"><Store className="h-4 w-4 text-primary" />Stores</Link>

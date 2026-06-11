@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Clock, Copy, ExternalLink, Percent, Share2, Sparkles, Tag } from "lucide-react";
+import { Clock, Copy, ArrowRight, Percent, Share2, Sparkles, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useDealClickTracker } from "@/hooks/useDealClickTracker";
 import { useToast } from "@/hooks/use-toast";
 import { formatUpdatedTime } from "@/lib/api";
 import DealVoteButtons from "./DealVoteButtons";
@@ -31,7 +30,6 @@ interface DealCardProps {
 }
 
 export default function DealCard({ deal }: DealCardProps) {
-  const { trackAndOpen } = useDealClickTracker();
   const { toast } = useToast();
   const [imageLoaded, setImageLoaded] = useState(false);
   const imageUrl = validImageUrl(deal.image_url) || validImageUrl(deal.source_image_url);
@@ -40,6 +38,7 @@ export default function DealCard({ deal }: DealCardProps) {
 
   return (
     <article className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card shadow-card transition-all duration-300 hover:shadow-card-hover hover:-translate-y-1">
+      {/* Image Container */}
       <div className="relative aspect-[16/10] overflow-hidden bg-secondary">
         {imageUrl ? (
           <>
@@ -54,11 +53,11 @@ export default function DealCard({ deal }: DealCardProps) {
             />
           </>
         ) : deal.stores?.logo_url ? (
-          <div className="flex h-full items-center justify-center bg-gradient-to-br from-secondary to-muted">
+          <div className="flex h-full items-center justify-center bg-gradient-to-br from-secondary to-muted p-6">
             <img
               src={deal.stores.logo_url}
               alt={`${deal.stores.name} logo`}
-              className="h-16 w-16 object-contain opacity-80"
+              className="max-h-full max-w-full object-contain opacity-80"
             />
           </div>
         ) : (
@@ -69,8 +68,9 @@ export default function DealCard({ deal }: DealCardProps) {
 
         <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
 
+        {/* Share Button Overlay */}
         <button
-          className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-card/80 backdrop-blur-sm border border-border opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-card"
+          className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-card/85 backdrop-blur-sm border border-border opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity hover:bg-card shadow-sm"
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -87,98 +87,108 @@ export default function DealCard({ deal }: DealCardProps) {
           <Share2 className="h-3.5 w-3.5 text-muted-foreground" />
         </button>
 
+        {/* Discount Badge */}
         {deal.discount_percentage != null && deal.discount_percentage > 0 && (
-          <Badge className="absolute left-3 top-3 bg-deal-hot text-white border-0 font-semibold text-xs shadow-lg">
+          <Badge className="absolute left-3 top-3 bg-deal-hot text-white border-0 font-bold text-xs shadow-md">
             {Math.round(deal.discount_percentage)}% OFF
           </Badge>
         )}
 
+        {/* New Badge */}
         {isNew && (
-          <Badge className="absolute right-3 top-3 bg-emerald-500 text-white border-0 text-xs shadow-lg">
+          <Badge className="absolute right-3 top-3 bg-emerald-500 text-white border-0 text-xs shadow-md">
             <Sparkles className="mr-1 h-3 w-3" />
             New
           </Badge>
         )}
       </div>
 
+      {/* Info Container */}
       <div className="flex flex-1 flex-col p-4">
+        {/* Store & Category Row */}
         {deal.stores && (
           <div className="flex items-center gap-2 mb-2">
             {deal.stores.logo_url ? (
-              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-secondary border border-border">
+              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-secondary border border-border overflow-hidden p-0.5 shrink-0">
                 <img
                   src={deal.stores.logo_url}
                   alt={`${deal.stores.name} logo`}
-                  className="h-4 w-4 rounded object-contain"
+                  className="max-h-full max-w-full object-contain"
                 />
               </div>
             ) : null}
-            <span className="text-xs font-medium text-muted-foreground">{deal.stores.name}</span>
+            <span className="text-xs font-semibold text-foreground/80">{deal.stores.name}</span>
             {deal.categories && (
               <>
-                <span className="text-muted-foreground/40">-</span>
-                <span className="text-xs text-muted-foreground">{deal.categories.name}</span>
+                <span className="text-muted-foreground/30">•</span>
+                <span className="text-[11px] text-muted-foreground">{deal.categories.name}</span>
               </>
             )}
           </div>
         )}
 
+        {/* Title */}
         <Link to={`/deals/${deal.slug}`} className="block">
-          <h3 className="font-display font-semibold text-sm leading-snug mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+          <h3 className="font-display font-bold text-sm leading-snug mb-2 line-clamp-2 text-foreground group-hover:text-primary transition-colors">
             {deal.title}
           </h3>
         </Link>
 
+        {/* Pricing Row */}
         <div className="flex items-baseline gap-2 mb-3">
           {deal.discounted_price != null && (
             <span className="font-display text-lg font-bold text-deal-save">
-              {"\u20b9"}{deal.discounted_price.toLocaleString("en-IN")}
+              ₹{deal.discounted_price.toLocaleString("en-IN")}
             </span>
           )}
           {deal.original_price != null && deal.discounted_price != null && deal.original_price > deal.discounted_price && (
-            <span className="text-sm text-muted-foreground line-through">
-              {"\u20b9"}{deal.original_price.toLocaleString("en-IN")}
+            <span className="text-xs text-muted-foreground line-through">
+              ₹{deal.original_price.toLocaleString("en-IN")}
             </span>
           )}
         </div>
 
-        <div className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Clock className="h-3.5 w-3.5" />
-          <span>{updatedText}</span>
-        </div>
-
-        <div className="flex flex-wrap gap-1.5 mb-3">
+        {/* Cashback & Coupon Row */}
+        <div className="flex flex-wrap gap-1.5 mb-4">
           {deal.cashback_percentage != null && deal.cashback_percentage > 0 && (
-            <Badge variant="secondary" className="text-xs font-medium bg-deal-cashback/10 text-deal-cashback border-deal-cashback/20">
-              <Percent className="mr-1 h-3 w-3" />
+            <Badge variant="secondary" className="text-[10px] font-bold bg-deal-cashback/10 text-deal-cashback border-deal-cashback/20 px-2 py-0">
+              <Percent className="mr-0.5 h-2.5 w-2.5" />
               {deal.cashback_percentage}% Cashback
             </Badge>
           )}
           {deal.coupon_code && (
             <Badge
               variant="outline"
-              className="text-xs font-mono tracking-wide cursor-pointer hover:bg-accent gap-1 transition-colors"
+              className="text-[10px] font-mono font-bold tracking-wide cursor-pointer hover:bg-accent gap-1 transition-colors px-2 py-0 border-primary/20 bg-primary/[0.02] text-primary"
               onClick={(event) => {
+                event.preventDefault();
                 event.stopPropagation();
                 navigator.clipboard.writeText(deal.coupon_code!);
                 toast({ title: "Coupon copied!", description: deal.coupon_code! });
               }}
             >
               {deal.coupon_code}
-              <Copy className="h-3 w-3 opacity-50" />
+              <Copy className="h-2.5 w-2.5 opacity-60" />
             </Badge>
           )}
         </div>
 
-        <div className="mt-auto flex items-center justify-between gap-2">
-          <DealVoteButtons dealId={deal.id} compact />
+        {/* Footer Info & View Deal Button */}
+        <div className="mt-auto pt-3 border-t border-border flex items-center justify-between gap-3 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Clock className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{updatedText}</span>
+          </div>
+
           <Button
             size="sm"
-            className="flex-1 gap-2 font-semibold transition-transform hover:scale-[1.02]"
-            onClick={() => trackAndOpen(deal.id, deal.affiliate_link || deal.product_url || null)}
+            className="font-bold text-xs h-8 gap-1 rounded-lg px-3 transition-all hover:gap-1.5"
+            asChild
           >
-            Get Deal
-            <ExternalLink className="h-3.5 w-3.5" />
+            <Link to={`/deals/${deal.slug}`}>
+              View Deal
+              <ArrowRight className="h-3 w-3" />
+            </Link>
           </Button>
         </div>
       </div>

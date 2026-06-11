@@ -24,6 +24,10 @@ class DealRepository(private val context: Context) {
     private val backendClient = BackendClient()
     private val supabase = SupabaseDealDataSource()
     private val userRepository = UserRepository(context)
+    private val savedDealsRepository = SavedDealsRepository(context)
+    private val sharedDealsRepository = SharedDealsRepository(context)
+    private val recentlyViewedRepository = RecentlyViewedRepository(context)
+    private val priceAlertRepository = PriceAlertRepository(context)
 
     fun getAllActiveDeals(page: Int = 1, limit: Int = DEFAULT_PAGE_SIZE): Flow<List<DealModel>> = flow {
         emit(loadDeals("/api/deals?limit=$limit&page=$page").getOrThrow())
@@ -90,31 +94,57 @@ class DealRepository(private val context: Context) {
     fun getPriceAlertDeals(): Flow<List<DealModel>> = userRepository.getPriceAlertDeals()
 
     suspend fun saveDeal(dealId: String) {
-        userRepository.addSavedDeal(dealId)
+        runCatching { userRepository.addSavedDeal(dealId) }
+        getDealById(dealId)?.let { saveDeal(it) }
+    }
+
+    suspend fun saveDeal(deal: DealModel) {
+        val userId = userRepository.getMobileUserIdForDealActions()
+        runCatching { userRepository.addSavedDeal(deal.dealId) }
+        savedDealsRepository.saveDeal(userId, deal).getOrThrow()
     }
 
     suspend fun removeSavedDeal(dealId: String) {
-        userRepository.removeSavedDeal(dealId)
+        val userId = userRepository.getMobileUserIdForDealActions()
+        runCatching { userRepository.removeSavedDeal(dealId) }
+        savedDealsRepository.removeSavedDeal(userId, dealId).getOrThrow()
     }
 
     suspend fun shareDeal(dealId: String) {
-        userRepository.addSharedDeal(dealId)
+        runCatching { userRepository.addSharedDeal(dealId) }
+        getDealById(dealId)?.let { shareDeal(it) }
+    }
+
+    suspend fun shareDeal(deal: DealModel, sharePlatform: String = "android") {
+        val userId = userRepository.getCurrentUserId()
+        runCatching { userRepository.addSharedDeal(deal.dealId) }
+        sharedDealsRepository.recordSharedDeal(userId, deal, sharePlatform)
     }
 
     suspend fun recordRecentlyViewed(dealId: String) {
-        userRepository.addRecentlyViewedDeal(dealId)
+        runCatching { userRepository.addRecentlyViewedDeal(dealId) }
+        getDealById(dealId)?.let { recordRecentlyViewed(it) }
+    }
+
+    suspend fun recordRecentlyViewed(deal: DealModel) {
+        val userId = userRepository.getCurrentUserId()
+        runCatching { userRepository.addRecentlyViewedDeal(deal.dealId) }
+        recentlyViewedRepository.addRecentlyViewed(userId, deal)
     }
 
     suspend fun enablePriceDropAlert(deal: DealModel, targetPrice: Double) {
         val userId = userRepository.getCurrentUserId()
-        backendClient.post(
-            "/api/price-alerts",
-            JSONObject()
-                .put("userId", userId)
-                .put("dealId", deal.dealId)
-                .put("targetPrice", targetPrice),
-            AuthSessionStore.accessToken(context)
-        )
+        runCatching {
+            backendClient.post(
+                "/api/price-alerts",
+                JSONObject()
+                    .put("userId", userId)
+                    .put("dealId", deal.dealId)
+                    .put("targetPrice", targetPrice),
+                AuthSessionStore.accessToken(context)
+            )
+        }
+        priceAlertRepository.createPriceAlert(userId, deal, targetPrice)
         userRepository.addPriceDropAlert(deal.dealId, targetPrice)
     }
 
@@ -128,6 +158,7 @@ class DealRepository(private val context: Context) {
                 )
             }
         }
+        priceAlertRepository.removePriceAlert(userId, dealId)
         userRepository.removePriceDropAlert(dealId)
     }
 

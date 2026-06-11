@@ -23,9 +23,10 @@ import com.enjoyfreedeals.app.theme.GreyText
 
 @Composable
 fun PriceComparisonSection(
+    productTitle: String,
     prices: List<StorePriceModel>,
     lastCheckedAt: Long?,
-    onStoreClick: (StorePriceModel) -> Unit,
+    onOpenUrl: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     if (prices.isEmpty()) return
@@ -57,7 +58,11 @@ fun PriceComparisonSection(
                 )
             }
             visiblePrices.forEach { price ->
-                PlatformPriceRow(price = price, onClick = { onStoreClick(price) })
+                PlatformPriceRow(
+                    price = price,
+                    productTitle = productTitle,
+                    onOpenUrl = onOpenUrl
+                )
             }
             if (hiddenCount > 0) {
                 Button(modifier = Modifier.fillMaxWidth(), onClick = { showAll = true }) {

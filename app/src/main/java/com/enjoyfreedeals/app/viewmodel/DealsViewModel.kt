@@ -209,28 +209,33 @@ class DealsViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun saveDeal(deal: DealModel) {
+    fun saveDeal(deal: DealModel, onComplete: () -> Unit = {}) {
         viewModelScope.launch {
-            runCatching { repository.saveDeal(deal.dealId) }
+            runCatching { repository.saveDeal(deal) }
                 .onSuccess {
                     _uiState.update { state ->
                         state.copy(savedDeals = state.savedDeals + deal.dealId, message = "Deal saved.")
                     }
+                    onComplete()
                 }
                 .onFailure { error -> _uiState.update { it.copy(message = error.friendlyMessage()) } }
         }
     }
 
-    fun removeSavedDeal(deal: DealModel) {
+    fun removeSavedDeal(deal: DealModel, onComplete: () -> Unit = {}) {
         viewModelScope.launch {
-            repository.removeSavedDeal(deal.dealId)
-            _uiState.update { it.copy(savedDeals = it.savedDeals - deal.dealId, message = "Saved deal removed.") }
+            runCatching { repository.removeSavedDeal(deal.dealId) }
+                .onSuccess {
+                    _uiState.update { it.copy(savedDeals = it.savedDeals - deal.dealId, message = "Saved deal removed.") }
+                    onComplete()
+                }
+                .onFailure { error -> _uiState.update { it.copy(message = error.friendlyMessage("Could not remove saved deal.")) } }
         }
     }
 
     fun shareDeal(deal: DealModel) {
         viewModelScope.launch {
-            runCatching { repository.shareDeal(deal.dealId) }
+            runCatching { repository.shareDeal(deal) }
                 .onSuccess { _uiState.update { it.copy(message = "Deal shared.") } }
                 .onFailure { error -> _uiState.update { it.copy(message = error.friendlyMessage("Could not save shared deal.")) } }
         }
@@ -239,8 +244,12 @@ class DealsViewModel(application: Application) : AndroidViewModel(application) {
     fun selectDeal(deal: DealModel) {
         _uiState.update { it.copy(selectedDeal = deal) }
         observePriceHistory(listOf(deal))
+        recordRecentlyViewed(deal)
+    }
+
+    fun recordRecentlyViewed(deal: DealModel) {
         viewModelScope.launch {
-            runCatching { repository.recordRecentlyViewed(deal.dealId) }
+            runCatching { repository.recordRecentlyViewed(deal) }
         }
     }
 

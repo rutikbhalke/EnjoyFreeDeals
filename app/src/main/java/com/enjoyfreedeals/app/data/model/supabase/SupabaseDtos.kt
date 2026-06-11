@@ -86,6 +86,28 @@ data class SavedDealDto(
     val id: String = "",
     @SerialName("user_id") val userId: String = "",
     @SerialName("deal_id") val dealId: String = "",
+    @SerialName("product_title") val productTitle: String? = null,
+    val platform: String? = null,
+    @SerialName("deal_price") val dealPrice: Double? = null,
+    @SerialName("original_price") val originalPrice: Double? = null,
+    @SerialName("discount_percent") val discountPercent: Double? = null,
+    @SerialName("product_url") val productUrl: String? = null,
+    @SerialName("image_url") val imageUrl: String? = null,
+    @SerialName("created_at") val createdAt: String? = null
+)
+
+@Serializable
+data class SharedDealDto(
+    val id: String = "",
+    @SerialName("user_id") val userId: String = "",
+    @SerialName("deal_id") val dealId: String = "",
+    @SerialName("product_title") val productTitle: String? = null,
+    val platform: String? = null,
+    @SerialName("deal_price") val dealPrice: Double? = null,
+    @SerialName("product_url") val productUrl: String? = null,
+    @SerialName("image_url") val imageUrl: String? = null,
+    @SerialName("share_platform") val sharePlatform: String? = null,
+    @SerialName("shared_to") val sharedTo: String? = null,
     @SerialName("created_at") val createdAt: String? = null
 )
 
@@ -94,12 +116,33 @@ data class PriceAlertDto(
     val id: String = "",
     @SerialName("user_id") val userId: String = "",
     @SerialName("deal_id") val dealId: String = "",
+    @SerialName("product_title") val productTitle: String? = null,
+    val platform: String? = null,
     @SerialName("target_price") val targetPrice: Double = 0.0,
     @SerialName("current_price") val currentPrice: Double? = null,
+    @SerialName("original_price") val originalPrice: Double? = null,
+    @SerialName("product_url") val productUrl: String? = null,
+    @SerialName("image_url") val imageUrl: String? = null,
     @SerialName("is_active") val isActive: Boolean = true,
     @SerialName("is_triggered") val isTriggered: Boolean = false,
     @SerialName("triggered_at") val triggeredAt: String? = null,
-    @SerialName("created_at") val createdAt: String? = null
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("updated_at") val updatedAt: String? = null
+)
+
+@Serializable
+data class RecentlyViewedDealDto(
+    val id: String = "",
+    @SerialName("user_id") val userId: String = "",
+    @SerialName("deal_id") val dealId: String = "",
+    @SerialName("product_title") val productTitle: String? = null,
+    val platform: String? = null,
+    @SerialName("deal_price") val dealPrice: Double? = null,
+    @SerialName("original_price") val originalPrice: Double? = null,
+    @SerialName("discount_percent") val discountPercent: Double? = null,
+    @SerialName("product_url") val productUrl: String? = null,
+    @SerialName("image_url") val imageUrl: String? = null,
+    @SerialName("viewed_at") val viewedAt: String? = null
 )
 
 @Serializable
@@ -123,18 +166,59 @@ data class PriceHistoryDto(
 @Serializable
 data class NewSavedDealDto(
     @SerialName("user_id") val userId: String,
-    @SerialName("deal_id") val dealId: String
+    @SerialName("deal_id") val dealId: String,
+    @SerialName("product_title") val productTitle: String? = null,
+    val platform: String? = null,
+    @SerialName("deal_price") val dealPrice: Double? = null,
+    @SerialName("original_price") val originalPrice: Double? = null,
+    @SerialName("discount_percent") val discountPercent: Double? = null,
+    @SerialName("product_url") val productUrl: String? = null,
+    @SerialName("image_url") val imageUrl: String? = null
 )
 
 @Serializable
 data class NewPriceAlertDto(
     @SerialName("user_id") val userId: String,
     @SerialName("deal_id") val dealId: String,
+    @SerialName("product_title") val productTitle: String? = null,
+    val platform: String? = null,
+    @SerialName("current_price") val currentPrice: Double? = null,
     @SerialName("target_price") val targetPrice: Double,
+    @SerialName("original_price") val originalPrice: Double? = null,
+    @SerialName("product_url") val productUrl: String? = null,
+    @SerialName("image_url") val imageUrl: String? = null,
     @SerialName("is_active") val isActive: Boolean = true
 )
 
 @Serializable
 data class UpdatePriceAlertDto(
-    @SerialName("is_active") val isActive: Boolean
+    @SerialName("is_active") val isActive: Boolean? = null,
+    @SerialName("target_price") val targetPrice: Double? = null,
+    @SerialName("updated_at") val updatedAt: String? = null
+)
+
+@Serializable
+data class NewSharedDealDto(
+    @SerialName("user_id") val userId: String,
+    @SerialName("deal_id") val dealId: String,
+    @SerialName("product_title") val productTitle: String? = null,
+    val platform: String? = null,
+    @SerialName("deal_price") val dealPrice: Double? = null,
+    @SerialName("product_url") val productUrl: String? = null,
+    @SerialName("image_url") val imageUrl: String? = null,
+    @SerialName("share_platform") val sharePlatform: String? = null,
+    @SerialName("shared_to") val sharedTo: String? = null
+)
+
+@Serializable
+data class NewRecentlyViewedDealDto(
+    @SerialName("user_id") val userId: String,
+    @SerialName("deal_id") val dealId: String,
+    @SerialName("product_title") val productTitle: String? = null,
+    val platform: String? = null,
+    @SerialName("deal_price") val dealPrice: Double? = null,
+    @SerialName("original_price") val originalPrice: Double? = null,
+    @SerialName("discount_percent") val discountPercent: Double? = null,
+    @SerialName("product_url") val productUrl: String? = null,
+    @SerialName("image_url") val imageUrl: String? = null
 )

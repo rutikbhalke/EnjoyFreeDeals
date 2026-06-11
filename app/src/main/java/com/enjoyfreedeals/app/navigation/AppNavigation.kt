@@ -56,10 +56,11 @@ import com.enjoyfreedeals.app.ui.deals.shareDeal
 import com.enjoyfreedeals.app.ui.details.ProductDetailScreen
 import com.enjoyfreedeals.app.ui.home.HomeScreen
 import com.enjoyfreedeals.app.ui.notification.NotificationScreen
+import com.enjoyfreedeals.app.ui.profile.PriceAlertsScreen
 import com.enjoyfreedeals.app.ui.profile.ProfileScreen
-import com.enjoyfreedeals.app.ui.saved.DealCollectionScreen
-import com.enjoyfreedeals.app.ui.saved.SavedDealsScreen
-import com.enjoyfreedeals.app.ui.saved.SharedDealsScreen
+import com.enjoyfreedeals.app.ui.profile.RecentlyViewedDealsScreen
+import com.enjoyfreedeals.app.ui.profile.SavedDealsScreen
+import com.enjoyfreedeals.app.ui.profile.SharedDealsScreen
 import com.enjoyfreedeals.app.ui.settings.LanguageSettingsScreen
 import com.enjoyfreedeals.app.ui.settings.SettingsScreen
 import com.enjoyfreedeals.app.ui.splash.SplashScreen
@@ -73,6 +74,7 @@ import com.enjoyfreedeals.app.viewmodel.HomeViewModel
 import com.enjoyfreedeals.app.viewmodel.NotificationViewModel
 import com.enjoyfreedeals.app.viewmodel.ProductDetailViewModel
 import com.enjoyfreedeals.app.viewmodel.ProfileViewModel
+import com.enjoyfreedeals.app.viewmodel.SavedDealsViewModel
 import com.enjoyfreedeals.app.viewmodel.SettingsViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -196,6 +198,23 @@ private fun MainScaffold(
         navController.navigate(Route.PriceAlert)
     }
 
+    fun shareAndRecord(deal: DealModel) {
+        shareDeal(context, deal)
+        dealsViewModel.shareDeal(deal)
+    }
+
+    fun saveDealAndRefreshProfile(deal: DealModel) {
+        dealsViewModel.saveDeal(deal) {
+            profileViewModel.refreshProfileCounts()
+        }
+    }
+
+    fun removeSavedDealAndRefreshProfile(deal: DealModel) {
+        dealsViewModel.removeSavedDeal(deal) {
+            profileViewModel.refreshProfileCounts()
+        }
+    }
+
     Scaffold(
         topBar = {
             if (!showBottomBar && currentRoute != null) {
@@ -270,9 +289,9 @@ private fun MainScaffold(
                         },
                         onViewDeal = ::viewDeal,
                         onSaveDeal = { deal ->
-                            if (dealsState.savedDeals.contains(deal.dealId)) dealsViewModel.removeSavedDeal(deal) else dealsViewModel.saveDeal(deal)
+                            if (dealsState.savedDeals.contains(deal.dealId)) removeSavedDealAndRefreshProfile(deal) else saveDealAndRefreshProfile(deal)
                         },
-                        onShareDeal = dealsViewModel::shareDeal,
+                        onShareDeal = ::shareAndRecord,
                         onOpenDealDetails = ::openDealDetails,
                         onStorePriceClick = { storePrice ->
                             CustomTabsHelper.openDealUrl(context, storePrice.redirectUrl) { message ->
@@ -293,9 +312,9 @@ private fun MainScaffold(
                         onSort = dealsViewModel::updateSort,
                         onViewDeal = ::viewDeal,
                         onSaveDeal = { deal ->
-                            if (dealsState.savedDeals.contains(deal.dealId)) dealsViewModel.removeSavedDeal(deal) else dealsViewModel.saveDeal(deal)
+                            if (dealsState.savedDeals.contains(deal.dealId)) removeSavedDealAndRefreshProfile(deal) else saveDealAndRefreshProfile(deal)
                         },
-                        onRemoveSavedDeal = dealsViewModel::removeSavedDeal,
+                        onRemoveSavedDeal = ::removeSavedDealAndRefreshProfile,
                         onShareDeal = dealsViewModel::shareDeal,
                         onTogglePriceAlert = dealsViewModel::togglePriceDropAlert,
                         onOpenDealDetails = ::openDealDetails,
@@ -317,9 +336,9 @@ private fun MainScaffold(
                         onSort = categoryViewModel::updateSort,
                         onViewDeal = ::viewDeal,
                         onSaveDeal = { deal ->
-                            if (dealsState.savedDeals.contains(deal.dealId)) dealsViewModel.removeSavedDeal(deal) else dealsViewModel.saveDeal(deal)
+                            if (dealsState.savedDeals.contains(deal.dealId)) removeSavedDealAndRefreshProfile(deal) else saveDealAndRefreshProfile(deal)
                         },
-                        onShareDeal = dealsViewModel::shareDeal,
+                        onShareDeal = ::shareAndRecord,
                         onOpenDealDetails = ::openDealDetails,
                         onPriceAlertClick = ::openPriceAlert,
                         priceHistory = dealsState.priceHistory,
@@ -349,6 +368,9 @@ private fun MainScaffold(
                     )
                 }
                 composable(Route.Profile) {
+                    LaunchedEffect(currentRoute) {
+                        profileViewModel.refreshProfileCounts()
+                    }
                     ProfileScreen(
                         state = profileState,
                         onNotificationToggle = profileViewModel::updateNotificationPreference,
@@ -386,56 +408,46 @@ private fun MainScaffold(
                     )
                 }
                 composable(Route.SavedDeals) {
+                    val savedDealsViewModel: SavedDealsViewModel = viewModel()
+                    val savedDealsState by savedDealsViewModel.uiState.collectAsState()
+                    val savedDealsUserId = profileState.user.mobile.ifBlank { ProfileViewModel.TEST_USER_ID }
                     SavedDealsScreen(
-                        deals = profileState.savedDeals,
+                        userId = savedDealsUserId,
+                        state = savedDealsState,
+                        onLoadSavedDeals = savedDealsViewModel::loadSavedDeals,
                         onViewDeal = ::viewDeal,
-                        onRemoveSavedDeal = profileViewModel::removeSavedDeal,
-                        onShareDeal = dealsViewModel::shareDeal,
-                        onOpenDealDetails = ::openDealDetails,
-                        onPriceAlertClick = ::openPriceAlert,
-                        priceHistory = dealsState.priceHistory,
-                        priceDropAlerts = dealsState.priceDropAlerts
+                        onRemoveSavedDeal = { deal ->
+                            savedDealsViewModel.removeSavedDeal(savedDealsUserId, deal.dealId) {
+                                profileViewModel.refreshProfileCounts()
+                            }
+                        },
+                        onOpenDealDetails = ::openDealDetails
                     )
                 }
                 composable(Route.SharedDeals) {
                     SharedDealsScreen(
                         deals = profileState.sharedDeals,
+                        isLoading = profileState.isLoading,
                         onViewDeal = ::viewDeal,
-                        onShareAgain = dealsViewModel::shareDeal,
-                        onOpenDealDetails = ::openDealDetails,
-                        onPriceAlertClick = ::openPriceAlert,
-                        priceHistory = dealsState.priceHistory,
-                        priceDropAlerts = dealsState.priceDropAlerts
+                        onOpenDealDetails = ::openDealDetails
                     )
                 }
                 composable(Route.PriceAlertsList) {
-                    DealCollectionScreen(
-                        title = "Price Alerts",
-                        emptyTitle = "No price alerts yet",
-                        emptySubtitle = "Tap the alert icon on a deal to track its price.",
-                        deals = profileState.priceAlertDeals,
+                    PriceAlertsScreen(
+                        alerts = profileState.priceAlerts,
+                        isLoading = profileState.isLoading,
                         onViewDeal = ::viewDeal,
-                        onShareDeal = dealsViewModel::shareDeal,
                         onOpenDealDetails = ::openDealDetails,
-                        onPriceAlertClick = ::openPriceAlert,
-                        priceHistory = dealsState.priceHistory,
-                        priceDropAlerts = dealsState.priceDropAlerts,
-                        savedDeals = dealsState.savedDeals
+                        onRemovePriceAlert = profileViewModel::removePriceAlert,
+                        onUpdateTargetPrice = profileViewModel::updatePriceAlert
                     )
                 }
                 composable(Route.RecentlyViewed) {
-                    DealCollectionScreen(
-                        title = "Recently Viewed Deals",
-                        emptyTitle = "No recently viewed deals yet",
-                        emptySubtitle = "Open a product detail page to see it here.",
+                    RecentlyViewedDealsScreen(
                         deals = profileState.recentlyViewedDeals,
+                        isLoading = profileState.isLoading,
                         onViewDeal = ::viewDeal,
-                        onShareDeal = dealsViewModel::shareDeal,
-                        onOpenDealDetails = ::openDealDetails,
-                        onPriceAlertClick = ::openPriceAlert,
-                        priceHistory = dealsState.priceHistory,
-                        priceDropAlerts = dealsState.priceDropAlerts,
-                        savedDeals = dealsState.savedDeals
+                        onOpenDealDetails = ::openDealDetails
                     )
                 }
                 composable(Route.ProductPriceHistory) {
@@ -468,17 +480,15 @@ private fun MainScaffold(
                         deal = selectedDeal,
                         allDeals = dealsState.allDeals.ifEmpty { homeState.deals },
                         onViewDeal = ::viewDeal,
-                        onSaveDeal = dealsViewModel::saveDeal,
-                        onShareDeal = {
-                            shareDeal(context, it)
-                            dealsViewModel.shareDeal(it)
-                        },
+                        onSaveDeal = ::saveDealAndRefreshProfile,
+                        onShareDeal = ::shareAndRecord,
                         onStorePriceClick = { storePrice ->
                             CustomTabsHelper.openDealUrl(context, storePrice.redirectUrl) { message ->
                                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                             }
                         },
                         onSimilarDealClick = ::openDealDetails,
+                        onViewed = dealsViewModel::recordRecentlyViewed,
                         priceHistory = detailState.priceHistory.ifEmpty {
                             selectedDeal?.let { dealsState.priceHistory[it.dealId] }.orEmpty()
                         },
@@ -523,7 +533,7 @@ private object Route {
     const val Profile = "profile"
     const val SavedDeals = "saved_deals"
     const val SharedDeals = "shared_deals"
-    const val PriceAlertsList = "price_alerts_list"
+    const val PriceAlertsList = "price_alerts"
     const val RecentlyViewed = "recently_viewed"
     const val Settings = "settings"
     const val LanguageSettings = "language_settings"
