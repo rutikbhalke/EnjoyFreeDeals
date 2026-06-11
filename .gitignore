@@ -19,5 +19,3 @@ node_modules/
 .mcp.json
 supabase/.temp/
 .vercel
-*.log
-sync-response.json

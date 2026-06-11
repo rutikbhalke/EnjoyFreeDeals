@@ -30,7 +30,6 @@ import androidx.compose.material.icons.outlined.ToggleOff
 import androidx.compose.material.icons.outlined.ToggleOn
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -90,14 +89,14 @@ fun ProfileScreen(
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatCard("Saved Deals", state.savedDealsCount.toString(), state.isLoading, Modifier.weight(1f), onSavedDeals)
-                    StatCard("Shared Deals", state.sharedDealsCount.toString(), state.isLoading, Modifier.weight(1f), onSharedDeals)
+                    StatCard("Saved Deals", state.savedDeals.size.toString(), Modifier.weight(1f))
+                    StatCard("Shared Deals", state.sharedDeals.size.toString(), Modifier.weight(1f))
                 }
             }
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatCard("Price Alerts", state.priceAlertsCount.toString(), state.isLoading, Modifier.weight(1f), onPriceAlerts)
-                    StatCard("Recently Viewed", state.recentlyViewedCount.toString(), state.isLoading, Modifier.weight(1f), onRecentlyViewed)
+                    StatCard("Price Alerts", state.priceAlertDeals.size.toString(), Modifier.weight(1f))
+                    StatCard("Recently Viewed", state.recentlyViewedDeals.size.toString(), Modifier.weight(1f))
                 }
             }
             item {
@@ -129,22 +128,10 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun StatCard(label: String, value: String, isLoading: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Card(
-        modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-    ) {
+private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) {
+    Card(modifier = modifier, shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(18.dp)) {
-            if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(26.dp),
-                    color = PrimaryGreen,
-                    strokeWidth = 3.dp
-                )
-            } else {
-                Text(value, color = PrimaryGreen, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
-            }
+            Text(value, color = PrimaryGreen, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
             Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

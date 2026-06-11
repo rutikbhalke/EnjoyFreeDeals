@@ -26,12 +26,6 @@ class UserRepository(private val context: Context) {
     fun getCurrentUserId(): String =
         AuthSessionStore.currentUserId(context) ?: mockUser.userId
 
-    fun getMobileUserIdForDealActions(): String =
-        AuthSessionStore.currentUser(context)?.mobile
-            ?.takeIf { it.isNotBlank() }
-            ?: mockUser.mobile.takeIf { it.isNotBlank() }
-            ?: TEST_MOBILE_USER_ID
-
     fun getCurrentUserProfile(): Flow<UserModel> = callbackFlow {
         suspend fun emitCurrentUser() {
             val sessionUser = AuthSessionStore.currentUser(context)
@@ -220,13 +214,11 @@ class UserRepository(private val context: Context) {
         URLEncoder.encode(this, Charsets.UTF_8.name())
 
     companion object {
-        const val TEST_MOBILE_USER_ID = "9699353648"
-
         var mockUser = UserModel(
-            userId = TEST_MOBILE_USER_ID,
+            userId = Constants.MOCK_USER_ID,
             name = "Deal Hunter",
             email = "hunter@enjoyfreedeals.local",
-            mobile = TEST_MOBILE_USER_ID,
+            mobile = "9876543210",
             savedDeals = listOf("amazon-boat-earbuds", "sample-skincare"),
             sharedDeals = emptyList()
         )

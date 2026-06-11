@@ -2,16 +2,12 @@ package com.enjoyfreedeals.app.data.supabase
 
 import com.enjoyfreedeals.app.data.model.supabase.ActiveDealDto
 import com.enjoyfreedeals.app.data.model.supabase.NewPriceAlertDto
-import com.enjoyfreedeals.app.data.model.supabase.NewRecentlyViewedDealDto
 import com.enjoyfreedeals.app.data.model.supabase.NewSavedDealDto
-import com.enjoyfreedeals.app.data.model.supabase.NewSharedDealDto
 import com.enjoyfreedeals.app.data.model.supabase.PriceAlertDto
 import com.enjoyfreedeals.app.data.model.supabase.PriceComparisonDto
 import com.enjoyfreedeals.app.data.model.supabase.PriceHistoryDto
 import com.enjoyfreedeals.app.data.model.supabase.ProductPriceStatsDto
-import com.enjoyfreedeals.app.data.model.supabase.RecentlyViewedDealDto
 import com.enjoyfreedeals.app.data.model.supabase.SavedDealDto
-import com.enjoyfreedeals.app.data.model.supabase.SharedDealDto
 import com.enjoyfreedeals.app.data.model.supabase.UpdatePriceAlertDto
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.realtime.PostgresAction
@@ -43,18 +39,8 @@ class SupabaseDealDataSource {
     suspend fun savedDeals(): List<SavedDealDto> =
         client.from("saved_deals").select().decodeList<SavedDealDto>()
 
-    suspend fun savedDeals(userId: String): List<SavedDealDto> =
-        client.from("saved_deals").select {
-            filter { eq("user_id", userId) }
-        }.decodeList<SavedDealDto>()
-
     suspend fun saveDeal(userId: String, offerId: String) {
         client.from("saved_deals").insert(NewSavedDealDto(userId = userId, dealId = offerId))
-    }
-
-    suspend fun saveDeal(deal: NewSavedDealDto) {
-        removeSavedDeal(deal.userId, deal.dealId)
-        client.from("saved_deals").insert(deal)
     }
 
     suspend fun removeSavedDeal(userId: String, offerId: String) {
@@ -79,68 +65,15 @@ class SupabaseDealDataSource {
         )
     }
 
-    suspend fun createPriceAlert(alert: NewPriceAlertDto) {
-        deletePriceAlert(alert.userId, alert.dealId)
-        client.from("price_alerts").insert(alert)
-    }
-
     suspend fun updatePriceAlert(alertId: String, isActive: Boolean) {
         client.from("price_alerts").update(UpdatePriceAlertDto(isActive = isActive)) {
             filter { eq("id", alertId) }
         }
     }
 
-    suspend fun updatePriceAlert(userId: String, dealId: String, targetPrice: Double) {
-        client.from("price_alerts").update(
-            UpdatePriceAlertDto(
-                targetPrice = targetPrice
-            )
-        ) {
-            filter {
-                eq("user_id", userId)
-                eq("deal_id", dealId)
-            }
-        }
-    }
-
     suspend fun deletePriceAlert(alertId: String) {
         client.from("price_alerts").delete {
             filter { eq("id", alertId) }
-        }
-    }
-
-    suspend fun deletePriceAlert(userId: String, dealId: String) {
-        client.from("price_alerts").delete {
-            filter {
-                eq("user_id", userId)
-                eq("deal_id", dealId)
-            }
-        }
-    }
-
-    suspend fun sharedDeals(): List<SharedDealDto> =
-        client.from("shared_deals").select().decodeList<SharedDealDto>()
-
-    suspend fun recordSharedDeal(deal: NewSharedDealDto) {
-        client.from("shared_deals").insert(deal)
-    }
-
-    suspend fun recentlyViewedDeals(): List<RecentlyViewedDealDto> =
-        client.from("recently_viewed_deals").select().decodeList<RecentlyViewedDealDto>()
-
-    suspend fun addRecentlyViewed(deal: NewRecentlyViewedDealDto) {
-        client.from("recently_viewed_deals").delete {
-            filter {
-                eq("user_id", deal.userId)
-                eq("deal_id", deal.dealId)
-            }
-        }
-        client.from("recently_viewed_deals").insert(deal)
-    }
-
-    suspend fun clearRecentlyViewed(userId: String) {
-        client.from("recently_viewed_deals").delete {
-            filter { eq("user_id", userId) }
         }
     }
 

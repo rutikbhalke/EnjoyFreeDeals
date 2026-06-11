@@ -81,7 +81,6 @@ fun ProductDetailScreen(
     priceHistory: List<PricePointModel> = emptyList(),
     isPriceAlertEnabled: Boolean = false,
     onPriceAlertClick: (DealModel) -> Unit = {},
-    onViewed: (DealModel) -> Unit = {},
     buyScoreViewModel: BuyScoreViewModel = viewModel()
 ) {
     val strings = LocalAppStrings.current
@@ -104,9 +103,6 @@ fun ProductDetailScreen(
 
         LaunchedEffect(deal.dealId, deal.updatedAt, deal.currentPrice) {
             buyScoreViewModel.loadBuyScore(deal)
-        }
-        LaunchedEffect(deal.dealId) {
-            onViewed(deal)
         }
 
         LazyColumn(
@@ -195,18 +191,9 @@ fun ProductDetailScreen(
             }
             item {
                 PriceComparisonSection(
-                    productTitle = deal.title,
                     prices = deal.comparisonPrices,
                     lastCheckedAt = deal.lastPriceCheckedAt ?: deal.priceCheckedAt,
-                    onOpenUrl = { url ->
-                        onStorePriceClick(
-                            StorePriceModel(
-                                platform = "Search",
-                                productUrl = url,
-                                affiliateUrl = url
-                            )
-                        )
-                    }
+                    onStoreClick = onStorePriceClick
                 )
             }
             item {
