@@ -327,7 +327,7 @@ For local testing, [supabase/seed.sql](supabase/seed.sql) adds mobile `969935364
 The Android app is Kotlin-based and calls this backend for authentication and deal data.
 
 - Keep Supabase service credentials out of Android.
-- The default Android backend URL is `https://enjoyfreedeals.vercel.app`.
+- The default Android backend URL is `https://freedeals1.vercel.app`.
 - For local backend testing, override the backend URL at build time. Use `http://10.0.2.2:5000` for the Android emulator or your PC Wi-Fi/LAN IP for a physical phone:
 
 ```bash
@@ -341,13 +341,13 @@ The Android app is Kotlin-based and calls this backend for authentication and de
 The React/Vite web app from `grab-savvy-central` is merged under `web/`.
 
 - Web deal and category pages call the same Vercel backend as Android through `VITE_API_BASE_URL`.
-- Default web API URL is `https://enjoyfreedeals.vercel.app`.
+- Default web API URL is `https://freedeals1.vercel.app`.
 - Use the same Supabase project as the backend. Frontend may use only the public anon key for auth/public reads.
 - Keep `SUPABASE_SERVICE_ROLE_KEY` only in Vercel backend environment variables.
 - To deploy the web app separately on Vercel, set the project root directory to `web` and configure:
 
 ```bash
-VITE_API_BASE_URL=https://enjoyfreedeals.vercel.app
+VITE_API_BASE_URL=https://freedeals1.vercel.app
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
