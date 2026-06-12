@@ -1,5 +1,6 @@
 const { supabaseAdmin } = require("../config/supabaseClient");
 const { normalizeDealPayload, toApiDeal } = require("../mappers/dealMapper");
+const { applyUpvoteState } = require("./upvotedDealRepository");
 const { throwIfSupabaseError } = require("../utils/supabaseErrors");
 const { getPagination } = require("../utils/pagination");
 
@@ -49,9 +50,10 @@ async function listDeals(filters) {
   if (filters.sort === "score") {
     mappedDeals.sort((a, b) => Number(b.dealScore || 0) - Number(a.dealScore || 0));
   }
+  const dealsWithUpvotes = await applyUpvoteState(mappedDeals, filters.userId || filters.user_id);
 
   return {
-    deals: mappedDeals,
+    deals: dealsWithUpvotes,
     pagination: {
       page,
       limit,
@@ -61,7 +63,7 @@ async function listDeals(filters) {
   };
 }
 
-async function getDealById(id) {
+async function getDealById(id, userId) {
   const { data, error } = await supabaseAdmin
     .from(TABLE)
     .select("*, categories(*), stores(*)")
@@ -74,7 +76,9 @@ async function getDealById(id) {
     .maybeSingle();
   throwIfSupabaseError(error, TABLE);
   const deal = data ? toApiDeal(data) : null;
-  return deal && deal.isValid && !deal.isExpired ? deal : null;
+  if (!deal || !deal.isValid || deal.isExpired) return null;
+  const [dealWithUpvotes] = await applyUpvoteState([deal], userId);
+  return dealWithUpvotes;
 }
 
 async function createDeal(payload) {

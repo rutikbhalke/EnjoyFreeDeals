@@ -1,85 +1,110 @@
-import { ThumbsUp, ThumbsDown } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ThumbsUp } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { useDealVotes } from "@/hooks/useDealVotes";
 import { toast } from "@/hooks/use-toast";
+import { getUserId } from "@/lib/auth";
+import { removeUpvote, upvoteDeal } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface Props {
   dealId: string;
   compact?: boolean;
+  initialCount?: number;
+  initialUpvoted?: boolean;
 }
 
-export default function DealVoteButtons({ dealId, compact = false }: Props) {
-  const { user } = useAuth();
-  const { score, userVote, vote } = useDealVotes(dealId);
+export default function DealVoteButtons({
+  dealId,
+  compact = false,
+  initialCount = 0,
+  initialUpvoted = false,
+}: Props) {
+  const { isMobileLoggedIn } = useAuth();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [count, setCount] = useState(initialCount);
+  const [upvoted, setUpvoted] = useState(initialUpvoted);
+  const [isSaving, setIsSaving] = useState(false);
 
-  const handleVote = (v: 1 | -1) => {
-    if (!user) {
-      toast({ title: "Sign in required", description: "Please sign in to vote on deals." });
+  useEffect(() => {
+    setCount(initialCount);
+    setUpvoted(initialUpvoted);
+  }, [initialCount, initialUpvoted, dealId]);
+
+  const handleUpvote = async () => {
+    if (!isMobileLoggedIn) {
+      toast({
+        title: "Login required",
+        description: "Please login with mobile number to upvote deals.",
+      });
+      navigate(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`);
       return;
     }
-    vote.mutate(v);
+
+    const previousCount = count;
+    const previousUpvoted = upvoted;
+    const nextUpvoted = !upvoted;
+    setUpvoted(nextUpvoted);
+    setCount((value) => Math.max(0, value + (nextUpvoted ? 1 : -1)));
+    setIsSaving(true);
+
+    try {
+      const response = nextUpvoted
+        ? await upvoteDeal(getUserId(), dealId)
+        : await removeUpvote(getUserId(), dealId);
+      setUpvoted(response.upvoted);
+      setCount(Number(response.upvote_count || 0));
+      queryClient.invalidateQueries({ queryKey: ["deals"] });
+      queryClient.invalidateQueries({ queryKey: ["upvoted-deals"] });
+    } catch (error) {
+      setCount(previousCount);
+      setUpvoted(previousUpvoted);
+      toast({
+        title: "Upvote failed",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (compact) {
     return (
-      <div className="flex items-center gap-1">
-        <button
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleVote(1); }}
-          className={cn(
-            "p-1 rounded transition-colors hover:bg-primary/10",
-            userVote === 1 && "text-primary"
-          )}
-        >
-          <ThumbsUp className="h-3.5 w-3.5" />
-        </button>
-        <span className={cn(
-          "text-xs font-semibold min-w-[20px] text-center tabular-nums",
-          score > 0 && "text-primary",
-          score < 0 && "text-destructive"
-        )}>
-          {score}
-        </span>
-        <button
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleVote(-1); }}
-          className={cn(
-            "p-1 rounded transition-colors hover:bg-destructive/10",
-            userVote === -1 && "text-destructive"
-          )}
-        >
-          <ThumbsDown className="h-3.5 w-3.5" />
-        </button>
-      </div>
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handleUpvote();
+        }}
+        disabled={isSaving}
+        className={cn(
+          "inline-flex min-h-9 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold transition-colors",
+          upvoted ? "border-primary bg-primary/10 text-primary" : "text-muted-foreground hover:border-primary/40 hover:text-primary"
+        )}
+        aria-label={upvoted ? "Remove upvote" : "Upvote deal"}
+      >
+        <ThumbsUp className="h-3.5 w-3.5" />
+        <span>{upvoted ? "Upvoted" : "Upvote"}</span>
+        <span className="tabular-nums">{count}</span>
+      </button>
     );
   }
 
   return (
-    <div className="flex items-center gap-1.5">
-      <Button
-        variant="outline"
-        size="sm"
-        className={cn("gap-1.5 h-8", userVote === 1 && "bg-primary/10 border-primary text-primary")}
-        onClick={() => handleVote(1)}
-      >
-        <ThumbsUp className="h-3.5 w-3.5" />
-        Upvote
-      </Button>
-      <span className={cn(
-        "text-sm font-bold min-w-[24px] text-center tabular-nums",
-        score > 0 && "text-primary",
-        score < 0 && "text-destructive"
-      )}>
-        {score}
-      </span>
-      <Button
-        variant="outline"
-        size="sm"
-        className={cn("gap-1.5 h-8", userVote === -1 && "bg-destructive/10 border-destructive text-destructive")}
-        onClick={() => handleVote(-1)}
-      >
-        <ThumbsDown className="h-3.5 w-3.5" />
-      </Button>
-    </div>
+    <Button
+      variant={upvoted ? "default" : "outline"}
+      size="sm"
+      className={cn("gap-1.5 h-9", upvoted && "bg-primary text-primary-foreground")}
+      onClick={handleUpvote}
+      disabled={isSaving}
+    >
+      <ThumbsUp className="h-3.5 w-3.5" />
+      {upvoted ? "Upvoted" : "Upvote"}
+      <span className="tabular-nums">({count})</span>
+    </Button>
   );
 }

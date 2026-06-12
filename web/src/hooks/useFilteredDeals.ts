@@ -1,6 +1,7 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { fetchDeals } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 const PAGE_SIZE = 12;
 
@@ -45,8 +46,9 @@ export function useFilterParams() {
 }
 
 export function useFilteredDeals(filters: DealFilters) {
+  const { displayMobile } = useAuth();
   return useInfiniteQuery({
-    queryKey: ["deals", "filtered", filters],
+    queryKey: ["deals", "filtered", filters, displayMobile],
     queryFn: async ({ pageParam = 0 }) => {
       const deals = await fetchDeals({
         page: pageParam + 1,

@@ -33,7 +33,11 @@ export function clearUserSession() {
   window.dispatchEvent(new Event("enjoyfreedeals-session-change"));
 }
 
+export function getUserId(): string {
+  const session = getUserSession();
+  return session?.mobile || session?.userId || "9699353648";
+}
+
 export function isLoggedIn() {
   return getUserSession() !== null;
 }
-

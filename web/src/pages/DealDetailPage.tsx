@@ -240,7 +240,11 @@ export default function DealDetailPage() {
 
             {/* Voting + Badges row */}
             <div className="flex flex-wrap items-center gap-2 mb-4">
-              <DealVoteButtons dealId={deal.id} />
+              <DealVoteButtons
+                dealId={deal.id}
+                initialCount={Number((deal as any).upvote_count || 0)}
+                initialUpvoted={Boolean((deal as any).user_has_upvoted)}
+              />
               {deal.cashback_percentage != null && deal.cashback_percentage > 0 && (
                 <Badge variant="secondary" className="bg-deal-cashback/10 text-deal-cashback border-deal-cashback/20">
                   <Percent className="mr-1 h-3.5 w-3.5" />

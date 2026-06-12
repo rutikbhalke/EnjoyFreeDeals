@@ -9,12 +9,14 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Wallet, Copy, Check, User, Save, TrendingUp, Send, ExternalLink, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Wallet, Copy, Check, User, Save, TrendingUp, Send, ExternalLink, Clock, CheckCircle2, XCircle, ThumbsUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import SEO, { SITE_URL } from "@/components/SEO";
+import { fetchUpvotedDeals } from "@/lib/api";
+import { getUserId } from "@/lib/auth";
 
 export default function ProfilePage() {
   const { user, profile, mobileSession, displayName, displayMobile, isMobileLoggedIn } = useAuth();
@@ -59,6 +61,13 @@ export default function ProfilePage() {
       if (error) throw error;
       return data as any[];
     },
+  });
+
+  const upvotedUserId = isMobileLoggedIn ? getUserId() : "";
+  const { data: upvotedDeals } = useQuery({
+    queryKey: ["upvoted-deals", upvotedUserId],
+    enabled: Boolean(upvotedUserId),
+    queryFn: () => fetchUpvotedDeals(upvotedUserId),
   });
 
   const isLoading = !profile && !!user;
@@ -181,6 +190,22 @@ export default function ProfilePage() {
             </div>
             <Button variant="outline" size="sm" asChild>
               <Link to="/savings">View</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Upvoted Deals */}
+        <Card>
+          <CardContent className="flex items-center justify-between py-5">
+            <div className="flex items-center gap-3">
+              <ThumbsUp className="h-5 w-5 text-primary" />
+              <div>
+                <p className="font-semibold">Upvoted Deals</p>
+                <p className="text-sm text-muted-foreground">{upvotedDeals?.count ?? 0} deal{(upvotedDeals?.count ?? 0) === 1 ? "" : "s"} upvoted</p>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link to="/profile/upvoted-deals">View</Link>
             </Button>
           </CardContent>
         </Card>

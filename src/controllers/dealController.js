@@ -13,7 +13,7 @@ async function getDeals(req, res, next) {
 
 async function getDealById(req, res, next) {
   try {
-    const deal = await dealRepository.getDealById(req.params.id);
+    const deal = await dealRepository.getDealById(req.params.id, req.query.userId || req.query.user_id);
     if (!deal) {
       return res.status(404).json({ success: false, message: "Deal not found." });
     }

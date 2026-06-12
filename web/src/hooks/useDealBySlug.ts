@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiGet, fetchDeals, mapBackendDeal, type BackendDeal } from "@/lib/api";
+import { getUserId, isLoggedIn } from "@/lib/auth";
 
 export function useDealBySlug(slug: string | undefined) {
   return useQuery({
@@ -7,7 +8,8 @@ export function useDealBySlug(slug: string | undefined) {
     enabled: !!slug,
     queryFn: async () => {
       try {
-        const deal = await apiGet<BackendDeal>(`/api/deals/${encodeURIComponent(slug!)}`);
+        const userQuery = isLoggedIn() ? `?userId=${encodeURIComponent(getUserId())}` : "";
+        const deal = await apiGet<BackendDeal>(`/api/deals/${encodeURIComponent(slug!)}${userQuery}`);
         return mapBackendDeal(deal);
       } catch {
         const deals = await fetchDeals({ limit: 500 });

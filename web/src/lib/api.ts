@@ -1,3 +1,5 @@
+import { getUserId, isLoggedIn } from "@/lib/auth";
+
 const DEFAULT_API_BASE_URL = "https://freedeals1.vercel.app";
 
 export const API_BASE_URL = (
@@ -34,6 +36,10 @@ export type BackendDeal = {
   isFeatured?: boolean;
   clickCount?: number;
   voteScore?: number;
+  upvoteCount?: number;
+  upvote_count?: number;
+  userHasUpvoted?: boolean;
+  user_has_upvoted?: boolean;
   updatedAt?: string | null;
   fetchedAt?: string | null;
   lastCheckedAt?: string | null;
@@ -66,6 +72,8 @@ export type WebDeal = {
   is_featured: boolean;
   click_count: number;
   vote_score: number;
+  upvote_count: number;
+  user_has_upvoted: boolean;
   lowest_price: number | null;
   best_platform: string | null;
   comparison_count: number;
@@ -131,8 +139,36 @@ export async function apiGet<T>(path: string): Promise<T> {
   return (body.data ?? body) as T;
 }
 
+export async function apiPost<T>(path: string, payload: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = (await response.json().catch(() => ({}))) as ApiResponse<T>;
+  if (!response.ok || body.success === false) {
+    throw new Error(body.message || `API request failed: ${response.status}`);
+  }
+  return (body.data ?? body) as T;
+}
+
+export async function apiDelete<T>(path: string, payload: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "DELETE",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const body = (await response.json().catch(() => ({}))) as ApiResponse<T>;
+  if (!response.ok || body.success === false) {
+    throw new Error(body.message || `API request failed: ${response.status}`);
+  }
+  return (body.data ?? body) as T;
+}
+
 export async function fetchDeals(params: Record<string, string | number | undefined> = {}) {
   const query = new URLSearchParams();
+  const currentUserId = isLoggedIn() ? getUserId() : "";
+  if (currentUserId && params.userId === undefined) query.set("userId", currentUserId);
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== "") query.set(key, String(value));
   });
@@ -210,6 +246,8 @@ export function mapBackendDeal(deal: BackendDeal): WebDeal {
     is_featured: Boolean(deal.isFeatured || deal.isHotDeal),
     click_count: Number(deal.clickCount || 0),
     vote_score: Number(deal.voteScore || 0),
+    upvote_count: Number(deal.upvoteCount ?? deal.upvote_count ?? 0),
+    user_has_upvoted: Boolean(deal.userHasUpvoted ?? deal.user_has_upvoted),
     lowest_price: numberOrNull(deal.lowestPrice),
     best_platform: deal.bestPlatform || null,
     comparison_count: Number(deal.comparisonCount || 0),
@@ -227,6 +265,36 @@ export function mapBackendDeal(deal: BackendDeal): WebDeal {
       slug: deal.categorySlug || slugify(categoryName),
     },
   };
+}
+
+export type UpvoteResponse = {
+  success: boolean;
+  message: string;
+  upvoted: boolean;
+  upvote_count: number;
+};
+
+export type UpvotedDealItem = {
+  id: string;
+  userId: string;
+  dealId: string;
+  createdAt: string;
+  deal: BackendDeal | null;
+};
+
+export async function upvoteDeal(userId: string, dealId: string) {
+  return apiPost<UpvoteResponse>("/api/upvoted-deals", { userId, dealId });
+}
+
+export async function removeUpvote(userId: string, dealId: string) {
+  return apiDelete<UpvoteResponse>("/api/upvoted-deals", { userId, dealId });
+}
+
+export async function fetchUpvotedDeals(userId: string) {
+  const response = await apiGet<{ success: boolean; count: number; deals: UpvotedDealItem[] }>(
+    `/api/upvoted-deals?userId=${encodeURIComponent(userId)}`
+  );
+  return response;
 }
 
 export function formatUpdatedTime(value?: string | null) {

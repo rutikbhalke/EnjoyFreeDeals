@@ -171,16 +171,29 @@ export default function DealCard({ deal }: DealCardProps) {
         </div>
 
         <div className="mt-auto flex items-center justify-between gap-2">
-          <DealVoteButtons dealId={deal.id} compact />
+          <DealVoteButtons
+            dealId={deal.id}
+            compact
+            initialCount={Number((deal as any).upvote_count || 0)}
+            initialUpvoted={Boolean((deal as any).user_has_upvoted)}
+          />
           <Button
             size="sm"
             className="flex-1 gap-2 font-semibold transition-transform hover:scale-[1.02]"
             onClick={() => trackAndOpen(deal.id, deal.affiliate_link || deal.product_url || null)}
           >
-            Get Deal
+            View Deal
             <ExternalLink className="h-3.5 w-3.5" />
           </Button>
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-2 w-full font-semibold"
+          asChild
+        >
+          <Link to={`/deals/${deal.slug}`}>View Details</Link>
+        </Button>
       </div>
     </article>
   );

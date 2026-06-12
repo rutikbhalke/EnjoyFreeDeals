@@ -34,6 +34,7 @@ const BlogPage = lazy(() => import("./pages/BlogPage"));
 const BlogPostPage = lazy(() => import("./pages/BlogPostPage"));
 const SavingsDashboardPage = lazy(() => import("./pages/SavingsDashboardPage"));
 const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const UpvotedDealsPage = lazy(() => import("./pages/UpvotedDealsPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient({
@@ -69,6 +70,7 @@ function AnimatedRoutes() {
           <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/profile/upvoted-deals" element={<UpvotedDealsPage />} />
           <Route path="/submit-deal" element={<SubmitDealPage />} />
           <Route path="/savings" element={<SavingsDashboardPage />} />
           <Route path="/blog" element={<BlogPage />} />
