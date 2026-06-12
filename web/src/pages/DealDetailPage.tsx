@@ -15,7 +15,6 @@ import { useActivityTracker } from "@/hooks/useActivityTracker";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePriceHistory } from "@/hooks/usePriceHistory";
 import { usePriceComparison } from "@/hooks/usePriceComparison";
-import PriceHistoryChart from "@/components/deals/PriceHistoryChart";
 import PriceSummaryCards from "@/components/deals/PriceSummaryCards";
 import PriceComparisonPanel from "@/components/deals/PriceComparisonPanel";
 import BuyScoreCard from "@/components/deals/BuyScoreCard";
@@ -283,8 +282,6 @@ export default function DealDetailPage() {
             </div>
 
             <BuyScoreCard input={buyScoreInput} />
-
-            <PriceHistoryChart history={history} currentPrice={deal.discounted_price} />
 
             <PriceSummaryCards
               averagePrice={priceSummary.averagePrice}

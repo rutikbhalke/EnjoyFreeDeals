@@ -58,7 +58,6 @@ import com.enjoyfreedeals.app.ui.components.DealCard
 import com.enjoyfreedeals.app.ui.components.EmptyState
 import com.enjoyfreedeals.app.ui.components.PremiumBackground
 import com.enjoyfreedeals.app.ui.components.PriceComparisonSection
-import com.enjoyfreedeals.app.ui.components.PriceHistoryGraph
 import com.enjoyfreedeals.app.ui.components.PriceSummaryCards
 import com.enjoyfreedeals.app.ui.components.SectionTitle
 import com.enjoyfreedeals.app.ui.components.formatPrice
@@ -182,9 +181,6 @@ fun ProductDetailScreen(
                         onRangeSelected = buyScoreViewModel::selectRange
                     )
                 }
-            }
-            item {
-                PriceHistoryGraph(historyPoints = detailHistory)
             }
             item {
                 PriceSummaryCards(stats = stats)
