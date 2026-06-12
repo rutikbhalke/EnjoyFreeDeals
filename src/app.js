@@ -28,7 +28,6 @@ const app = express();
 
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
-app.use(envValidator);
 
 app.get("/logo.png", (_req, res) => {
   res.sendFile(path.join(__dirname, "..", "app", "src", "main", "res", "drawable", "enjoyfreedeals_logo.png"));
@@ -290,6 +289,7 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
+app.use("/api", envValidator);
 app.use("/api", compatApiRoutes);
 app.use("/api", telegramScraperRoutes);
 app.use("/api/deals", dealRoutes);
