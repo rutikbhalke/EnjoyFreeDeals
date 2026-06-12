@@ -4,6 +4,10 @@
     {
       "source": "/api/(.*)",
       "destination": "/api"
+    },
+    {
+      "source": "/((?!assets/|favicon.ico|logo.png|placeholder.svg|robots.txt|llms.txt).*)",
+      "destination": "/index.html"
     }
   ],
   "functions": {
