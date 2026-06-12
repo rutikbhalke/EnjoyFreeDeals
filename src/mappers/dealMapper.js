@@ -110,13 +110,12 @@ function toApiDeal(row) {
 function isAutomatedScrapedDeal(row) {
   if (!row || row.status !== "active" || !row.source_url || !row.dedupe_key) return false;
   const mode = row.raw_source_payload?.connectorMode || "";
-  if (!["html-scrape", "telegram-bot", "telegram-page", "direct-platform-fetch"].includes(mode)) return false;
+  if (!["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"].includes(mode)) return false;
   if (row.is_valid === false || row.is_expired === true) return false;
   if (row.discounted_price < 0 || (row.original_price > 0 && row.discounted_price > row.original_price)) return false;
   const platformExpiresAt = row.platform_expires_at || row.expiry_date || null;
   if (platformExpiresAt && new Date(platformExpiresAt).getTime() <= Date.now()) return false;
-  const timestamp = row.source_updated_at || row.fetched_at || row.last_scraped_at || row.updated_at || row.created_at;
-  return Boolean(timestamp && new Date(timestamp).getTime() >= Date.now() - 24 * 60 * 60 * 1000);
+  return true;
 }
 
 function normalizeDealPayload(payload) {

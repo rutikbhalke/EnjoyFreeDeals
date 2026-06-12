@@ -118,11 +118,10 @@ function escapeIlike(value) {
 }
 
 function applyPublicDealVisibility(query) {
-  const updatedCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   return query
     .eq("status", "active")
     .gte("discounted_price", 0)
-    .gte("updated_at", updatedCutoff)
+    .or(nonExpiredDealFilter())
     .not("last_scraped_at", "is", null)
     .not("dedupe_key", "is", null)
     .neq("source_url", "")

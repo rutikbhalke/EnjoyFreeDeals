@@ -1,4 +1,4 @@
-const { getTelegramScraperStatus, scrapeTelegramDeals } = require("../../lib/telegramScraper");
+const { getTelegramScraperStatus, processTelegramWebhookUpdate, scrapeTelegramDeals } = require("../../lib/telegramScraper");
 const { sendSuccess } = require("../utils/responses");
 
 async function scrape(req, res, next) {
@@ -18,6 +18,34 @@ async function scrape(req, res, next) {
 async function status(_req, res, next) {
   try {
     return sendSuccess(res, getTelegramScraperStatus());
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function webhook(req, res, next) {
+  try {
+    const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET || "";
+    const actualSecret = req.get("x-telegram-bot-api-secret-token") ||
+      req.get("x-telegram-webhook-secret") ||
+      String(req.query.secret || "");
+
+    if (!expectedSecret && String(process.env.APP_ENV || process.env.NODE_ENV || "").toLowerCase() === "production") {
+      return res.status(500).json({
+        success: false,
+        message: "TELEGRAM_WEBHOOK_SECRET is required in production."
+      });
+    }
+
+    if (expectedSecret && actualSecret !== expectedSecret) {
+      return res.status(401).json({
+        success: false,
+        message: "Telegram webhook secret is invalid."
+      });
+    }
+
+    const result = await processTelegramWebhookUpdate(req.body || {});
+    return sendSuccess(res, result);
   } catch (error) {
     next(error);
   }
@@ -50,4 +78,4 @@ function bearerToken(req) {
   return value.toLowerCase().startsWith("bearer ") ? value.slice(7).trim() : "";
 }
 
-module.exports = { cron, scrape, status };
+module.exports = { cron, scrape, status, webhook };

@@ -144,6 +144,51 @@ Scraped deals with weak quality signals are stored as `pending` or `needs_review
 
 Telegram channel imports are server-side only. Do not put the bot token in Android.
 
+#### Live Telegram Webhook and Manual Fetch
+
+The Vercel backend can receive live channel posts at:
+
+```text
+POST https://enjoyfreedeals.vercel.app/api/telegram/webhook
+```
+
+Set these Vercel environment variables:
+
+```env
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
+IMPORT_SECRET=
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_WEBHOOK_SECRET=
+SUPPORTED_TELEGRAM_CHANNELS=king_deal_1,icoolzTricks
+SUPABASE_DEAL_IMAGES_BUCKET=deal-images
+```
+
+Add the bot as an admin to `@king_deal_1` and `@icoolzTricks`, then set the webhook with the same secret:
+
+```bash
+curl "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+  -d "url=https://enjoyfreedeals.vercel.app/api/telegram/webhook" \
+  -d "secret_token=$TELEGRAM_WEBHOOK_SECRET" \
+  -d "allowed_updates=[\"channel_post\",\"edited_channel_post\"]"
+```
+
+If a webhook misses posts, trigger the protected fetch endpoint:
+
+```bash
+curl -X POST "https://enjoyfreedeals.vercel.app/api/admin/fetch-telegram-deals?secret=$IMPORT_SECRET" \
+  -H "content-type: application/json" \
+  -d "{\"channels\":[\"king_deal_1\",\"icoolzTricks\"],\"limit\":50,\"categories\":\"all\"}"
+```
+
+The fetcher parses title, price, coupon, category, product URL, Telegram image, and real source expiry when present, then stores/upserts into the common `deals` table. It never creates a fake 24-hour expiry; `platform_expires_at` stays null unless Telegram/source text clearly says when the deal ends.
+
+Vercel Hobby deployments only allow daily cron schedules. For 1-5 minute fetching, keep this backend route and call it from an external scheduler such as GitHub Actions, cron-job.org, Railway, Render, or a VPS:
+
+```text
+GET https://enjoyfreedeals.vercel.app/api/cron/scrape-telegram?secret=CRON_SECRET
+```
+
 1. If the bot token was shared in chat or screenshots, rotate it in BotFather first.
 2. Add `@EnjoyFreeDeal_bot` to the Telegram channel as an admin so the bot receives future channel posts.
 3. Run [supabase/configure-telegram-source.sql](supabase/configure-telegram-source.sql) in the Supabase SQL editor to add the `telegram_enjoyfreedeals` source for `https://t.me/+X925uAMEGvgwOWY1`.

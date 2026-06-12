@@ -22,13 +22,13 @@ async function listCategories() {
 }
 
 async function activeDealCountsByCategory() {
-  const updatedCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const now = new Date().toISOString();
   const { data, error } = await supabaseAdmin
     .from("deals")
     .select("category_id")
     .eq("status", "active")
     .gte("discounted_price", 0)
-    .gte("updated_at", updatedCutoff)
+    .or(`platform_expires_at.is.null,platform_expires_at.gt.${now}`)
     .not("last_scraped_at", "is", null)
     .not("dedupe_key", "is", null)
     .neq("source_url", "")

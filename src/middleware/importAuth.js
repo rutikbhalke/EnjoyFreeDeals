@@ -1,5 +1,5 @@
 function requireImportAccess(req, res, next) {
-  const expectedSecret = process.env.TELEGRAM_IMPORT_SECRET || process.env.IMPORT_DEALS_CRON_SECRET || "";
+  const expectedSecret = process.env.IMPORT_SECRET || process.env.TELEGRAM_IMPORT_SECRET || process.env.IMPORT_DEALS_CRON_SECRET || "";
   const actualSecret = req.get("x-import-secret") || String(req.query.secret || "");
 
   if (expectedSecret && actualSecret === expectedSecret) {
