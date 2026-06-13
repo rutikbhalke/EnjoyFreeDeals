@@ -41,7 +41,13 @@ async function listDeals(filters) {
     query = query.order("created_at", { ascending: false });
   }
 
-  const { data, error, count } = await query;
+  let { data, error, count } = await query;
+  if (isMissingOptionalDealColumn(error)) {
+    const fallback = await buildBaseListQuery(filters, from, to);
+    data = fallback.data;
+    error = fallback.error;
+    count = fallback.count;
+  }
   throwIfSupabaseError(error, TABLE);
   const mappedDeals = (data || [])
     .map(toApiDeal)
@@ -64,7 +70,7 @@ async function listDeals(filters) {
 }
 
 async function getDealById(id, userId) {
-  const { data, error } = await supabaseAdmin
+  let { data, error } = await supabaseAdmin
     .from(TABLE)
     .select("*, categories(*), stores(*)")
     .eq("id", id)
@@ -74,6 +80,16 @@ async function getDealById(id, userId) {
     .neq("source_url", "")
     .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"])
     .maybeSingle();
+  if (isMissingOptionalDealColumn(error)) {
+    const fallback = await supabaseAdmin
+      .from(TABLE)
+      .select("*, categories(*), stores(*)")
+      .eq("id", id)
+      .eq("status", "active")
+      .maybeSingle();
+    data = fallback.data;
+    error = fallback.error;
+  }
   throwIfSupabaseError(error, TABLE);
   const deal = data ? toApiDeal(data) : null;
   if (!deal || !deal.isValid || deal.isExpired) return null;
@@ -126,6 +142,35 @@ function applyPublicDealVisibility(query) {
     .not("dedupe_key", "is", null)
     .neq("source_url", "")
     .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"]);
+}
+
+async function buildBaseListQuery(filters, from, to) {
+  let query = supabaseAdmin
+    .from(TABLE)
+    .select("*, categories(*), stores(*)", { count: "exact" })
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
+  if (filters.search) {
+    const search = escapeIlike(filters.search.trim());
+    query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%,coupon_code.ilike.%${search}%,source.ilike.%${search}%`);
+  }
+
+  if (filters.category) {
+    const categoryId = await resolveCategoryId(filters.category);
+    query = categoryId ? query.eq("category_id", categoryId) : query.eq("category_id", "00000000-0000-0000-0000-000000000000");
+  }
+
+  if (filters.dealType) query = query.eq("source", filters.dealType);
+  if (String(filters.hot || "").toLowerCase() === "true") query = query.eq("is_featured", true);
+  if (filters.sort === "discount" || filters.sort === "score") query = query.order("discount_percentage", { ascending: false });
+  if (filters.sort === "price") query = query.order("discounted_price", { ascending: true });
+  return query;
+}
+
+function isMissingOptionalDealColumn(error) {
+  return /column .* does not exist|could not find .* column|schema cache/i.test(error?.message || "");
 }
 
 function nonExpiredDealFilter() {

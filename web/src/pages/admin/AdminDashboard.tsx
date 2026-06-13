@@ -1,23 +1,44 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { Tag, Store, MousePointerClick, Users, Plus, Activity } from "lucide-react";
+import { Tag, Store, MousePointerClick, Users, Plus, Activity, MessageCircle, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import SEO from "@/components/SEO";
+import { API_BASE_URL } from "@/lib/api";
+import { useState } from "react";
 
 function useAdminStats() {
   return useQuery({
     queryKey: ["admin-stats"],
     queryFn: async () => {
-      const [deals, activeDeals, stores, profiles, clicks, activityEvents] = await Promise.all([
+      const [
+        deals,
+        activeDeals,
+        stores,
+        profiles,
+        clicks,
+        activityEvents,
+        telegramSources,
+        telegramDeals,
+        validTelegramDeals,
+        scrapeLogs,
+        invalidLogs,
+        duplicateLogs,
+      ] = await Promise.all([
         supabase.from("deals").select("id", { count: "exact", head: true }),
         supabase.from("deals").select("id", { count: "exact", head: true }).eq("status", "active"),
         supabase.from("stores").select("id", { count: "exact", head: true }),
         supabase.from("profiles").select("id", { count: "exact", head: true }),
         supabase.from("deal_clicks").select("id, clicked_at"),
         supabase.from("user_activity").select("id, event_type, created_at"),
+        supabase.from("telegram_sources").select("channel_username, last_fetched_at, is_active").eq("is_active", true).limit(20),
+        supabase.from("deals").select("id", { count: "exact", head: true }).or("source_type.eq.telegram,telegram_channel.not.is.null,raw_source_payload->>connectorMode.eq.telegram-channel"),
+        supabase.from("deals").select("id", { count: "exact", head: true }).eq("status", "active").or("source_type.eq.telegram,telegram_channel.not.is.null,raw_source_payload->>connectorMode.eq.telegram-channel"),
+        supabase.from("scrape_logs").select("scrape_status, created_at").eq("source_type", "telegram").order("created_at", { ascending: false }).limit(1),
+        supabase.from("scrape_logs").select("id", { count: "exact", head: true }).eq("source_type", "telegram").in("scrape_status", ["failed", "rejected"]),
+        supabase.from("scrape_logs").select("id", { count: "exact", head: true }).eq("source_type", "telegram").ilike("error_message", "%duplicate%"),
       ]);
       
       // Build last 7 days chart
@@ -58,6 +79,14 @@ function useAdminStats() {
         totalClicks: (clicks.data ?? []).length,
         totalActivity: (activityEvents.data ?? []).length,
         chartData,
+        telegram: {
+          sources: telegramSources.data ?? [],
+          scrapeLogs: scrapeLogs.data ?? [],
+          scrapedPosts: telegramDeals.count ?? 0,
+          validDeals: validTelegramDeals.count ?? 0,
+          invalidPosts: invalidLogs.count ?? 0,
+          duplicatePosts: duplicateLogs.count ?? 0,
+        },
       };
     },
   });
@@ -65,6 +94,7 @@ function useAdminStats() {
 
 export default function AdminDashboard() {
   const { data: stats, isLoading } = useAdminStats();
+  const [fetchStatus, setFetchStatus] = useState("");
 
   const cards = [
     { label: "Total Deals", value: stats?.totalDeals, icon: Tag },
@@ -118,6 +148,65 @@ export default function AdminDashboard() {
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2">
+            <MessageCircle className="h-5 w-5 text-primary" />
+            Telegram Monitor
+          </CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={async () => {
+              const secret = window.prompt("Enter IMPORT_SECRET for this manual fetch") || "";
+              if (!secret) {
+                setFetchStatus("Import secret is required for manual fetch.");
+                return;
+              }
+              setFetchStatus("Fetching Telegram deals...");
+              const response = await fetch(`${API_BASE_URL}/api/admin/fetch-telegram-deals`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "x-import-secret": secret,
+                },
+                body: JSON.stringify({ limit: 25 }),
+              });
+              const payload = await response.json().catch(() => ({}));
+              setFetchStatus(payload?.data?.message || payload?.message || (response.ok ? "Fetch completed." : "Fetch failed."));
+            }}
+          >
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Fetch Telegram Deals
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <MonitorMetric label="Sources" value={stats?.telegram.sources.length} />
+            <MonitorMetric label="Scraped posts" value={stats?.telegram.scrapedPosts} />
+            <MonitorMetric label="Valid deals" value={stats?.telegram.validDeals} />
+            <MonitorMetric label="Invalid/no-price posts" value={stats?.telegram.invalidPosts} />
+            <MonitorMetric label="Duplicate posts" value={stats?.telegram.duplicatePosts} />
+            <MonitorMetric label="Last webhook status" value={stats?.telegram.scrapeLogs[0]?.scrape_status || "No logs"} text />
+            <MonitorMetric
+              label="Last fetch time"
+              value={stats?.telegram.sources.find((source) => source.last_fetched_at)?.last_fetched_at || "Not fetched"}
+              text
+            />
+          </div>
+          {fetchStatus && <p className="text-sm text-muted-foreground">{fetchStatus}</p>}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function MonitorMetric({ label, value, text = false }: { label: string; value: unknown; text?: boolean }) {
+  return (
+    <div className="rounded-lg border border-border p-3">
+      <div className="text-xs font-medium text-muted-foreground">{label}</div>
+      <div className="mt-1 truncate text-lg font-bold">{text ? String(value ?? "") : Number(value ?? 0).toLocaleString("en-IN")}</div>
     </div>
   );
 }

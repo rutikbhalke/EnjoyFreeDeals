@@ -2,6 +2,7 @@ import MainLayout from "@/components/layout/MainLayout";
 import SEO, { SITE_URL, SITE_NAME } from "@/components/SEO";
 import HeroBanner from "@/components/home/HeroBanner";
 import PromoBanners from "@/components/home/PromoBanners";
+import PriceTrackerSection from "@/components/home/PriceTrackerSection";
 import StoreCarousel from "@/components/home/StoreCarousel";
 import CategoryLinks from "@/components/home/CategoryLinks";
 import DealSection from "@/components/home/DealSection";
@@ -131,6 +132,7 @@ export default function Index() {
     <MainLayout>
       <SEO canonical={SITE_URL} jsonLd={[websiteJsonLd, orgJsonLd, faqJsonLd]} />
       <HeroBanner />
+      <PriceTrackerSection />
       <PromoBanners />
       <StoreCarousel />
       <CategoryLinks />

@@ -27,6 +27,10 @@ export type BackendDeal = {
   originalPrice?: number | null;
   dealPrice?: number | null;
   discountedPrice?: number | null;
+  priceStatus?: string | null;
+  priceMin?: number | null;
+  priceMax?: number | null;
+  manualPriceNote?: string | null;
   discountPercent?: number | null;
   couponCode?: string | null;
   cashbackPercentage?: number | null;
@@ -45,6 +49,9 @@ export type BackendDeal = {
   lastCheckedAt?: string | null;
   sourceUpdatedAt?: string | null;
   platformExpiresAt?: string | null;
+  expiryStatus?: string | null;
+  expiryAt?: string | null;
+  expiryNote?: string | null;
   lowestPrice?: number | null;
   bestPlatform?: string | null;
   comparisonCount?: number | null;
@@ -59,6 +66,10 @@ export type WebDeal = {
   description: string | null;
   original_price: number | null;
   discounted_price: number | null;
+  price_status: string | null;
+  price_min: number | null;
+  price_max: number | null;
+  manual_price_note: string | null;
   discount_percentage: number | null;
   coupon_code: string | null;
   cashback_percentage: number | null;
@@ -67,6 +78,8 @@ export type WebDeal = {
   affiliate_link: string | null;
   product_url: string | null;
   expiry_date: string | null;
+  expiry_status: string | null;
+  expiry_note: string | null;
   updated_at: string | null;
   created_at: string | null;
   is_featured: boolean;
@@ -109,6 +122,34 @@ export type PriceComparison = {
   comparison_count: number;
   last_price_checked_at: string | null;
   prices: PlatformPrice[];
+};
+
+export type TrackPriceHistoryPoint = {
+  price: number;
+  checkedAt: string | null;
+  storeName?: string | null;
+  source?: string | null;
+};
+
+export type TrackPriceResult = {
+  success: boolean;
+  trackingStarted?: boolean;
+  storeName: string;
+  productUrl: string;
+  title: string;
+  imageUrl: string;
+  currentPrice: number | null;
+  lowestPrice: number | null;
+  highestPrice: number | null;
+  averagePrice: number | null;
+  currency: string;
+  priceHistory: TrackPriceHistoryPoint[];
+  bestDeal: {
+    storeName: string;
+    dealPrice: number;
+    productUrl: string;
+  } | null;
+  message?: string;
 };
 
 export type WebCategory = {
@@ -219,6 +260,10 @@ export async function fetchPriceComparison(productId: string): Promise<PriceComp
   }
 }
 
+export async function trackPrice(productUrl: string) {
+  return apiPost<TrackPriceResult>("/api/track-price", { productUrl });
+}
+
 export function mapBackendDeal(deal: BackendDeal): WebDeal {
   const storeName = deal.storeName || "Store";
   const categoryName = deal.categoryName || "Other Deals";
@@ -233,6 +278,10 @@ export function mapBackendDeal(deal: BackendDeal): WebDeal {
     description: deal.description || null,
     original_price: numberOrNull(deal.originalPrice),
     discounted_price: numberOrNull(deal.dealPrice ?? deal.discountedPrice),
+    price_status: deal.priceStatus || null,
+    price_min: numberOrNull(deal.priceMin),
+    price_max: numberOrNull(deal.priceMax),
+    manual_price_note: deal.manualPriceNote || null,
     discount_percentage: numberOrNull(deal.discountPercent),
     coupon_code: deal.couponCode || null,
     cashback_percentage: numberOrNull(deal.cashbackPercentage),
@@ -240,7 +289,9 @@ export function mapBackendDeal(deal: BackendDeal): WebDeal {
     source_image_url: firstHttpUrl(deal.sourceImageUrl),
     affiliate_link: dealUrl,
     product_url: deal.productUrl || deal.dealUrl || null,
-    expiry_date: deal.platformExpiresAt || null,
+    expiry_date: deal.expiryAt || deal.platformExpiresAt || null,
+    expiry_status: deal.expiryStatus || null,
+    expiry_note: deal.expiryNote || null,
     updated_at: updatedAt,
     created_at: deal.createdAt || updatedAt,
     is_featured: Boolean(deal.isFeatured || deal.isHotDeal),
