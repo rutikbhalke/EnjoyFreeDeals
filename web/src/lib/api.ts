@@ -6,8 +6,8 @@ const FALLBACK_API_BASE_URLS = [
   "https://enjoy-free-deals.vercel.app",
 ].map((value) => value.replace(/\/+$/, ""));
 
-export const API_BASE_URL = resolveApiBaseUrl();
 export const API_BASE_URLS = resolveApiBaseUrls();
+export const API_BASE_URL = API_BASE_URLS[0] || DEFAULT_API_BASE_URL;
 
 function resolveApiBaseUrls() {
   const configured = String(import.meta.env.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "");
@@ -15,10 +15,6 @@ function resolveApiBaseUrls() {
     .map((value) => String(value || "").trim().replace(/\/+$/, ""))
     .filter(Boolean);
   return [...new Set(candidates)];
-}
-
-function resolveApiBaseUrl() {
-  return API_BASE_URLS[0] || DEFAULT_API_BASE_URL;
 }
 
 export type BackendDeal = {
@@ -145,19 +141,49 @@ export type TrackPriceHistoryPoint = {
   source?: string | null;
 };
 
+export type TrackPriceStoreComparison = {
+  storeName: string;
+  price: number | null;
+  productUrl: string;
+  isBest: boolean;
+  difference: number;
+  platformLogoUrl?: string | null;
+};
+
+export type TrackPriceRecommendation = {
+  label: string;
+  reason: string;
+};
+
 export type TrackPriceResult = {
   success: boolean;
   trackingStarted?: boolean;
+  status?: string;
+  dealId?: string | null;
   storeName: string;
   productUrl: string;
   title: string;
+  description?: string | null;
   imageUrl: string;
+  images?: string[];
+  categoryName?: string | null;
   currentPrice: number | null;
+  originalPrice?: number | null;
+  discountPercent?: number | null;
+  youSave?: number | null;
   lowestPrice: number | null;
   highestPrice: number | null;
   averagePrice: number | null;
+  thirtyDayAverage?: number | null;
   currency: string;
+  lastCheckedAt?: string | null;
+  historyDays?: number | null;
+  dealScore?: number | null;
+  isAllTimeLow?: boolean;
+  recommendation?: TrackPriceRecommendation | null;
   priceHistory: TrackPriceHistoryPoint[];
+  storeComparisons?: TrackPriceStoreComparison[];
+  relatedDeals?: BackendDeal[];
   bestDeal: {
     storeName: string;
     dealPrice: number;

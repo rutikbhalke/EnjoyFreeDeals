@@ -22,11 +22,24 @@ async function trackProductPrice(productUrl, userId = null) {
     platformProductId,
     storeName
   });
+  const comparison = await findComparison({
+    dealId: deal?.id || trackedProduct?.deal_id || null,
+    normalizedUrl,
+    productTitle: deal?.title || trackedProduct?.title || ""
+  });
+  const relatedDeals = await findRelatedDeals({
+    categoryId: deal?.category_id || null,
+    storeId: deal?.store_id || null,
+    excludeDealId: deal?.id || trackedProduct?.deal_id || null,
+    excludeUrl: normalizedUrl
+  });
 
   if (!trackedProduct && !deal && history.length === 0) {
     await saveTrackingRequest({ productUrl, normalizedUrl, storeName, platformProductId, userId });
     return {
       success: true,
+      status: "tracking_started",
+      dealId: null,
       trackingStarted: true,
       storeName,
       productUrl: normalizedUrl,
@@ -36,61 +49,64 @@ async function trackProductPrice(productUrl, userId = null) {
       lowestPrice: null,
       highestPrice: null,
       averagePrice: null,
+      thirtyDayAverage: null,
       currency: "INR",
+      lastCheckedAt: null,
+      historyDays: 0,
+      dealScore: null,
+      isAllTimeLow: false,
+      recommendation: {
+        label: "Not enough data",
+        reason: "Price history will appear after more tracking data is collected."
+      },
       priceHistory: [],
+      storeComparisons: [],
+      relatedDeals: [],
+      images: [],
       bestDeal: null,
       message: "Tracking started. Price data will appear after the next fetch."
     };
   }
 
   const dealApi = deal ? toApiDeal(deal) : null;
-  const historyPrices = history
-    .map((point) => Number(point.price))
-    .filter((price) => Number.isFinite(price) && price >= 0);
-  const currentPrice = firstNumeric(
-    trackedProduct?.current_price,
-    dealApi?.dealPrice,
-    dealApi?.currentPrice,
-    latestHistoryPrice(history)
-  );
-  const lowestPrice = firstNumeric(
-    trackedProduct?.lowest_price,
-    historyPrices.length ? Math.min(...historyPrices) : null,
-    dealApi?.lowestPrice,
-    currentPrice
-  );
-  const highestPrice = firstNumeric(
-    trackedProduct?.highest_price,
-    historyPrices.length ? Math.max(...historyPrices) : null,
-    dealApi?.highestPrice,
-    currentPrice
-  );
-  const averagePrice = firstNumeric(
-    trackedProduct?.average_price,
-    historyPrices.length ? Math.round(historyPrices.reduce((sum, price) => sum + price, 0) / historyPrices.length) : null,
-    dealApi?.averagePrice,
-    currentPrice
-  );
-  const bestDeal = await findBestDeal({ title: dealApi?.title || trackedProduct?.title || "", storeName, productUrl: normalizedUrl, currentPrice });
+  const summary = buildTrackingSummary({
+    trackedProduct,
+    dealApi,
+    history,
+    comparison,
+    relatedDeals,
+    normalizedUrl,
+    storeName
+  });
 
   return {
     success: true,
-    storeName: trackedProduct?.store_name || dealApi?.storeName || storeName,
-    productUrl: trackedProduct?.product_url || dealApi?.productUrl || normalizedUrl,
-    title: trackedProduct?.title || dealApi?.title || "",
-    imageUrl: trackedProduct?.image_url || dealApi?.imageUrl || "",
-    currentPrice,
-    lowestPrice,
-    highestPrice,
-    averagePrice,
-    currency: trackedProduct?.currency || dealApi?.currency || "INR",
-    priceHistory: history.map((point) => ({
-      price: Number(point.price),
-      checkedAt: point.checked_at || point.recorded_at || point.created_at,
-      storeName: point.store_name || point.platform || storeName,
-      source: point.source || "telegram/backend"
-    })),
-    bestDeal
+    storeName: summary.storeName,
+    productUrl: summary.productUrl,
+    title: summary.title,
+    description: summary.description,
+    imageUrl: summary.imageUrl,
+    images: summary.images,
+    categoryName: summary.categoryName,
+    currentPrice: summary.currentPrice,
+    originalPrice: summary.originalPrice,
+    discountPercent: summary.discountPercent,
+    youSave: summary.youSave,
+    lowestPrice: summary.lowestPrice,
+    highestPrice: summary.highestPrice,
+    averagePrice: summary.averagePrice,
+    thirtyDayAverage: summary.thirtyDayAverage,
+    currency: summary.currency,
+    lastCheckedAt: summary.lastCheckedAt,
+    historyDays: summary.historyDays,
+    dealScore: summary.dealScore,
+    isAllTimeLow: summary.isAllTimeLow,
+    recommendation: summary.recommendation,
+    priceHistory: summary.priceHistory,
+    storeComparisons: summary.storeComparisons,
+    relatedDeals: summary.relatedDeals,
+    bestDeal: summary.bestDeal,
+    dealId: summary.dealId
   };
 }
 
@@ -166,6 +182,275 @@ async function findPriceHistory({ dealId, productUrl, platformProductId, storeNa
   );
 }
 
+async function findComparison({ dealId, normalizedUrl, productTitle }) {
+  const selectors = [
+    dealId ? ["deal_id", dealId] : null,
+    normalizedUrl ? ["product_url", normalizedUrl] : null,
+    productTitle ? ["product_name", productTitle] : null
+  ].filter(Boolean);
+
+  for (const [column, value] of selectors) {
+    const { data, error } = await supabaseAdmin
+      .from("price_comparisons")
+      .select("*, price_comparison_platforms(*)")
+      .eq(column, value)
+      .order("last_updated", { ascending: false })
+      .maybeSingle();
+    if (isMissingTable(error)) return null;
+    if (isMissingColumn(error)) continue;
+    throwIfSupabaseError(error, "price_comparisons");
+    if (data) return data;
+  }
+
+  return null;
+}
+
+async function findRelatedDeals({ categoryId, storeId, excludeDealId, excludeUrl }) {
+  const sources = [];
+  if (categoryId) sources.push(queryRelatedDeals().eq("category_id", categoryId).limit(6));
+  if (storeId) sources.push(queryRelatedDeals().eq("store_id", storeId).limit(6));
+  if (!sources.length) return [];
+
+  const results = [];
+  for (const query of sources) {
+    const { data, error } = await query;
+    if (isMissingColumn(error)) continue;
+    throwIfSupabaseError(error, "deals");
+    results.push(...(data || []));
+  }
+
+  const seen = new Set();
+  return results
+    .filter((row) => row && row.id !== excludeDealId)
+    .filter((row) => {
+      const url = normalizeUrl(row.affiliate_link || row.source_url || row.platform_product_url || "");
+      if (excludeUrl && url === excludeUrl) return false;
+      const key = `${row.id || ""}:${url || row.slug || row.title || ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map(toApiDeal)
+    .filter((deal) => deal.isValid && !deal.isExpired)
+    .slice(0, 6);
+}
+
+function queryRelatedDeals() {
+  return supabaseAdmin
+    .from("deals")
+    .select("*, categories(*), stores(*)")
+    .eq("status", "active")
+    .gte("discounted_price", 0)
+    .or(`platform_expires_at.is.null,platform_expires_at.gt.${new Date().toISOString()}`)
+    .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"])
+    .order("updated_at", { ascending: false });
+}
+
+function buildTrackingSummary({ trackedProduct, dealApi, history, comparison, relatedDeals, normalizedUrl, storeName }) {
+  const priceHistory = history.map((point) => ({
+    price: Number(point.price),
+    checkedAt: point.checked_at || point.recorded_at || point.created_at || null,
+    storeName: point.store_name || point.platform || storeName,
+    source: point.source || "telegram/backend"
+  })).filter((point) => Number.isFinite(point.price) && point.price >= 0);
+
+  const historyPrices = priceHistory.map((point) => point.price).filter((price) => Number.isFinite(price) && price >= 0);
+  const comparisonPrices = normalizeComparisonPrices(comparison, dealApi, trackedProduct, normalizedUrl, storeName);
+  const allPrices = [...historyPrices, ...comparisonPrices.map((item) => item.price)].filter((price) => Number.isFinite(price) && price >= 0);
+  const currentPrice = firstNumeric(
+    trackedProduct?.current_price,
+    dealApi?.dealPrice,
+    dealApi?.currentPrice,
+    latestHistoryPrice(priceHistory),
+    comparisonPrices.find((item) => item.isBest)?.price,
+    comparisonPrices[0]?.price
+  );
+  const lowestPrice = allPrices.length ? Math.min(...allPrices) : firstNumeric(trackedProduct?.lowest_price, currentPrice);
+  const highestPrice = allPrices.length ? Math.max(...allPrices) : firstNumeric(trackedProduct?.highest_price, currentPrice);
+  const averagePrice = allPrices.length ? Math.round(allPrices.reduce((sum, price) => sum + price, 0) / allPrices.length) : firstNumeric(trackedProduct?.average_price, currentPrice);
+  const thirtyDayPrices = priceHistory
+    .filter((point) => point.checkedAt && new Date(point.checkedAt).getTime() >= Date.now() - 30 * 24 * 60 * 60 * 1000)
+    .map((point) => point.price);
+  const thirtyDayAverage = thirtyDayPrices.length
+    ? Math.round(thirtyDayPrices.reduce((sum, price) => sum + price, 0) / thirtyDayPrices.length)
+    : null;
+  const originalPrice = firstNumeric(trackedProduct?.original_price, dealApi?.originalPrice, comparison?.original_price, highestPrice, currentPrice);
+  const discountPercent = safePercent(
+    firstNumeric(trackedProduct?.discount_percent, dealApi?.discountPercent, comparison?.discount_percentage),
+    originalPrice,
+    currentPrice
+  );
+  const youSave = originalPrice && currentPrice != null && originalPrice > currentPrice ? Math.round(originalPrice - currentPrice) : null;
+  const historyDays = new Set(priceHistory.map((point) => (point.checkedAt ? new Date(point.checkedAt).toISOString().slice(0, 10) : "")).filter(Boolean)).size;
+  const currency = trackedProduct?.currency || dealApi?.currency || "INR";
+  const lastCheckedAt = lastCheckedAtValue(priceHistory, comparison?.last_updated || trackedProduct?.updated_at || dealApi?.lastCheckedAt || null);
+  const isAllTimeLow = Number.isFinite(currentPrice) && Number.isFinite(lowestPrice) ? Number(currentPrice) <= Number(lowestPrice) : false;
+  const recommendation = buildRecommendation({ currentPrice, lowestPrice, averagePrice, priceHistory });
+  const dealScore = buildDealScore({ currentPrice, lowestPrice, averagePrice, discountPercent, priceHistory });
+  const images = uniqueStrings([
+    trackedProduct?.image_url,
+    dealApi?.imageUrl,
+    comparison?.image_url,
+    dealApi?.sourceImageUrl
+  ]);
+  const title = trackedProduct?.title || dealApi?.title || comparison?.product_name || "";
+  const description = dealApi?.description || "";
+  const categoryName = dealApi?.categoryName || comparison?.category || "Other Deals";
+  const storeComparisons = comparisonPrices.length ? comparisonPrices : singleStoreComparison({
+    storeName: trackedProduct?.store_name || dealApi?.storeName || storeName,
+    price: currentPrice,
+    productUrl: trackedProduct?.product_url || dealApi?.productUrl || normalizedUrl
+  });
+
+  const bestDeal = storeComparisons.find((item) => item.isBest) || null;
+
+  return {
+    storeName: trackedProduct?.store_name || dealApi?.storeName || storeName,
+    productUrl: trackedProduct?.product_url || dealApi?.productUrl || normalizedUrl,
+    title,
+    description,
+    imageUrl: images[0] || "",
+    images,
+    categoryName,
+    currentPrice: currentPrice ?? null,
+    originalPrice: originalPrice ?? null,
+    discountPercent: discountPercent ?? null,
+    youSave,
+    lowestPrice: lowestPrice ?? null,
+    highestPrice: highestPrice ?? null,
+    averagePrice: averagePrice ?? null,
+    thirtyDayAverage,
+    currency,
+    lastCheckedAt,
+    historyDays,
+    dealScore,
+    isAllTimeLow,
+    recommendation,
+    priceHistory,
+    storeComparisons,
+    relatedDeals,
+    bestDeal,
+    dealId: trackedProduct?.deal_id || dealApi?.dealId || comparison?.deal_id || null
+  };
+}
+
+function normalizeComparisonPrices(comparison, dealApi, trackedProduct, normalizedUrl, storeName) {
+  const rows = Array.isArray(comparison?.price_comparison_platforms) ? comparison.price_comparison_platforms : [];
+  const mapped = rows
+    .map((row) => ({
+      storeName: row.platform || row.store_name || "Store",
+      price: Number(row.price || 0),
+      productUrl: row.product_url || row.affiliate_url || normalizedUrl,
+      isBest: Boolean(row.is_lowest_price),
+      difference: 0,
+      platformLogoUrl: row.platform_logo_url || null
+    }))
+    .filter((item) => Number.isFinite(item.price) && item.price >= 0);
+  if (!mapped.length && (dealApi?.dealPrice || trackedProduct?.current_price)) {
+    return singleStoreComparison({
+      storeName: trackedProduct?.store_name || dealApi?.storeName || storeName,
+      price: firstNumeric(trackedProduct?.current_price, dealApi?.dealPrice, dealApi?.currentPrice),
+      productUrl: trackedProduct?.product_url || dealApi?.productUrl || normalizedUrl
+    });
+  }
+  const lowest = mapped.reduce((min, item) => (min == null || item.price < min.price ? item : min), null);
+  return dedupeStoreComparisons(mapped).map((item) => ({
+    ...item,
+    isBest: lowest ? item.storeName === lowest.storeName && item.price === lowest.price : false,
+    difference: lowest ? Math.max(0, Math.round(item.price - lowest.price)) : 0
+  }));
+}
+
+function singleStoreComparison({ storeName, price, productUrl }) {
+  if (!Number.isFinite(price)) return [];
+  return [{
+    storeName: storeName || "Store",
+    price,
+    productUrl: productUrl || "",
+    isBest: true,
+    difference: 0,
+    platformLogoUrl: null
+  }];
+}
+
+function dedupeStoreComparisons(rows) {
+  const seen = new Set();
+  return rows.filter((row) => {
+    const key = `${String(row.storeName || "").trim().toLowerCase()}::${String(row.productUrl || "").trim()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildRecommendation({ currentPrice, lowestPrice, averagePrice, priceHistory }) {
+  if (!priceHistory || priceHistory.length < 2 || !Number.isFinite(currentPrice) || !Number.isFinite(lowestPrice)) {
+    return {
+      label: "Not enough data",
+      reason: "Price history will appear after more tracking data is collected."
+    };
+  }
+
+  if (currentPrice <= lowestPrice * 1.05) {
+    return {
+      label: "Good time to buy",
+      reason: "Current price is close to all-time low."
+    };
+  }
+
+  if (Number.isFinite(averagePrice) && currentPrice > averagePrice) {
+    return {
+      label: "Wait for price drop",
+      reason: "Current price is above 30-day average."
+    };
+  }
+
+  return {
+    label: "Fair price",
+    reason: "Price is within a normal range compared to recent history."
+  };
+}
+
+function buildDealScore({ currentPrice, lowestPrice, averagePrice, discountPercent, priceHistory }) {
+  if (!priceHistory || priceHistory.length < 2 || !Number.isFinite(currentPrice)) return null;
+  let score = 50;
+  if (Number.isFinite(discountPercent)) score += Math.min(25, Math.max(0, discountPercent / 4));
+  if (Number.isFinite(lowestPrice) && lowestPrice > 0) {
+    const ratio = currentPrice / lowestPrice;
+    if (ratio <= 1.02) score += 20;
+    else if (ratio <= 1.05) score += 12;
+    else if (ratio > 1.2) score -= 10;
+  }
+  if (Number.isFinite(averagePrice) && averagePrice > 0) {
+    const ratio = currentPrice / averagePrice;
+    if (ratio <= 0.95) score += 10;
+    else if (ratio > 1.15) score -= 10;
+  }
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function safePercent(discountPercent, originalPrice, currentPrice) {
+  if (Number.isFinite(discountPercent) && discountPercent >= 0 && discountPercent <= 100) return Math.round(discountPercent);
+  if (Number.isFinite(originalPrice) && originalPrice > 0 && Number.isFinite(currentPrice) && currentPrice >= 0 && currentPrice <= originalPrice) {
+    return Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+  }
+  return null;
+}
+
+function lastCheckedAtValue(history, fallback) {
+  const latest = history
+    .map((point) => point.checkedAt)
+    .filter(Boolean)
+    .map((value) => new Date(value).getTime())
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => b - a)[0];
+  return latest ? new Date(latest).toISOString() : fallback || null;
+}
+
+function uniqueStrings(values) {
+  return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+}
+
 async function saveTrackingRequest({ productUrl, normalizedUrl, storeName, platformProductId, userId }) {
   const payload = {
     product_url: productUrl,
@@ -182,39 +467,6 @@ async function saveTrackingRequest({ productUrl, normalizedUrl, storeName, platf
   if (isMissingTable(error) || isMissingColumn(error)) return;
   if (/duplicate key/i.test(error?.message || "")) return;
   throwIfSupabaseError(error, "price_tracking_requests");
-}
-
-async function findBestDeal({ title, storeName, productUrl, currentPrice }) {
-  let query = supabaseAdmin
-    .from("deals")
-    .select("*, categories(*), stores(*)")
-    .eq("status", "active")
-    .gte("discounted_price", 0)
-    .or(`platform_expires_at.is.null,platform_expires_at.gt.${new Date().toISOString()}`)
-    .order("discounted_price", { ascending: true })
-    .limit(12);
-
-  const search = searchableTitle(title);
-  if (search) {
-    query = query.ilike("title", `%${escapeIlike(search)}%`);
-  }
-
-  const { data, error } = await query;
-  if (isMissingColumn(error)) return null;
-  throwIfSupabaseError(error, "deals");
-  const deal = (data || [])
-    .map(toApiDeal)
-    .filter((item) => item.isValid && !item.isExpired)
-    .filter((item) => item.productUrl !== productUrl)
-    .filter((item) => Number(item.dealPrice || item.currentPrice || 0) > 0)
-    .find((item) => !currentPrice || Number(item.dealPrice || item.currentPrice) <= Number(currentPrice));
-
-  if (!deal) return null;
-  return {
-    storeName: deal.storeName || storeName,
-    dealPrice: Number(deal.dealPrice || deal.currentPrice || 0),
-    productUrl: deal.productUrl || deal.dealUrl || ""
-  };
 }
 
 function detectStoreName(productUrl) {
@@ -256,19 +508,6 @@ function firstNumeric(...values) {
 function latestHistoryPrice(history) {
   const point = history.slice().reverse().find((item) => Number(item.price) >= 0);
   return point ? Number(point.price) : null;
-}
-
-function searchableTitle(title) {
-  return String(title || "")
-    .replace(/[^a-z0-9\s]/gi, " ")
-    .split(/\s+/)
-    .filter((word) => word.length > 2 && !/^(the|and|for|with|deal|offer|price)$/i.test(word))
-    .slice(0, 3)
-    .join(" ");
-}
-
-function escapeIlike(value) {
-  return String(value || "").replace(/[%_]/g, "\\$&");
 }
 
 function sameKey(a, b) {
