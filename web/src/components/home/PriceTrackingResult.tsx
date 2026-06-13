@@ -87,8 +87,16 @@ export function ProductImageGallery({ images, title }: { images: string[]; title
           {current ? (
             <img src={current} alt={title || "Product image"} className="aspect-square w-full object-contain bg-white" />
           ) : (
-            <div className="flex aspect-square items-center justify-center bg-secondary/30 text-muted-foreground">
-              <Layers3 className="h-12 w-12" />
+            <div className="flex aspect-square flex-col items-center justify-center gap-3 bg-gradient-to-br from-background to-secondary/40 px-8 text-center text-muted-foreground">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full border border-dashed border-border bg-background">
+                <Layers3 className="h-8 w-8" />
+              </div>
+              <div className="space-y-1">
+                <div className="text-sm font-semibold text-foreground">Tracking started</div>
+                <p className="text-xs leading-5">
+                  Product image will appear after the next fetch.
+                </p>
+              </div>
             </div>
           )}
         </div>
@@ -463,6 +471,7 @@ function InfoLine({ icon, label, value }: { icon: ReactNode; label: string; valu
 }
 
 function formatCurrency(value: number | null | undefined, currency = "INR") {
+  if (value === null || value === undefined || value === "") return "Not available";
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return "Not available";
   const symbol = currency === "INR" ? "₹" : `${currency} `;
