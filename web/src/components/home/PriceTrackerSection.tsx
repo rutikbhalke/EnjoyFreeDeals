@@ -36,7 +36,8 @@ export default function PriceTrackerSection() {
     try {
       setResult(await trackPrice(trimmedUrl));
     } catch (apiError) {
-      setError(apiError instanceof Error ? apiError.message : "Price tracking failed.");
+      const message = apiError instanceof Error ? apiError.message : "Price tracking failed.";
+      setError(normalizeErrorMessage(message));
     } finally {
       setIsLoading(false);
     }
@@ -215,4 +216,18 @@ function formatPrice(value: number | null | undefined) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return "Not available";
   return `Rs. ${numeric.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
+}
+
+function normalizeErrorMessage(message: string) {
+  const lower = message.toLowerCase();
+  if (lower.includes("failed to fetch") || lower.includes("networkerror") || lower.includes("network error")) {
+    return "Backend API is not reachable. Please check Vercel deployment.";
+  }
+  if (lower.includes("invalid producturl") || lower.includes("a valid producturl is required")) {
+    return "Please paste a valid Amazon, Flipkart, Myntra, Ajio, Croma, or TataCliq product link.";
+  }
+  if (lower.includes("tracking started")) {
+    return "Tracking started. Price data will appear after the next fetch.";
+  }
+  return message;
 }

@@ -1,11 +1,15 @@
 import { getUserId, isLoggedIn } from "@/lib/auth";
 
-const DEFAULT_API_BASE_URL = "https://enjoyfreedeals.vercel.app";
+const DEFAULT_API_BASE_URL = "https://enjoy-free-deals.vercel.app";
 
-export const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL ||
-  DEFAULT_API_BASE_URL
-).replace(/\/+$/, "");
+export const API_BASE_URL = resolveApiBaseUrl();
+
+function resolveApiBaseUrl() {
+  const configured = String(import.meta.env.VITE_API_BASE_URL || "").trim();
+  if (configured) return configured.replace(/\/+$/, "");
+
+  return DEFAULT_API_BASE_URL;
+}
 
 export type BackendDeal = {
   id: string;
