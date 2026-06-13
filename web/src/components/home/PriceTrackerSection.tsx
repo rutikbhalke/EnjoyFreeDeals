@@ -221,7 +221,7 @@ function formatPrice(value: number | null | undefined) {
 function normalizeErrorMessage(message: string) {
   const lower = message.toLowerCase();
   if (lower.includes("failed to fetch") || lower.includes("networkerror") || lower.includes("network error")) {
-    return "Backend API is not reachable. Please check Vercel deployment.";
+    return "Backend API is not reachable. Please check Vercel backend URL.";
   }
   if (lower.includes("invalid producturl") || lower.includes("a valid producturl is required")) {
     return "Please paste a valid Amazon, Flipkart, Myntra, Ajio, Croma, or TataCliq product link.";

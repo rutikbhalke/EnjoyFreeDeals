@@ -11,9 +11,11 @@ function toApiDeal(row) {
   const dealUrl = resolveDealUrl(row);
   const lastScrapedAt = row.source_updated_at || row.fetched_at || row.last_scraped_at || row.updated_at || row.created_at || null;
   const platformExpiresAt = row.platform_expires_at || row.expiry_date || null;
-  const categoryName = category.name || row.category_name || "Other Deals";
+  const categoryName = normalizeCategoryName(category.name || row.category_name);
   const isExpired = Boolean(row.is_expired) || Boolean(platformExpiresAt && new Date(platformExpiresAt).getTime() <= Date.now()) || row.status === "expired";
   const isValid = isValidDealPrice(originalPrice, currentPrice) && isHttpUrl(dealUrl);
+  const priceStatus = row.price_status || row.raw_source_payload?.price_status || "detected";
+  const expiryStatus = row.expiry_status || row.raw_source_payload?.expiry_status || (platformExpiresAt ? "detected" : "manual_required");
 
   return {
     dealId: row.id,
@@ -35,6 +37,14 @@ function toApiDeal(row) {
     dealPrice: currentPrice,
     deal_price: currentPrice,
     discountedPrice: currentPrice,
+    priceStatus,
+    price_status: priceStatus,
+    priceMin: safeNullablePrice(row.price_min),
+    price_min: safeNullablePrice(row.price_min),
+    priceMax: safeNullablePrice(row.price_max),
+    price_max: safeNullablePrice(row.price_max),
+    manualPriceNote: row.manual_price_note || "",
+    manual_price_note: row.manual_price_note || "",
     discountPercent,
     discount_percent: discountPercent,
     currency: row.currency || "INR",
@@ -99,6 +109,20 @@ function toApiDeal(row) {
     sourceUpdatedAt: row.source_updated_at || row.raw_source_payload?.sourceUpdatedAt || row.raw_source_payload?.normalizedAt || null,
     platformExpiresAt,
     expiresAt: platformExpiresAt,
+    expiryStatus,
+    expiry_status: expiryStatus,
+    expiryAt: row.expiry_at || platformExpiresAt,
+    expiry_at: row.expiry_at || platformExpiresAt,
+    expiryNote: row.expiry_note || "",
+    expiry_note: row.expiry_note || "",
+    adminReviewStatus: row.admin_review_status || "approved",
+    admin_review_status: row.admin_review_status || "approved",
+    sourceChannel: row.source_channel || row.telegram_channel || "",
+    source_channel: row.source_channel || row.telegram_channel || "",
+    telegramMessageId: row.telegram_message_id || "",
+    telegram_message_id: row.telegram_message_id || "",
+    telegramPostUrl: row.telegram_post_url || "",
+    telegram_post_url: row.telegram_post_url || "",
     lastScrapedAt,
     scrapedAt: lastScrapedAt,
     scrapeExpiresAt: platformExpiresAt,
@@ -139,6 +163,16 @@ function normalizeDealPayload(payload) {
   mapIfPresent(normalized, "expiryDate", "expiry_date");
   mapIfPresent(normalized, "expiresAt", "platform_expires_at");
   mapIfPresent(normalized, "platformExpiresAt", "platform_expires_at");
+  mapIfPresent(normalized, "priceStatus", "price_status");
+  mapIfPresent(normalized, "priceMin", "price_min");
+  mapIfPresent(normalized, "priceMax", "price_max");
+  mapIfPresent(normalized, "manualPriceNote", "manual_price_note");
+  mapIfPresent(normalized, "expiryStatus", "expiry_status");
+  mapIfPresent(normalized, "expiryAt", "expiry_at");
+  mapIfPresent(normalized, "expiryNote", "expiry_note");
+  mapIfPresent(normalized, "adminReviewStatus", "admin_review_status");
+  mapIfPresent(normalized, "sourceChannel", "source_channel");
+  mapIfPresent(normalized, "telegramPostUrl", "telegram_post_url");
   mapIfPresent(normalized, "sourceUpdatedAt", "source_updated_at");
   mapIfPresent(normalized, "platformProductId", "source_product_id");
   mapIfPresent(normalized, "createdAt", "created_at");
@@ -197,6 +231,12 @@ function safePrice(value) {
   return Number.isFinite(price) && price >= 0 ? price : 0;
 }
 
+function safeNullablePrice(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const price = Number(value);
+  return Number.isFinite(price) && price >= 0 ? price : null;
+}
+
 function safeDiscount(value, originalPrice, currentPrice) {
   const discount = Number(value || 0);
   if (Number.isFinite(discount) && discount >= 0 && discount <= 100) return Math.round(discount);
@@ -204,6 +244,13 @@ function safeDiscount(value, originalPrice, currentPrice) {
     return Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
   }
   return 0;
+}
+
+function normalizeCategoryName(value) {
+  const cleaned = String(value || "").trim();
+  if (!cleaned) return "Other Deals";
+  if (/^(?:unknown|other[-\s]?deals?)$/i.test(cleaned)) return "Other Deals";
+  return cleaned;
 }
 
 function isValidDealPrice(originalPrice, currentPrice) {

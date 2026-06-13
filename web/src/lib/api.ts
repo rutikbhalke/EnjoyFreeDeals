@@ -1,14 +1,24 @@
 import { getUserId, isLoggedIn } from "@/lib/auth";
 
-const DEFAULT_API_BASE_URL = "https://enjoy-free-deals.vercel.app";
+const DEFAULT_API_BASE_URL = "https://enjoyfreedeals.vercel.app";
+const FALLBACK_API_BASE_URLS = [
+  "https://enjoyfreedeals.vercel.app",
+  "https://enjoy-free-deals.vercel.app",
+].map((value) => value.replace(/\/+$/, ""));
 
 export const API_BASE_URL = resolveApiBaseUrl();
+export const API_BASE_URLS = resolveApiBaseUrls();
+
+function resolveApiBaseUrls() {
+  const configured = String(import.meta.env.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "");
+  const candidates = [configured, DEFAULT_API_BASE_URL, ...FALLBACK_API_BASE_URLS]
+    .map((value) => String(value || "").trim().replace(/\/+$/, ""))
+    .filter(Boolean);
+  return [...new Set(candidates)];
+}
 
 function resolveApiBaseUrl() {
-  const configured = String(import.meta.env.VITE_API_BASE_URL || "").trim();
-  if (configured) return configured.replace(/\/+$/, "");
-
-  return DEFAULT_API_BASE_URL;
+  return API_BASE_URLS[0] || DEFAULT_API_BASE_URL;
 }
 
 export type BackendDeal = {
@@ -174,40 +184,53 @@ type ApiResponse<T> = {
 };
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { Accept: "application/json" },
-  });
-  const body = (await response.json().catch(() => ({}))) as ApiResponse<T>;
-  if (!response.ok || body.success === false) {
-    throw new Error(body.message || `API request failed: ${response.status}`);
-  }
+  const { body } = await apiRequest<T>(path, { headers: { Accept: "application/json" } });
   return (body.data ?? body) as T;
 }
 
 export async function apiPost<T>(path: string, payload: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const { body } = await apiRequest<T>(path, {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  const body = (await response.json().catch(() => ({}))) as ApiResponse<T>;
-  if (!response.ok || body.success === false) {
-    throw new Error(body.message || `API request failed: ${response.status}`);
-  }
   return (body.data ?? body) as T;
 }
 
 export async function apiDelete<T>(path: string, payload: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const { body } = await apiRequest<T>(path, {
     method: "DELETE",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  const body = (await response.json().catch(() => ({}))) as ApiResponse<T>;
-  if (!response.ok || body.success === false) {
-    throw new Error(body.message || `API request failed: ${response.status}`);
-  }
   return (body.data ?? body) as T;
+}
+
+export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<{ response: Response; body: ApiResponse<T> }> {
+  let lastError: Error | null = null;
+
+  for (const baseUrl of API_BASE_URLS) {
+    try {
+      const response = await fetch(`${baseUrl}${path}`, init);
+      const rawText = await response.text();
+      const body = safeParseJson<ApiResponse<T>>(rawText);
+      const message = body.message || `API request failed: ${response.status}`;
+
+      if (!response.ok || body.success === false) {
+        if (shouldRetryApiResponse(response.status, rawText)) {
+          lastError = new Error(message);
+          continue;
+        }
+        throw new Error(message);
+      }
+
+      return { response, body };
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+  }
+
+  throw lastError || new Error("Backend API is not reachable. Please check Vercel backend URL.");
 }
 
 export async function fetchDeals(params: Record<string, string | number | undefined> = {}) {
@@ -237,8 +260,8 @@ export async function fetchCategories() {
     slug?: string;
   }>>("/api/categories");
 
-  return categories.map((category) => {
-    const name = category.categoryName || category.name || "Other Deals";
+  const mapped = categories.map((category) => {
+    const name = normalizeCategoryName(category.categoryName || category.name);
     return {
       id: category.categoryId || category.id || slugify(name),
       name,
@@ -249,6 +272,20 @@ export async function fetchCategories() {
       is_active: category.isActive !== false,
     };
   });
+
+  if (!mapped.some((category) => category.slug === "other-deals" || normalizeCategoryName(category.name) === "Other Deals")) {
+    mapped.push({
+      id: "other-deals",
+      name: "Other Deals",
+      slug: "other-deals",
+      icon: null,
+      image_url: null,
+      description: null,
+      is_active: true,
+    });
+  }
+
+  return mapped;
 }
 
 export async function fetchPriceComparison(productId: string): Promise<PriceComparison | null> {
@@ -270,7 +307,7 @@ export async function trackPrice(productUrl: string) {
 
 export function mapBackendDeal(deal: BackendDeal): WebDeal {
   const storeName = deal.storeName || "Store";
-  const categoryName = deal.categoryName || "Other Deals";
+  const categoryName = normalizeCategoryName(deal.categoryName);
   const updatedAt = deal.sourceUpdatedAt || deal.lastCheckedAt || deal.fetchedAt || deal.updatedAt || deal.createdAt || null;
   const dealUrl = deal.affiliateUrl || deal.dealUrl || deal.productUrl || null;
   const imageUrl = firstHttpUrl(deal.imageUrl, deal.productImage, deal.sourceImageUrl);
@@ -370,6 +407,19 @@ function numberOrNull(value: unknown) {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
+function safeParseJson<T>(value: string): T {
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return {} as T;
+  }
+}
+
+function shouldRetryApiResponse(status: number, rawText: string) {
+  if (status >= 500 || status === 404 || status === 408 || status === 429) return true;
+  return /<html|<!doctype/i.test(rawText);
+}
+
 function firstHttpUrl(...values: Array<string | null | undefined>) {
   return values.map((value) => String(value || "").trim()).find(isUsableImageUrl) || null;
 }
@@ -394,6 +444,13 @@ function slugify(value?: string | null) {
     .replace(/&/g, "and")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "") || "other-deals";
+}
+
+function normalizeCategoryName(value?: string | null) {
+  const cleaned = String(value || "").trim();
+  if (!cleaned) return "Other Deals";
+  if (/^(?:unknown|other[-\s]?deals?)$/i.test(cleaned)) return "Other Deals";
+  return cleaned;
 }
 
 function buildSearchUrl(platform: string, productName: string) {

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { saveUserSession } from "@/lib/auth";
-import { API_BASE_URL } from "@/lib/api";
+import { apiPost } from "@/lib/api";
 import SEO from "@/components/SEO";
 
 type OtpResponse = {
@@ -181,16 +181,7 @@ export default function LoginPage() {
 }
 
 async function postOtp(path: string, body: Record<string, string>): Promise<OtpResponse> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(body),
-  });
-  const json = (await response.json().catch(() => ({}))) as OtpResponse;
-  if (!response.ok || json.success === false) {
-    throw new Error(json.message || "OTP request failed.");
-  }
-  return json;
+  return apiPost<OtpResponse>(path, body);
 }
 
 function persistSession(response: OtpResponse, fallbackMobile: string) {

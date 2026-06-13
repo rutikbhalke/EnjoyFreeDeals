@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import SEO from "@/components/SEO";
-import { API_BASE_URL } from "@/lib/api";
+import { apiRequest } from "@/lib/api";
 import { useState } from "react";
 
 function useAdminStats() {
@@ -165,16 +165,16 @@ export default function AdminDashboard() {
                 return;
               }
               setFetchStatus("Fetching Telegram deals...");
-              const response = await fetch(`${API_BASE_URL}/api/admin/fetch-telegram-deals`, {
+              const { response, body } = await apiRequest<{ message?: string; data?: { message?: string } }>("/api/admin/fetch-telegram-deals", {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
+                  Accept: "application/json",
                   "x-import-secret": secret,
                 },
                 body: JSON.stringify({ limit: 25 }),
               });
-              const payload = await response.json().catch(() => ({}));
-              setFetchStatus(payload?.data?.message || payload?.message || (response.ok ? "Fetch completed." : "Fetch failed."));
+              setFetchStatus(body?.data?.message || body?.message || (response.ok ? "Fetch completed." : "Fetch failed."));
             }}
           >
             <RefreshCw className="mr-2 h-4 w-4" />

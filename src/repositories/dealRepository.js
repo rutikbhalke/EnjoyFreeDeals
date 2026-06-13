@@ -21,8 +21,7 @@ async function listDeals(filters) {
   }
 
   if (filters.category) {
-    const categoryId = await resolveCategoryId(filters.category);
-    query = categoryId ? query.eq("category_id", categoryId) : query.eq("category_id", "00000000-0000-0000-0000-000000000000");
+    query = await applyCategoryFilter(query, filters.category);
   }
 
   if (filters.dealType) {
@@ -74,10 +73,6 @@ async function getDealById(id, userId) {
     .from(TABLE)
     .select("*, categories(*), stores(*)")
     .eq("id", id)
-    .eq("status", "active")
-    .not("last_scraped_at", "is", null)
-    .not("dedupe_key", "is", null)
-    .neq("source_url", "")
     .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"])
     .maybeSingle();
   if (isMissingOptionalDealColumn(error)) {
@@ -85,7 +80,6 @@ async function getDealById(id, userId) {
       .from(TABLE)
       .select("*, categories(*), stores(*)")
       .eq("id", id)
-      .eq("status", "active")
       .maybeSingle();
     data = fallback.data;
     error = fallback.error;
@@ -135,12 +129,8 @@ function escapeIlike(value) {
 
 function applyPublicDealVisibility(query) {
   return query
-    .eq("status", "active")
     .gte("discounted_price", 0)
     .or(nonExpiredDealFilter())
-    .not("last_scraped_at", "is", null)
-    .not("dedupe_key", "is", null)
-    .neq("source_url", "")
     .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"]);
 }
 
@@ -148,7 +138,6 @@ async function buildBaseListQuery(filters, from, to) {
   let query = supabaseAdmin
     .from(TABLE)
     .select("*, categories(*), stores(*)", { count: "exact" })
-    .eq("status", "active")
     .order("created_at", { ascending: false })
     .range(from, to);
 
@@ -158,8 +147,7 @@ async function buildBaseListQuery(filters, from, to) {
   }
 
   if (filters.category) {
-    const categoryId = await resolveCategoryId(filters.category);
-    query = categoryId ? query.eq("category_id", categoryId) : query.eq("category_id", "00000000-0000-0000-0000-000000000000");
+    query = await applyCategoryFilter(query, filters.category);
   }
 
   if (filters.dealType) query = query.eq("source", filters.dealType);
@@ -193,6 +181,15 @@ async function resolveCategoryId(category) {
   return match?.id || null;
 }
 
+async function applyCategoryFilter(query, category) {
+  if (isOtherDealsCategory(category)) {
+    return query.is("category_id", null);
+  }
+
+  const categoryId = await resolveCategoryId(category);
+  return categoryId ? query.eq("category_id", categoryId) : query.eq("category_id", "00000000-0000-0000-0000-000000000000");
+}
+
 function normalizeCategoryKey(value) {
   return rawCategoryKey(value);
 }
@@ -209,6 +206,11 @@ function rawCategoryKey(value) {
 function categoryLookupKeys(value) {
   const raw = rawCategoryKey(value);
   return new Set([raw, CATEGORY_ALIASES[raw]].filter(Boolean));
+}
+
+function isOtherDealsCategory(value) {
+  const key = rawCategoryKey(value);
+  return !key || key === "other-deals" || key === "other-deal" || key === "other";
 }
 
 const CATEGORY_ALIASES = {
