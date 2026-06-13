@@ -129,7 +129,9 @@ export function ProductSummary({ result }: { result: TrackPriceResult }) {
   const { toast } = useToast();
   const { user } = useAuth();
   const saving = Number.isFinite(result.youSave || NaN) ? result.youSave || 0 : null;
-  const lowMatch = Boolean(result.isAllTimeLow);
+  const hasCurrentPrice = isPositivePrice(result.currentPrice);
+  const lowMatch = hasCurrentPrice && Boolean(result.isAllTimeLow);
+  const isPending = result.status === "tracking_started" || !hasCurrentPrice;
   const checkedText = result.lastCheckedAt ? new Date(result.lastCheckedAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "Not checked yet";
   const handleSetAlert = async () => {
     const userId = isLoggedIn() ? getUserId() : user?.id || null;
@@ -169,25 +171,33 @@ export function ProductSummary({ result }: { result: TrackPriceResult }) {
 
         <div className="space-y-2">
           <h1 className="text-2xl font-bold leading-tight">{result.title || "Tracking started"}</h1>
-          {result.description && <p className="text-sm text-muted-foreground">{result.description}</p>}
+          {result.description ? (
+            <p className="text-sm text-muted-foreground">{result.description}</p>
+          ) : isPending ? (
+            <p className="text-sm text-muted-foreground">
+              Tracking has started. Price data will appear after the next fetch.
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-3xl font-bold text-emerald-600">{formatCurrency(result.currentPrice, result.currency)}</span>
-            {result.originalPrice != null && result.originalPrice > (result.currentPrice ?? 0) && (
+            <span className={cn("text-3xl font-bold", hasCurrentPrice ? "text-emerald-600" : "text-foreground")}>
+              {hasCurrentPrice ? formatCurrency(result.currentPrice, result.currency) : "Price data pending"}
+            </span>
+            {hasCurrentPrice && result.originalPrice != null && result.originalPrice > (result.currentPrice ?? 0) && (
               <span className="text-sm text-muted-foreground line-through">{formatCurrency(result.originalPrice, result.currency)}</span>
             )}
-            {result.discountPercent != null && result.discountPercent > 0 && (
+            {hasCurrentPrice && result.discountPercent != null && result.discountPercent > 0 && (
               <Badge className="bg-rose-500 text-white hover:bg-rose-500">{Math.round(result.discountPercent)}% OFF</Badge>
             )}
           </div>
-          {saving != null && saving > 0 && <p className="text-sm text-emerald-700">You save {formatCurrency(saving, result.currency)}</p>}
+          {hasCurrentPrice && saving != null && saving > 0 && <p className="text-sm text-emerald-700">You save {formatCurrency(saving, result.currency)}</p>}
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
-          <SmallStat label="All-time low" value={formatCurrency(result.lowestPrice, result.currency)} accent={lowMatch ? "emerald" : "default"} />
-          <SmallStat label="30-day average" value={formatCurrency(result.thirtyDayAverage ?? result.averagePrice, result.currency)} />
+          <SmallStat label="All-time low" value={formatTrackedPrice(result.lowestPrice, result.currency)} accent={lowMatch ? "emerald" : "default"} />
+          <SmallStat label="30-day average" value={formatTrackedPrice(result.thirtyDayAverage ?? result.averagePrice, result.currency)} />
           <SmallStat label="Deal score" value={result.dealScore != null ? `${result.dealScore}/100` : "Not enough data"} />
         </div>
 
@@ -218,7 +228,7 @@ export function ProductSummary({ result }: { result: TrackPriceResult }) {
 }
 
 export function ComparePricesCard({ result }: { result: TrackPriceResult }) {
-  const stores = (result.storeComparisons || []).filter((item) => Number.isFinite(Number(item.price)) && Number(item.price) >= 0);
+  const stores = (result.storeComparisons || []).filter((item) => isPositivePrice(item.price));
   const lowest = stores.reduce((min, item) => {
     const price = Number(item.price || 0);
     if (!Number.isFinite(price)) return min;
@@ -230,7 +240,7 @@ export function ComparePricesCard({ result }: { result: TrackPriceResult }) {
     <Card className="rounded-xl border-border bg-white">
       <CardHeader className="space-y-1 pb-3">
         <CardTitle className="text-lg">Compare Prices</CardTitle>
-        <p className="text-sm text-muted-foreground">Same product · {stores.length || 1} stores</p>
+        <p className="text-sm text-muted-foreground">Same product · {stores.length} stores</p>
       </CardHeader>
       <CardContent className="space-y-3">
         {stores.length > 0 ? (
@@ -291,7 +301,7 @@ export function PriceHistoryChart({ result }: { result: TrackPriceResult }) {
         date: point.checkedAt || null,
         price: Number(point.price || 0),
       }))
-      .filter((point) => Number.isFinite(point.price) && point.price >= 0)
+      .filter((point) => isPositivePrice(point.price))
       .sort((a, b) => new Date(a.date || 0).getTime() - new Date(b.date || 0).getTime())
       .filter((point) => !point.date || new Date(point.date).getTime() >= cutoff);
     return points;
@@ -319,9 +329,9 @@ export function PriceHistoryChart({ result }: { result: TrackPriceResult }) {
           </div>
         </div>
         <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-          <Badge variant="secondary">All-time low {formatCurrency(result.lowestPrice, result.currency)}</Badge>
-          <Badge variant="secondary">All-time high {formatCurrency(result.highestPrice, result.currency)}</Badge>
-          <Badge variant="secondary">Current {formatCurrency(result.currentPrice, result.currency)}</Badge>
+          <Badge variant="secondary">All-time low {formatTrackedPrice(result.lowestPrice, result.currency)}</Badge>
+          <Badge variant="secondary">All-time high {formatTrackedPrice(result.highestPrice, result.currency)}</Badge>
+          <Badge variant="secondary">Current {formatTrackedPrice(result.currentPrice, result.currency)}</Badge>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -388,11 +398,11 @@ export function PriceStatsCards({ result }: { result: TrackPriceResult }) {
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      <StatCard label="Current price" value={formatCurrency(result.currentPrice, result.currency)} />
-      <StatCard label="Lowest price" value={formatCurrency(result.lowestPrice, result.currency)} accent="emerald" />
-      <StatCard label="Highest price" value={formatCurrency(result.highestPrice, result.currency)} />
-      <StatCard label="Average price" value={formatCurrency(result.averagePrice, result.currency)} />
-      <StatCard label="30-day average" value={formatCurrency(result.thirtyDayAverage ?? result.averagePrice, result.currency)} />
+      <StatCard label="Current price" value={formatTrackedPrice(result.currentPrice, result.currency)} />
+      <StatCard label="Lowest price" value={formatTrackedPrice(result.lowestPrice, result.currency)} accent="emerald" />
+      <StatCard label="Highest price" value={formatTrackedPrice(result.highestPrice, result.currency)} />
+      <StatCard label="Average price" value={formatTrackedPrice(result.averagePrice, result.currency)} />
+      <StatCard label="30-day average" value={formatTrackedPrice(result.thirtyDayAverage ?? result.averagePrice, result.currency)} />
       <StatCard label="Price drops" value={result.priceHistory.length > 0 ? `${drops}` : "Not available"} />
       <StatCard label="Last checked" value={result.lastCheckedAt ? new Date(result.lastCheckedAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "Not checked yet"} />
     </div>
@@ -478,6 +488,15 @@ function formatCurrency(value: number | null | undefined, currency = "INR") {
   return `${symbol}${numeric.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
+function formatTrackedPrice(value: number | null | undefined, currency = "INR") {
+  return isPositivePrice(value) ? formatCurrency(value, currency) : "Not available";
+}
+
+function isPositivePrice(value: number | null | undefined) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0;
+}
+
 function countPriceDrops(history: TrackPriceResult["priceHistory"]) {
   const points = [...(history || [])]
     .filter((point) => Number.isFinite(Number(point.price)))
@@ -508,7 +527,7 @@ function normalizeResult(result: TrackPriceResult | null): TrackPriceResult | nu
   return {
     ...result,
     images: uniqueStrings(result.images || [result.imageUrl]),
-    priceHistory: (result.priceHistory || []).filter((point) => Number.isFinite(Number(point.price))),
+    priceHistory: (result.priceHistory || []).filter((point) => isPositivePrice(point.price)),
     storeComparisons: result.storeComparisons || [],
     relatedDeals: result.relatedDeals || [],
   };
