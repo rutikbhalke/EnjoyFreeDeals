@@ -162,9 +162,9 @@ export type TrackPriceResult = {
   dealId?: string | null;
   storeName: string;
   productUrl: string;
-  title: string;
+  title: string | null;
   description?: string | null;
-  imageUrl: string;
+  imageUrl: string | null;
   images?: string[];
   categoryName?: string | null;
   currentPrice: number | null;

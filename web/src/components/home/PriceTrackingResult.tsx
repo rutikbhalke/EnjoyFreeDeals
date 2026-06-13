@@ -8,6 +8,7 @@ import {
   ExternalLink,
   IndianRupee,
   Layers3,
+  SearchCheck,
   Sparkles,
   Tag,
   TrendingDown,
@@ -49,6 +50,10 @@ export default function PriceTrackingResult({ result, isLoading }: Props) {
     );
   }
 
+  if (!hasValidPriceData(normalized)) {
+    return <PendingTrackingState result={normalized} isLoading={isLoading} />;
+  }
+
   return (
     <section className={cn("container px-5 pb-12", isLoading && "opacity-90")}>
       <div className="space-y-6">
@@ -70,6 +75,47 @@ export default function PriceTrackingResult({ result, isLoading }: Props) {
   );
 }
 
+export function PendingTrackingState({ result, isLoading }: { result: TrackPriceResult; isLoading: boolean }) {
+  return (
+    <section className={cn("container px-5 pb-12", isLoading && "opacity-90")}>
+      <Card className="mx-auto max-w-3xl rounded-xl border-border bg-white">
+        <CardContent className="p-6 md:p-8">
+          <div className="flex flex-col gap-5 text-center sm:flex-row sm:text-left">
+            <div className="mx-auto flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-700 sm:mx-0">
+              <SearchCheck className="h-7 w-7" />
+            </div>
+            <div className="min-w-0 flex-1 space-y-4">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+                  <h2 className="text-2xl font-bold">Tracking started</h2>
+                  <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Pending</Badge>
+                </div>
+                <p className="text-muted-foreground">Price data will appear after the next fetch.</p>
+              </div>
+
+              <div className="grid gap-3 rounded-lg border border-border bg-secondary/20 p-4 text-sm sm:grid-cols-2">
+                <InfoLine icon={<Tag className="h-4 w-4" />} label="Store" value={result.storeName || "Detecting store"} />
+                <InfoLine icon={<CalendarClock className="h-4 w-4" />} label="Status" value="Pending" />
+                {result.productUrl && (
+                  <div className="sm:col-span-2">
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">Product URL</div>
+                    <div className="mt-1 break-all font-medium text-foreground">{result.productUrl}</div>
+                  </div>
+                )}
+              </div>
+
+              <p className="text-sm leading-6 text-muted-foreground">
+                We are checking backend deal records and price history. We will show product image, price comparison,
+                graph, and buy recommendation once backend records are available.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </section>
+  );
+}
+
 export function ProductImageGallery({ images, title }: { images: string[]; title: string }) {
   const normalizedImages = useMemo(() => uniqueStrings(images).filter(isHttpUrl), [images]);
   const [active, setActive] = useState(normalizedImages[0] || "");
@@ -87,16 +133,9 @@ export function ProductImageGallery({ images, title }: { images: string[]; title
           {current ? (
             <img src={current} alt={title || "Product image"} className="aspect-square w-full object-contain bg-white" />
           ) : (
-            <div className="flex aspect-square flex-col items-center justify-center gap-3 bg-gradient-to-br from-background to-secondary/40 px-8 text-center text-muted-foreground">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full border border-dashed border-border bg-background">
-                <Layers3 className="h-8 w-8" />
-              </div>
-              <div className="space-y-1">
-                <div className="text-sm font-semibold text-foreground">Tracking started</div>
-                <p className="text-xs leading-5">
-                  Product image will appear after the next fetch.
-                </p>
-              </div>
+            <div className="flex aspect-square flex-col items-center justify-center gap-3 bg-secondary/30 px-6 text-center text-muted-foreground">
+              <Layers3 className="h-10 w-10" />
+              <span className="text-sm font-medium">Product image unavailable</span>
             </div>
           )}
         </div>
@@ -131,7 +170,6 @@ export function ProductSummary({ result }: { result: TrackPriceResult }) {
   const saving = Number.isFinite(result.youSave || NaN) ? result.youSave || 0 : null;
   const hasCurrentPrice = isPositivePrice(result.currentPrice);
   const lowMatch = hasCurrentPrice && Boolean(result.isAllTimeLow);
-  const isPending = result.status === "tracking_started" || !hasCurrentPrice;
   const checkedText = result.lastCheckedAt ? new Date(result.lastCheckedAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "Not checked yet";
   const handleSetAlert = async () => {
     const userId = isLoggedIn() ? getUserId() : user?.id || null;
@@ -170,21 +208,13 @@ export function ProductSummary({ result }: { result: TrackPriceResult }) {
         </div>
 
         <div className="space-y-2">
-          <h1 className="text-2xl font-bold leading-tight">{result.title || "Tracking started"}</h1>
-          {result.description ? (
-            <p className="text-sm text-muted-foreground">{result.description}</p>
-          ) : isPending ? (
-            <p className="text-sm text-muted-foreground">
-              Tracking has started. Price data will appear after the next fetch.
-            </p>
-          ) : null}
+          <h1 className="text-2xl font-bold leading-tight">{result.title}</h1>
+          {result.description && <p className="text-sm text-muted-foreground">{result.description}</p>}
         </div>
 
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-3">
-            <span className={cn("text-3xl font-bold", hasCurrentPrice ? "text-emerald-600" : "text-foreground")}>
-              {hasCurrentPrice ? formatCurrency(result.currentPrice, result.currency) : "Price data pending"}
-            </span>
+            <span className="text-3xl font-bold text-emerald-600">{formatCurrency(result.currentPrice, result.currency)}</span>
             {hasCurrentPrice && result.originalPrice != null && result.originalPrice > (result.currentPrice ?? 0) && (
               <span className="text-sm text-muted-foreground line-through">{formatCurrency(result.originalPrice, result.currency)}</span>
             )}
@@ -202,16 +232,20 @@ export function ProductSummary({ result }: { result: TrackPriceResult }) {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Button asChild className="gap-2 bg-purple-600 hover:bg-purple-700">
-            <a href={result.productUrl} target="_blank" rel="noreferrer">
-              View Deal
-              <ExternalLink className="h-4 w-4" />
-            </a>
-          </Button>
-          <Button variant="outline" className="gap-2" onClick={handleSetAlert}>
-            Set Alert
-            <Sparkles className="h-4 w-4" />
-          </Button>
+          {isHttpUrl(result.productUrl) && (
+            <Button asChild className="gap-2 bg-purple-600 hover:bg-purple-700">
+              <a href={result.productUrl} target="_blank" rel="noreferrer">
+                View Deal
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            </Button>
+          )}
+          {result.dealId && (
+            <Button variant="outline" className="gap-2" onClick={handleSetAlert}>
+              Set Alert
+              <Sparkles className="h-4 w-4" />
+            </Button>
+          )}
         </div>
 
         <Separator />
@@ -228,7 +262,7 @@ export function ProductSummary({ result }: { result: TrackPriceResult }) {
 }
 
 export function ComparePricesCard({ result }: { result: TrackPriceResult }) {
-  const stores = (result.storeComparisons || []).filter((item) => isPositivePrice(item.price));
+  const stores = validStoreComparisons(result.storeComparisons || []);
   const lowest = stores.reduce((min, item) => {
     const price = Number(item.price || 0);
     if (!Number.isFinite(price)) return min;
@@ -495,6 +529,24 @@ function formatTrackedPrice(value: number | null | undefined, currency = "INR") 
 function isPositivePrice(value: number | null | undefined) {
   const numeric = Number(value);
   return Number.isFinite(numeric) && numeric > 0;
+}
+
+function validStoreComparisons(comparisons: TrackPriceResult["storeComparisons"]) {
+  return (comparisons || []).filter((item) =>
+    isPositivePrice(item.price) &&
+    Boolean(String(item.storeName || "").trim()) &&
+    isHttpUrl(item.productUrl)
+  );
+}
+
+function hasValidPriceData(result: TrackPriceResult | null) {
+  return Boolean(
+    result &&
+    result.status !== "tracking_started" &&
+    isPositivePrice(result.currentPrice) &&
+    String(result.title || "").trim() &&
+    isHttpUrl(result.productUrl)
+  );
 }
 
 function countPriceDrops(history: TrackPriceResult["priceHistory"]) {
