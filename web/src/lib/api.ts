@@ -1,4 +1,5 @@
-import { getUserId, isLoggedIn } from "@/lib/auth";
+import { supabase } from "@/integrations/supabase/client";
+import { getGuestId, getUserId, isLoggedIn } from "@/lib/auth";
 
 const DEFAULT_API_BASE_URL = "https://enjoyfreedeals.vercel.app";
 const FALLBACK_API_BASE_URLS = [
@@ -67,6 +68,22 @@ export type BackendDeal = {
   comparisonCount?: number | null;
   lastPriceCheckedAt?: string | null;
   createdAt?: string | null;
+  status?: string | null;
+  price_status?: string | null;
+  priceRangeMin?: number | null;
+  price_range_min?: number | null;
+  price_min?: number | null;
+  priceRangeMax?: number | null;
+  price_range_max?: number | null;
+  price_max?: number | null;
+  manual_price_note?: string | null;
+  adminNotes?: string | null;
+  admin_notes?: string | null;
+  validationFlags?: string[];
+  validation_flags?: string[];
+  availability?: string | null;
+  sourceType?: string | null;
+  source_type?: string | null;
 };
 
 export type WebDeal = {
@@ -97,6 +114,13 @@ export type WebDeal = {
   vote_score: number;
   upvote_count: number;
   user_has_upvoted: boolean;
+  price_range_min: number | null;
+  price_range_max: number | null;
+  admin_notes: string | null;
+  validation_flags: string[];
+  availability: string | null;
+  status: string | null;
+  source_type: string | null;
   lowest_price: number | null;
   best_platform: string | null;
   comparison_count: number;
@@ -223,6 +247,15 @@ export async function apiPost<T>(path: string, payload: unknown): Promise<T> {
   return (body.data ?? body) as T;
 }
 
+export async function apiPatch<T>(path: string, payload: unknown): Promise<T> {
+  const { body } = await apiRequest<T>(path, {
+    method: "PATCH",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return (body.data ?? body) as T;
+}
+
 export async function apiDelete<T>(path: string, payload: unknown): Promise<T> {
   const { body } = await apiRequest<T>(path, {
     method: "DELETE",
@@ -263,6 +296,7 @@ export async function fetchDeals(params: Record<string, string | number | undefi
   const query = new URLSearchParams();
   const currentUserId = isLoggedIn() ? getUserId() : "";
   if (currentUserId && params.userId === undefined) query.set("userId", currentUserId);
+  if (!currentUserId && params.guestId === undefined) query.set("guestId", getGuestId());
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== "") query.set(key, String(value));
   });
@@ -366,6 +400,13 @@ export function mapBackendDeal(deal: BackendDeal): WebDeal {
     vote_score: Number(deal.voteScore || 0),
     upvote_count: Number(deal.upvoteCount ?? deal.upvote_count ?? 0),
     user_has_upvoted: Boolean(deal.userHasUpvoted ?? deal.user_has_upvoted),
+    price_range_min: numberOrNull(deal.priceRangeMin ?? deal.price_range_min),
+    price_range_max: numberOrNull(deal.priceRangeMax ?? deal.price_range_max),
+    admin_notes: deal.adminNotes ?? deal.admin_notes ?? null,
+    validation_flags: deal.validationFlags ?? deal.validation_flags ?? [],
+    availability: deal.availability ?? null,
+    status: deal.status ?? null,
+    source_type: deal.sourceType ?? deal.source_type ?? null,
     lowest_price: numberOrNull(deal.lowestPrice),
     best_platform: deal.bestPlatform || null,
     comparison_count: Number(deal.comparisonCount || 0),
@@ -389,6 +430,7 @@ export type UpvoteResponse = {
   success: boolean;
   message: string;
   upvoted: boolean;
+  upvoteCount?: number;
   upvote_count: number;
 };
 
@@ -400,8 +442,9 @@ export type UpvotedDealItem = {
   deal: BackendDeal | null;
 };
 
-export async function upvoteDeal(userId: string, dealId: string) {
-  return apiPost<UpvoteResponse>("/api/upvoted-deals", { userId, dealId });
+export async function upvoteDeal(dealId: string, userId?: string) {
+  const payload = buildUpvotePayload(userId);
+  return apiPost<UpvoteResponse>(`/api/deals/${encodeURIComponent(dealId)}/upvote`, payload);
 }
 
 export async function removeUpvote(userId: string, dealId: string) {
@@ -413,6 +456,94 @@ export async function fetchUpvotedDeals(userId: string) {
     `/api/upvoted-deals?userId=${encodeURIComponent(userId)}`
   );
   return response;
+}
+
+export type FlaggedDeal = {
+  id: string;
+  slug?: string;
+  title: string;
+  storeName: string;
+  imageUrl: string | null;
+  dealPrice: number | null;
+  originalPrice: number | null;
+  priceRangeMin?: number | null;
+  priceRangeMax?: number | null;
+  categoryName: string;
+  productUrl: string;
+  couponCode?: string | null;
+  flags: string[];
+  status: string;
+  sourceType?: string | null;
+  adminNotes?: string | null;
+  availability?: string | null;
+  validationFlags?: string[];
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type AdminSummary = {
+  totalDeals: number;
+  activeDeals: number;
+  flaggedDeals: number;
+  missingImage: number;
+  zeroPrice: number;
+  pendingReview: number;
+  approvedDeals: number;
+  rejectedDeals: number;
+  telegramDeals: number;
+};
+
+export type AdminFlaggedDealsResponse = {
+  success: boolean;
+  items: FlaggedDeal[];
+  summary: AdminSummary;
+};
+
+export type AdminDealUpdatePayload = {
+  title?: string;
+  description?: string;
+  imageUrl?: string;
+  productUrl?: string;
+  storeName?: string;
+  categoryName?: string;
+  originalPrice?: number | null;
+  dealPrice?: number | null;
+  discountPercent?: number | null;
+  couponCode?: string;
+  priceRangeMin?: number | null;
+  priceRangeMax?: number | null;
+  availability?: string;
+  adminNotes?: string;
+  isValid?: boolean;
+  isExpired?: boolean;
+  status?: string;
+  allowMissingImage?: boolean;
+  allowFlags?: boolean;
+};
+
+export async function fetchAdminFlaggedDeals(section = "all") {
+  return adminRequest<AdminFlaggedDealsResponse>(`/api/admin/flagged-deals?section=${encodeURIComponent(section)}`);
+}
+
+export async function updateAdminDeal(id: string, payload: AdminDealUpdatePayload) {
+  return adminRequest<BackendDeal>(`/api/admin/deals/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function approveAdminDeal(id: string, payload: Pick<AdminDealUpdatePayload, "allowMissingImage" | "allowFlags"> = {}) {
+  return adminRequest<BackendDeal>(`/api/admin/deals/${encodeURIComponent(id)}/approve`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function rejectAdminDeal(id: string, reason: string) {
+  return adminRequest<BackendDeal>(`/api/admin/deals/${encodeURIComponent(id)}/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
 }
 
 export function formatUpdatedTime(value?: string | null) {
@@ -444,6 +575,26 @@ function safeParseJson<T>(value: string): T {
 function shouldRetryApiResponse(status: number, rawText: string) {
   if (status >= 500 || status === 404 || status === 408 || status === 429) return true;
   return /<html|<!doctype/i.test(rawText);
+}
+
+function buildUpvotePayload(userId?: string) {
+  if (userId || isLoggedIn()) {
+    return { userId: userId || getUserId() };
+  }
+  return { guestId: getGuestId() };
+}
+
+async function adminRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token || "";
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...((init.headers || {}) as Record<string, string>),
+  };
+  const { body } = await apiRequest<T>(path, { ...init, headers });
+  return (body.data ?? body) as T;
 }
 
 function firstHttpUrl(...values: Array<string | null | undefined>) {

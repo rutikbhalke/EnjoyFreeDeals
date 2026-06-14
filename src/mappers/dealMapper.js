@@ -2,6 +2,8 @@ function toApiDeal(row) {
   const store = row.stores || {};
   const category = row.categories || {};
   const currentPrice = safePrice(row.discounted_price);
+  const priceRangeMin = nullablePrice(row.price_range_min ?? row.price_min);
+  const priceRangeMax = nullablePrice(row.price_range_max ?? row.price_max);
   const lowestPrice = safePrice(row.lowest_price || currentPrice);
   const originalPrice = safePrice(row.original_price || currentPrice || 0);
   const discountPercent = safeDiscount(row.discount_percentage, originalPrice, currentPrice);
@@ -13,7 +15,7 @@ function toApiDeal(row) {
   const platformExpiresAt = row.platform_expires_at || row.expiry_date || null;
   const categoryName = normalizeCategoryName(category.name || row.category_name);
   const isExpired = Boolean(row.is_expired) || Boolean(platformExpiresAt && new Date(platformExpiresAt).getTime() <= Date.now()) || row.status === "expired";
-  const isValid = isValidDealPrice(originalPrice, currentPrice) && isHttpUrl(dealUrl);
+  const isValid = row.is_valid !== false && isValidDealPrice(originalPrice, currentPrice, priceRangeMin, priceRangeMax) && isHttpUrl(dealUrl);
   const priceStatus = row.price_status || row.raw_source_payload?.price_status || "detected";
   const expiryStatus = row.expiry_status || row.raw_source_payload?.expiry_status || (platformExpiresAt ? "detected" : "manual_required");
 
@@ -76,7 +78,8 @@ function toApiDeal(row) {
     isFreeDeal: currentPrice === 0,
     isExpired,
     isValid,
-    isActive: row.status === "active" && !isExpired && isValid,
+    isActive: ["active", "approved"].includes(row.status) && !isExpired && isValid,
+    status: row.status || null,
     isFeatured: Boolean(row.is_featured),
     isVerified: Boolean(row.is_verified),
     shareCount: 0,
@@ -127,12 +130,43 @@ function toApiDeal(row) {
     scrapedAt: lastScrapedAt,
     scrapeExpiresAt: platformExpiresAt,
     scrapeValidHours: null,
-    expiryDate: platformExpiresAt
+    expiryDate: platformExpiresAt,
+    priceStatus: row.price_status || null,
+    price_status: row.price_status || null,
+    priceRangeMin,
+    price_range_min: priceRangeMin,
+    priceMin: row.price_min ?? priceRangeMin,
+    price_min: row.price_min ?? priceRangeMin,
+    priceRangeMax,
+    price_range_max: priceRangeMax,
+    priceMax: row.price_max ?? priceRangeMax,
+    price_max: row.price_max ?? priceRangeMax,
+    manualPriceNote: row.manual_price_note || "",
+    manual_price_note: row.manual_price_note || "",
+    adminNotes: row.admin_notes || "",
+    admin_notes: row.admin_notes || "",
+    validationFlags: Array.isArray(row.validation_flags) ? row.validation_flags : [],
+    validation_flags: Array.isArray(row.validation_flags) ? row.validation_flags : [],
+    availability: row.availability || "",
+    sourceType: row.source_type || row.raw_source_payload?.connectorMode || "",
+    source_type: row.source_type || row.raw_source_payload?.connectorMode || "",
+    sourceChannel: row.source_channel || row.telegram_channel || "",
+    source_channel: row.source_channel || row.telegram_channel || "",
+    adminReviewStatus: row.admin_review_status || "",
+    admin_review_status: row.admin_review_status || "",
+    approvedAt: row.approved_at || null,
+    approved_at: row.approved_at || null,
+    rejectedAt: row.rejected_at || null,
+    rejected_at: row.rejected_at || null,
+    approvedBy: row.approved_by || "",
+    approved_by: row.approved_by || "",
+    rejectedReason: row.rejected_reason || "",
+    rejected_reason: row.rejected_reason || ""
   };
 }
 
 function isAutomatedScrapedDeal(row) {
-  if (!row || row.status !== "active" || !row.source_url || !row.dedupe_key) return false;
+  if (!row || !["active", "approved"].includes(row.status) || !row.source_url || !row.dedupe_key) return false;
   const mode = row.raw_source_payload?.connectorMode || "";
   if (!["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"].includes(mode)) return false;
   if (row.is_valid === false || row.is_expired === true) return false;
@@ -253,10 +287,18 @@ function normalizeCategoryName(value) {
   return cleaned;
 }
 
-function isValidDealPrice(originalPrice, currentPrice) {
+function isValidDealPrice(originalPrice, currentPrice, priceRangeMin = null, priceRangeMax = null) {
+  const hasPriceRange = Number(priceRangeMin || 0) > 0 || Number(priceRangeMax || 0) > 0;
   if (!Number.isFinite(currentPrice) || currentPrice < 0) return false;
+  if (currentPrice <= 0 && !hasPriceRange) return false;
   if (originalPrice > 0 && currentPrice > originalPrice) return false;
   return true;
+}
+
+function nullablePrice(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const price = Number(value);
+  return Number.isFinite(price) && price >= 0 ? price : null;
 }
 
 function resolveDealUrl(row) {

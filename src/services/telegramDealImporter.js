@@ -763,6 +763,8 @@ async function upsertDeal(deal) {
   const now = new Date().toISOString();
   const imageUrl = dealImageUrl(deal);
   const sourceImageUrl = isHttpUrl(deal.imageUrl) ? deal.imageUrl : "";
+  const validationFlags = telegramImportValidationFlags(deal, imageUrl);
+  const requiresReview = validationFlags.length > 0;
   const payload = {
     title: deal.title,
     slug: deal.slug,
@@ -780,9 +782,18 @@ async function upsertDeal(deal) {
     platform_product_url: deal.affiliateLink,
     expiry_date: deal.expiryDate,
     platform_expires_at: deal.expiryDate,
-    status: "active",
+    status: requiresReview ? "pending_review" : "approved",
     is_featured: deal.isFeatured,
-    is_verified: true,
+    is_verified: !requiresReview,
+    is_valid: !requiresReview,
+    validation_flags: validationFlags,
+    admin_review_status: requiresReview ? "needs_review" : "approved",
+    source_type: "telegram",
+    source_channel: deal.rawPayload?.telegramChannel || deal.rawPayload?.telegramChatUsername || "",
+    telegram_post_url: deal.rawPayload?.telegramPostUrl || "",
+    price_status: Number(deal.discountedPrice || 0) > 0 ? "detected" : "manual_required",
+    price_min: null,
+    price_max: null,
     updated_at: now,
     fetched_at: now,
     source: deal.dealType,
@@ -793,7 +804,9 @@ async function upsertDeal(deal) {
     raw_source_payload: {
       ...deal.rawPayload,
       imageUrl,
-      sourceImageUrl
+      sourceImageUrl,
+      validation_flags: validationFlags,
+      admin_review_status: requiresReview ? "needs_review" : "approved"
     }
   };
 
@@ -1186,12 +1199,22 @@ function validateDealForStorage(deal) {
   const originalPrice = money(deal.originalPrice);
   const discountedPrice = money(deal.discountedPrice);
   if (discountedPrice < 0) throw new Error("Invalid deal price: negative price.");
-  if (originalPrice > 0 && discountedPrice > originalPrice) {
-    throw new Error("Invalid deal price: deal price is greater than original price.");
-  }
   if (!isProductUrl(deal.affiliateLink) && !isProductUrl(deal.sourceUrl)) {
     throw new Error("Invalid deal URL: product URL is missing.");
   }
+}
+
+function telegramImportValidationFlags(deal, imageUrl) {
+  const flags = [];
+  const originalPrice = money(deal.originalPrice);
+  const discountedPrice = money(deal.discountedPrice);
+  if (!isHttpUrl(imageUrl)) flags.push("missing_image");
+  if (deal.discountedPrice === null || deal.discountedPrice === undefined || Number.isNaN(Number(deal.discountedPrice))) flags.push("missing_price");
+  if (discountedPrice === 0) flags.push("zero_price");
+  if (discountedPrice < 0 || originalPrice < 0) flags.push("invalid_price");
+  if (originalPrice > 0 && discountedPrice > originalPrice) flags.push("price_mismatch");
+  if (!deal.categoryName || String(deal.categoryName).trim().toLowerCase() === "other deals") flags.push("missing_category");
+  return [...new Set(flags)];
 }
 
 function telegramMessageUrl(message) {

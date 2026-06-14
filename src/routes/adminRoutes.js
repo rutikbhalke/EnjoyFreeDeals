@@ -18,8 +18,18 @@ router.post("/scrape-all-deals", requireImportAccess, telegramImportController.s
 router.get("/enrich-genie-loot", requireImportAccess, telegramImportController.enrichDetails);
 router.post("/enrich-genie-loot", requireImportAccess, telegramImportController.enrichDetails);
 router.get("/genie-loot-jobs/:id", requireImportAccess, telegramImportController.jobStatus);
+router.get("/flagged-deals", requireAdmin, scraperReviewController.listFlaggedDeals);
+router.patch("/deals/:id", requireAdmin, scraperReviewController.updateAdminDeal);
+router.post("/deals/:id/approve", requireAdmin, scraperReviewController.approveAdminDeal);
+router.post("/deals/:id/reject", requireAdmin, scraperReviewController.rejectAdminDeal);
+router.post("/deals/:id/flag", requireAdmin, scraperReviewController.flagAdminDeal);
 router.get("/scraped-deals", requireAdmin, scraperReviewController.listScrapedDeals);
 router.post("/scraped-deals/:id/approve", requireAdmin, scraperReviewController.approveScrapedDeal);
 router.post("/scraped-deals/:id/reject", requireAdmin, scraperReviewController.rejectScrapedDeal);
+router.get("/telegram-scraped-deals", requireAdmin, scraperReviewController.listTelegramDeals);
+router.get("/telegram-scrape-logs", requireAdmin, scraperReviewController.listScrapeLogs);
+router.post("/telegram-scraped-deals/:id/manual-price", requireAdmin, scraperReviewController.updateManualPrice);
+router.post("/telegram-scraped-deals/:id/manual-expiry", requireAdmin, scraperReviewController.updateManualExpiry);
+router.post("/telegram-scraped-deals/:id/expire", requireAdmin, scraperReviewController.markTelegramDealExpired);
 
 module.exports = router;

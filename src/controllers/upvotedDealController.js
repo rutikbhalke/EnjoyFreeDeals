@@ -11,7 +11,10 @@ async function getUpvotedDeals(req, res, next) {
 
 async function upvoteDeal(req, res, next) {
   try {
-    const result = await upvotedDealRepository.upvoteDeal(req.body);
+    const result = await upvotedDealRepository.upvoteDeal({
+      ...req.body,
+      ipHash: req.body?.ipHash || req.body?.ip_hash || upvotedDealRepository.hashRequestIp(req)
+    });
     return res.json(result);
   } catch (error) {
     next(error);
@@ -20,7 +23,10 @@ async function upvoteDeal(req, res, next) {
 
 async function removeUpvote(req, res, next) {
   try {
-    const result = await upvotedDealRepository.removeUpvote(req.body);
+    const result = await upvotedDealRepository.removeUpvote({
+      ...req.body,
+      ipHash: req.body?.ipHash || req.body?.ip_hash || upvotedDealRepository.hashRequestIp(req)
+    });
     return res.json(result);
   } catch (error) {
     next(error);

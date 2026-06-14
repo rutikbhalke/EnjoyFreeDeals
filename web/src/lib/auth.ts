@@ -7,6 +7,7 @@ export type MobileUserSession = {
 };
 
 const SESSION_KEY = "enjoyfreedeals.mobileSession";
+const GUEST_KEY = "enjoyfreedeals.guestId";
 
 export function saveUserSession(user: MobileUserSession) {
   if (typeof window === "undefined") return;
@@ -40,4 +41,13 @@ export function getUserId(): string {
 
 export function isLoggedIn() {
   return getUserSession() !== null;
+}
+
+export function getGuestId(): string {
+  if (typeof window === "undefined") return "";
+  const existing = window.localStorage.getItem(GUEST_KEY);
+  if (existing) return existing;
+  const guestId = `guest_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+  window.localStorage.setItem(GUEST_KEY, guestId);
+  return guestId;
 }

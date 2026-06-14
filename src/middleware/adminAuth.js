@@ -2,6 +2,13 @@ const { supabaseAdmin } = require("../config/supabaseClient");
 
 async function requireAdmin(req, res, next) {
   try {
+    const expectedSecret = process.env.ADMIN_API_SECRET || process.env.ADMIN_SECRET || "";
+    const providedSecret = req.get("x-admin-secret") || String(req.query.secret || "");
+    if (expectedSecret && providedSecret === expectedSecret) {
+      req.adminUser = { id: "admin-secret", email: "admin-secret" };
+      return next();
+    }
+
     const header = req.get("authorization") || "";
     const token = header.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
 

@@ -50,12 +50,16 @@ async function listDeals(filters) {
   throwIfSupabaseError(error, TABLE);
   const mappedDeals = (data || [])
     .map(toApiDeal)
-    .filter((deal) => deal.isValid && !deal.isExpired)
+    .filter(isPublicDeal)
     .filter((deal) => filterByPlatform(deal, filters.platform));
   if (filters.sort === "score") {
     mappedDeals.sort((a, b) => Number(b.dealScore || 0) - Number(a.dealScore || 0));
   }
-  const dealsWithUpvotes = await applyUpvoteState(mappedDeals, filters.userId || filters.user_id);
+  const dealsWithUpvotes = await applyUpvoteState(
+    mappedDeals,
+    filters.userId || filters.user_id,
+    filters.guestId || filters.guest_id
+  );
 
   return {
     deals: dealsWithUpvotes,
@@ -68,26 +72,18 @@ async function listDeals(filters) {
   };
 }
 
-async function getDealById(id, userId) {
-  let { data, error } = await supabaseAdmin
+async function getDealById(id, userId, guestId) {
+  let query = supabaseAdmin
     .from(TABLE)
-    .select("*, categories(*), stores(*)")
-    .eq("id", id)
-    .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"])
-    .maybeSingle();
-  if (isMissingOptionalDealColumn(error)) {
-    const fallback = await supabaseAdmin
-      .from(TABLE)
-      .select("*, categories(*), stores(*)")
-      .eq("id", id)
-      .maybeSingle();
-    data = fallback.data;
-    error = fallback.error;
-  }
+    .select("*, categories(*), stores(*)");
+  query = isUuid(id) ? query.eq("id", id) : query.eq("slug", id);
+  query = applyPublicDealVisibility(query);
+
+  const { data, error } = await query.maybeSingle();
   throwIfSupabaseError(error, TABLE);
   const deal = data ? toApiDeal(data) : null;
-  if (!deal || !deal.isValid || deal.isExpired) return null;
-  const [dealWithUpvotes] = await applyUpvoteState([deal], userId);
+  if (!deal || !isPublicDeal(deal)) return null;
+  const [dealWithUpvotes] = await applyUpvoteState([deal], userId, guestId);
   return dealWithUpvotes;
 }
 
@@ -128,10 +124,7 @@ function escapeIlike(value) {
 }
 
 function applyPublicDealVisibility(query) {
-  return query
-    .gte("discounted_price", 0)
-    .or(nonExpiredDealFilter())
-    .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"]);
+  return query;
 }
 
 async function buildBaseListQuery(filters, from, to) {
@@ -255,6 +248,25 @@ function filterByPlatform(deal, platform) {
   const expected = String(platform).trim().toLowerCase();
   return String(deal.storeName || "").toLowerCase().includes(expected) ||
     String(deal.rawSourcePayload?.platform || "").toLowerCase().includes(expected);
+}
+
+function isPublicDeal(deal) {
+  const status = String(deal.status || "").toLowerCase();
+  if (status && !["active", "approved"].includes(status)) return false;
+  if (!deal.isValid || deal.isExpired) return false;
+  if (!hasUsablePrice(deal)) return false;
+  if (!deal.dealUrl && !deal.productUrl && !deal.affiliateUrl) return false;
+  return true;
+}
+
+function hasUsablePrice(deal) {
+  if (Number(deal.dealPrice || 0) > 0) return true;
+  return Number(deal.priceRangeMin || deal.price_range_min || deal.priceMin || deal.price_min || 0) > 0 ||
+    Number(deal.priceRangeMax || deal.price_range_max || deal.priceMax || deal.price_max || 0) > 0;
+}
+
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ""));
 }
 
 module.exports = {

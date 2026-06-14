@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { ThumbsUp } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { getUserId } from "@/lib/auth";
-import { removeUpvote, upvoteDeal } from "@/lib/api";
+import { upvoteDeal } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -23,7 +22,6 @@ export default function DealVoteButtons({
   initialUpvoted = false,
 }: Props) {
   const { isMobileLoggedIn } = useAuth();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [count, setCount] = useState(initialCount);
   const [upvoted, setUpvoted] = useState(initialUpvoted);
@@ -35,36 +33,30 @@ export default function DealVoteButtons({
   }, [initialCount, initialUpvoted, dealId]);
 
   const handleUpvote = async () => {
-    if (!isMobileLoggedIn) {
-      toast({
-        title: "Login required",
-        description: "Please login with mobile number to upvote deals.",
-      });
-      navigate(`/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search)}`);
-      return;
-    }
-
     const previousCount = count;
     const previousUpvoted = upvoted;
-    const nextUpvoted = !upvoted;
-    setUpvoted(nextUpvoted);
-    setCount((value) => Math.max(0, value + (nextUpvoted ? 1 : -1)));
+    if (!upvoted) {
+      setUpvoted(true);
+      setCount((value) => value + 1);
+    }
     setIsSaving(true);
 
     try {
-      const response = nextUpvoted
-        ? await upvoteDeal(getUserId(), dealId)
-        : await removeUpvote(getUserId(), dealId);
+      const response = await upvoteDeal(dealId, isMobileLoggedIn ? getUserId() : undefined);
       setUpvoted(response.upvoted);
-      setCount(Number(response.upvote_count || 0));
+      setCount(Number(response.upvoteCount ?? response.upvote_count ?? 0));
       queryClient.invalidateQueries({ queryKey: ["deals"] });
       queryClient.invalidateQueries({ queryKey: ["upvoted-deals"] });
     } catch (error) {
       setCount(previousCount);
       setUpvoted(previousUpvoted);
+      const rawMessage = error instanceof Error ? error.message : "";
+      const description = rawMessage.includes("deal_upvotes")
+        ? "Upvote table missing. Please run database migration."
+        : "Unable to upvote right now. Please try again.";
       toast({
         title: "Upvote failed",
-        description: error instanceof Error ? error.message : "Please try again.",
+        description,
         variant: "destructive",
       });
     } finally {
