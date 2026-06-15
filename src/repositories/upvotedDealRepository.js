@@ -4,30 +4,36 @@ const { isAutomatedScrapedDeal, toApiDeal } = require("../mappers/dealMapper");
 const { isMissingTableError, throwIfSupabaseError } = require("../utils/supabaseErrors");
 
 const TABLE = "deal_upvotes";
+const LEGACY_TABLE = "upvoted_deals";
 const DEALS_TABLE = "deals";
 
 async function getUpvotedDeals(userId) {
   const identity = requireIdentity({ userId });
 
-  let query = supabaseAdmin
-    .from(TABLE)
-    .select("*, deals(*, categories(*), stores(*))")
-    .order("created_at", { ascending: false });
-  query = applyIdentityFilter(query, identity);
+  return withUpvoteTable(async (table, legacy) => {
+    let query = supabaseAdmin
+      .from(table)
+      .select("*, deals(*, categories(*), stores(*))")
+      .order("created_at", { ascending: false });
+    query = applyIdentityFilter(query, identity, legacy);
 
-  const { data, error } = await query;
-  throwIfUpvoteTableMissing(error);
-  throwIfSupabaseError(error, TABLE);
+    const { data, error } = await query;
+    throwIfUpvoteTableMissing(error);
+    throwIfSupabaseError(error, table);
 
-  const deals = (data || [])
-    .filter((row) => isAutomatedScrapedDeal(row.deals))
-    .map(toApiUpvotedDeal);
+    const deals = (data || [])
+      .filter((row) => isAutomatedScrapedDeal(row.deals))
+      .map(toApiUpvotedDeal);
 
-  return {
-    success: true,
-    count: deals.length,
-    deals
-  };
+    return {
+      success: true,
+      count: deals.length,
+      deals
+    };
+  }).catch((error) => {
+    if (error.code !== "DEAL_UPVOTES_TABLE_MISSING") throw error;
+    return { success: true, count: 0, deals: [] };
+  });
 }
 
 async function upvoteDeal(payload) {
@@ -42,30 +48,36 @@ async function upvoteDeal(payload) {
     throw error;
   }
 
-  const existing = await getExistingUpvote(identity, dealId);
-  if (existing) {
-    const count = await refreshDealUpvoteCount(dealId);
-    return responsePayload("Already upvoted", true, count, dealId);
-  }
+  return withUpvoteTable(async (table, legacy) => {
+    const existing = await getExistingUpvote(identity, dealId, table, legacy);
+    if (existing) {
+      const count = await refreshDealUpvoteCount(dealId, table);
+      return responsePayload("Already upvoted", true, count, dealId);
+    }
 
-  const { error } = await supabaseAdmin
-    .from(TABLE)
-    .insert({
+    const insertPayload = legacy ? legacyInsertPayload(identity, dealId, currentDeal) : {
       deal_id: dealId,
       user_id: identity.user_id || null,
       guest_id: identity.guest_id || null,
       ip_hash: identity.ip_hash || null
-    });
+    };
+    const { error } = await supabaseAdmin
+      .from(table)
+      .insert(insertPayload);
 
-  if (isDuplicateUpvoteError(error)) {
-    const count = await refreshDealUpvoteCount(dealId);
-    return responsePayload("Already upvoted", true, count, dealId);
-  }
-  throwIfUpvoteTableMissing(error);
-  throwIfSupabaseError(error, TABLE);
+    if (isDuplicateUpvoteError(error)) {
+      const count = await refreshDealUpvoteCount(dealId, table);
+      return responsePayload("Already upvoted", true, count, dealId);
+    }
+    throwIfUpvoteTableMissing(error);
+    throwIfSupabaseError(error, table);
 
-  const count = await refreshDealUpvoteCount(dealId);
-  return responsePayload("Upvote added", true, count, dealId);
+    const count = await refreshDealUpvoteCount(dealId, table);
+    return responsePayload("Upvote added", true, count, dealId);
+  }).catch((error) => {
+    if (error.code !== "DEAL_UPVOTES_TABLE_MISSING") throw error;
+    return counterOnlyUpvote(dealId, currentDeal);
+  });
 }
 
 async function removeUpvote(payload) {
@@ -73,35 +85,55 @@ async function removeUpvote(payload) {
   requireDealId(dealId);
   const identity = requireIdentity(payload);
 
-  let query = supabaseAdmin
-    .from(TABLE)
-    .delete()
-    .eq("deal_id", dealId)
-    .select("id");
-  query = applyIdentityFilter(query, identity);
+  return withUpvoteTable(async (table, legacy) => {
+    let query = supabaseAdmin
+      .from(table)
+      .delete()
+      .eq("deal_id", dealId)
+      .select("id");
+    query = applyIdentityFilter(query, identity, legacy);
 
-  const { data, error } = await query;
-  throwIfUpvoteTableMissing(error);
-  throwIfSupabaseError(error, TABLE);
+    const { data, error } = await query;
+    throwIfUpvoteTableMissing(error);
+    throwIfSupabaseError(error, table);
 
-  const removed = (data || []).length > 0;
-  const count = await refreshDealUpvoteCount(dealId);
-  return responsePayload(removed ? "Upvote removed" : "Upvote was not active", false, count, dealId);
+    const removed = (data || []).length > 0;
+    const count = await refreshDealUpvoteCount(dealId, table);
+    return responsePayload(removed ? "Upvote removed" : "Upvote was not active", false, count, dealId);
+  }).catch(async (error) => {
+    if (error.code !== "DEAL_UPVOTES_TABLE_MISSING") throw error;
+    const currentDeal = await getDealSnapshot(dealId);
+    const count = await updateCounterOnly(dealId, Math.max(0, Number(currentDeal?.upvote_count || 0) - 1));
+    return responsePayload("Upvote was not active", false, count, dealId);
+  });
 }
 
 async function getDealUpvotes(dealId, payload = {}) {
   requireDealId(dealId);
-  const count = await refreshDealUpvoteCount(dealId);
   const identity = normalizeIdentity(payload);
-  const upvoted = identity ? Boolean(await getExistingUpvote(identity, dealId)) : false;
+  return withUpvoteTable(async (table, legacy) => {
+    const count = await refreshDealUpvoteCount(dealId, table);
+    const upvoted = identity ? Boolean(await getExistingUpvote(identity, dealId, table, legacy)) : false;
 
-  return {
-    success: true,
-    dealId,
-    upvoted,
-    upvoteCount: count,
-    upvote_count: count
-  };
+    return {
+      success: true,
+      dealId,
+      upvoted,
+      upvoteCount: count,
+      upvote_count: count
+    };
+  }).catch(async (error) => {
+    if (error.code !== "DEAL_UPVOTES_TABLE_MISSING") throw error;
+    const deal = await getDealSnapshot(dealId);
+    const count = Number(deal?.upvote_count || 0);
+    return {
+      success: true,
+      dealId,
+      upvoted: false,
+      upvoteCount: count,
+      upvote_count: count
+    };
+  });
 }
 
 async function applyUpvoteState(deals, userId, guestId) {
@@ -112,18 +144,21 @@ async function applyUpvoteState(deals, userId, guestId) {
   const identity = normalizeIdentity({ userId, guestId });
   let upvotedIds = new Set();
   if (identity) {
-    let query = supabaseAdmin
-      .from(TABLE)
-      .select("deal_id")
-      .in("deal_id", ids);
-    query = applyIdentityFilter(query, identity);
+    await withUpvoteTable(async (table, legacy) => {
+      let query = supabaseAdmin
+        .from(table)
+        .select("deal_id")
+        .in("deal_id", ids);
+      query = applyIdentityFilter(query, identity, legacy);
 
-    const { data, error } = await query;
-    if (!error) {
+      const { data, error } = await query;
+      throwIfUpvoteTableMissing(error);
+      throwIfSupabaseError(error, table);
       upvotedIds = new Set((data || []).map((row) => row.deal_id));
-    } else if (!isMissingTableError(error)) {
-      throwIfSupabaseError(error, TABLE);
-    }
+      return null;
+    }).catch((error) => {
+      if (error.code !== "DEAL_UPVOTES_TABLE_MISSING") throw error;
+    });
   }
 
   return dealList.map((deal) => ({
@@ -135,17 +170,17 @@ async function applyUpvoteState(deals, userId, guestId) {
   }));
 }
 
-async function getExistingUpvote(identity, dealId) {
+async function getExistingUpvote(identity, dealId, table = TABLE, legacy = false) {
   let query = supabaseAdmin
-    .from(TABLE)
+    .from(table)
     .select("id")
     .eq("deal_id", dealId)
     .limit(1);
-  query = applyIdentityFilter(query, identity);
+  query = applyIdentityFilter(query, identity, legacy);
 
   const { data, error } = await query.maybeSingle();
   throwIfUpvoteTableMissing(error);
-  throwIfSupabaseError(error, TABLE);
+  throwIfSupabaseError(error, table);
   return data;
 }
 
@@ -159,18 +194,18 @@ async function getDealSnapshot(dealId) {
   return data;
 }
 
-async function getDealUpvoteCount(dealId) {
+async function getDealUpvoteCount(dealId, table = TABLE) {
   const { count, error } = await supabaseAdmin
-    .from(TABLE)
+    .from(table)
     .select("id", { count: "exact", head: true })
     .eq("deal_id", dealId);
   throwIfUpvoteTableMissing(error);
-  throwIfSupabaseError(error, TABLE);
+  throwIfSupabaseError(error, table);
   return Number(count || 0);
 }
 
-async function refreshDealUpvoteCount(dealId) {
-  const count = await getDealUpvoteCount(dealId);
+async function refreshDealUpvoteCount(dealId, table = TABLE) {
+  const count = await getDealUpvoteCount(dealId, table);
   const { data, error } = await supabaseAdmin
     .from(DEALS_TABLE)
     .update({ upvote_count: count })
@@ -236,10 +271,78 @@ function normalizeIdentity(payload = {}) {
   return null;
 }
 
-function applyIdentityFilter(query, identity) {
+function applyIdentityFilter(query, identity, legacy = false) {
+  if (legacy) return query.eq("user_id", legacyUserId(identity));
   if (identity.user_id) return query.eq("user_id", identity.user_id);
   if (identity.guest_id) return query.eq("guest_id", identity.guest_id);
   return query.eq("ip_hash", identity.ip_hash);
+}
+
+async function withUpvoteTable(operation) {
+  try {
+    return await operation(TABLE, false);
+  } catch (error) {
+    if (!isUpvoteTableMissingError(error)) throw error;
+  }
+
+  try {
+    return await operation(LEGACY_TABLE, true);
+  } catch (error) {
+    if (isUpvoteTableMissingError(error)) {
+      const normalized = new Error("deal_upvotes table is missing. Run Supabase migration.");
+      normalized.statusCode = 503;
+      normalized.code = "DEAL_UPVOTES_TABLE_MISSING";
+      throw normalized;
+    }
+    throw error;
+  }
+}
+
+function legacyInsertPayload(identity, dealId, deal) {
+  return {
+    user_id: legacyUserId(identity),
+    deal_id: dealId,
+    product_title: deal.title || "",
+    platform: deal.stores?.name || deal.store_name || "",
+    deal_price: deal.discounted_price ?? deal.deal_price ?? null,
+    original_price: deal.original_price ?? null,
+    discount_percent: deal.discount_percentage ?? null,
+    product_url: deal.affiliate_link || deal.source_url || deal.platform_product_url || "",
+    image_url: deal.image_url || deal.final_image_url || deal.source_image_url || ""
+  };
+}
+
+function legacyUserId(identity) {
+  if (identity.user_id) return identity.user_id;
+  if (identity.guest_id) return identity.guest_id;
+  return `ip:${identity.ip_hash}`;
+}
+
+function isUpvoteTableMissingError(error) {
+  return error?.code === "DEAL_UPVOTES_TABLE_MISSING" || error?.code === "TABLE_NOT_FOUND";
+}
+
+async function counterOnlyUpvote(dealId, currentDeal) {
+  const count = await updateCounterOnly(dealId, Number(currentDeal?.upvote_count || 0) + 1);
+  return {
+    ...responsePayload("Upvote added", true, count, dealId),
+    migrationRequired: true
+  };
+}
+
+async function updateCounterOnly(dealId, count) {
+  const { data, error } = await supabaseAdmin
+    .from(DEALS_TABLE)
+    .update({ upvote_count: count })
+    .eq("id", dealId)
+    .select("upvote_count")
+    .single();
+  if (error?.code === "PGRST204" && /upvote_count/i.test(error?.message || "")) {
+    return Number(count || 0);
+  }
+  throwIfUpvoteMigrationMissing(error);
+  throwIfSupabaseError(error, DEALS_TABLE);
+  return Number(data?.upvote_count ?? count);
 }
 
 function hashRequestIp(req) {

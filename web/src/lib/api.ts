@@ -9,6 +9,7 @@ const FALLBACK_API_BASE_URLS = [
 
 export const API_BASE_URLS = resolveApiBaseUrls();
 export const API_BASE_URL = API_BASE_URLS[0] || DEFAULT_API_BASE_URL;
+const ADMIN_SECRET_STORAGE_KEY = "enjoyfreedeals_admin_secret";
 
 function resolveApiBaseUrls() {
   const configured = String(import.meta.env.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "");
@@ -587,10 +588,12 @@ function buildUpvotePayload(userId?: string) {
 async function adminRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token || "";
+  const adminSecret = localStorage.getItem(ADMIN_SECRET_STORAGE_KEY) || "";
   const headers: Record<string, string> = {
     Accept: "application/json",
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(adminSecret ? { "x-admin-secret": adminSecret } : {}),
     ...((init.headers || {}) as Record<string, string>),
   };
   const { body } = await apiRequest<T>(path, { ...init, headers });
