@@ -138,6 +138,16 @@ async function fetchProductPage(url, options = {}) {
   }
 }
 
+async function fetchProductMetadata(url, options = {}) {
+  const page = await fetchProductPage(url, options);
+  const metadata = extractProductMetadata(page.html, page.finalUrl);
+  return {
+    ...metadata,
+    finalUrl: metadata.canonicalUrl || page.finalUrl,
+    status: page.status
+  };
+}
+
 async function buildDealUpdate(deal, page, metadata) {
   const existingPayload = isObject(deal.raw_source_payload) ? deal.raw_source_payload : {};
   const finalUrl = bestProductUrl(deal, page, metadata);
@@ -977,4 +987,4 @@ function isObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-module.exports = { enrichGenieLootDetails };
+module.exports = { enrichGenieLootDetails, fetchProductMetadata };

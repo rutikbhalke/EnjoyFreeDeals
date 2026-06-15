@@ -257,7 +257,8 @@ export function ProductSummary({ result }: { result: TrackPriceResult }) {
 
 export function ComparePricesCard({ result }: { result: TrackPriceResult }) {
   const stores = validStoreComparisons(result.storeComparisons || []);
-  const lowest = stores.reduce((min, item) => {
+  const pricedStores = stores.filter((item) => isPositivePrice(item.price));
+  const lowest = pricedStores.reduce((min, item) => {
     const price = Number(item.price || 0);
     if (!Number.isFinite(price)) return min;
     if (min == null || price < min.price) return { ...item, price };
@@ -274,9 +275,10 @@ export function ComparePricesCard({ result }: { result: TrackPriceResult }) {
         {stores.length > 0 ? (
           stores.map((store) => {
             const price = Number(store.price || 0);
-            const diff = Math.max(0, Number(store.difference || 0));
-            const isBest = Boolean(store.isBest) || (lowest ? price === lowest.price : false);
-            const percent = lowest && Number.isFinite(lowest.price) && price >= 0
+            const hasPrice = isPositivePrice(price);
+            const diff = hasPrice ? Math.max(0, Number(store.difference || 0)) : 0;
+            const isBest = hasPrice && (Boolean(store.isBest) || (lowest ? price === lowest.price : false));
+            const percent = lowest && Number.isFinite(lowest.price) && hasPrice
               ? Math.max(12, 100 - Math.min(88, Math.round(((price - lowest.price) / Math.max(1, lowest.price)) * 100)))
               : 100;
 
@@ -285,22 +287,26 @@ export function ComparePricesCard({ result }: { result: TrackPriceResult }) {
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <div className="font-semibold">{store.storeName}</div>
-                    <div className="text-sm text-muted-foreground">{formatCurrency(price, result.currency)}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {hasPrice ? formatCurrency(price, result.currency) : "Check latest price"}
+                    </div>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
                     {isBest && <Badge className="bg-emerald-500 text-white hover:bg-emerald-500">Best price</Badge>}
                     {!isBest && diff > 0 && <Badge variant="secondary">+{formatCurrency(diff, result.currency)}</Badge>}
                     <Button asChild size="sm" variant="outline">
-                      <a href={store.productUrl} target="_blank" rel="noreferrer">Buy</a>
+                      <a href={store.productUrl} target="_blank" rel="noreferrer">{hasPrice ? "Buy" : "Search"}</a>
                     </Button>
                   </div>
                 </div>
-                <div className="h-2 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className={cn("h-full rounded-full", isBest ? "bg-emerald-500" : "bg-emerald-400/80")}
-                    style={{ width: `${percent}%` }}
-                  />
-                </div>
+                {hasPrice && (
+                  <div className="h-2 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className={cn("h-full rounded-full", isBest ? "bg-emerald-500" : "bg-emerald-400/80")}
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                )}
               </div>
             );
           })
@@ -309,9 +315,9 @@ export function ComparePricesCard({ result }: { result: TrackPriceResult }) {
             More store prices will appear after next fetch.
           </div>
         )}
-        {stores.length <= 1 && stores.length > 0 && (
+        {pricedStores.length <= 1 && stores.length > 0 && (
           <div className="rounded-lg border border-dashed border-border bg-secondary/30 p-4 text-sm text-muted-foreground">
-            More store prices will appear after next fetch.
+            Verified prices are shown when available. Search links open each platform for the latest live price.
           </div>
         )}
       </CardContent>
@@ -527,13 +533,20 @@ function isPositivePrice(value: number | null | undefined) {
 
 function validStoreComparisons(comparisons: TrackPriceResult["storeComparisons"]) {
   return (comparisons || []).filter((item) =>
-    isPositivePrice(item.price) &&
     Boolean(String(item.storeName || "").trim()) &&
     isHttpUrl(item.productUrl)
   );
 }
 
 function hasValidPriceData(result: TrackPriceResult | null) {
+  if (
+    result?.status === "live_result" &&
+    String(result.title || "").trim() &&
+    isHttpUrl(result.productUrl)
+  ) {
+    return true;
+  }
+
   return Boolean(
     result &&
     result.status !== "tracking_started" &&

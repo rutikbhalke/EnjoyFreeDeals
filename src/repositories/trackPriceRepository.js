@@ -2,7 +2,9 @@ const { supabaseAdmin } = require("../config/supabaseClient");
 const { toApiDeal } = require("../mappers/dealMapper");
 const { throwIfSupabaseError } = require("../utils/supabaseErrors");
 const { detectPlatform } = require("../../lib/platformDetector");
-const { normalizeUrl } = require("../../lib/urlUtils");
+const { buildSearchUrl, normalizeUrl } = require("../../lib/urlUtils");
+const { getPlatformLogo } = require("../../lib/platformLogos");
+const { fetchProductMetadata } = require("../services/dealDetailEnricher");
 
 async function trackProductPrice(productUrl, userId = null) {
   const normalizedUrl = normalizeUrl(productUrl);
@@ -36,6 +38,9 @@ async function trackProductPrice(productUrl, userId = null) {
 
   if (!trackedProduct && !deal && history.length === 0) {
     await saveTrackingRequest({ productUrl, normalizedUrl, storeName, platformProductId, userId });
+    const liveSummary = await tryBuildLiveTrackingSummary({ normalizedUrl, storeName, platformProductId });
+    if (liveSummary) return liveSummary;
+
     return {
       success: true,
       status: "tracking_started",
@@ -109,6 +114,79 @@ async function trackProductPrice(productUrl, userId = null) {
     bestDeal: summary.bestDeal,
     dealId: summary.dealId
   };
+}
+
+async function tryBuildLiveTrackingSummary({ normalizedUrl, storeName, platformProductId }) {
+  try {
+    const metadata = await fetchProductMetadata(normalizedUrl, { timeoutMs: 12000 });
+    const metadataTitle = cleanText(metadata.title);
+    const title = isBadLiveTitle(metadataTitle) ? titleFromProductUrl(normalizedUrl) : metadataTitle;
+    const productUrl = normalizeUrl(metadata.finalUrl || normalizedUrl) || normalizedUrl;
+    const currentPrice = firstNumeric(metadata.discountedPrice);
+    const originalPrice = firstNumeric(metadata.originalPrice);
+    const imageUrl = normalizeUrl(metadata.imageUrl) || metadata.imageUrl || "";
+
+    if (!title && !imageUrl && currentPrice == null) return null;
+
+    const relatedDeals = title
+      ? await findLiveRelatedDeals({ title, storeName, productUrl })
+      : [];
+    const storeComparisons = buildLiveStoreComparisons({
+      storeName,
+      currentPrice,
+      productUrl,
+      relatedDeals,
+      title
+    });
+    const priceHistory = currentPrice != null
+      ? [{ price: currentPrice, checkedAt: new Date().toISOString(), storeName, source: "live-product-page" }]
+      : [];
+    const comparisonPrices = storeComparisons.map((item) => item.price).filter((price) => Number.isFinite(price) && price > 0);
+    const allPrices = [...priceHistory.map((point) => point.price), ...comparisonPrices];
+    const lowestPrice = allPrices.length ? Math.min(...allPrices) : currentPrice;
+    const highestPrice = allPrices.length ? Math.max(...allPrices) : firstNumeric(originalPrice, currentPrice);
+    const averagePrice = allPrices.length
+      ? Math.round(allPrices.reduce((sum, price) => sum + price, 0) / allPrices.length)
+      : currentPrice;
+    const discountPercent = safePercent(null, originalPrice, currentPrice);
+
+    return {
+      success: true,
+      status: "live_result",
+      trackingStarted: false,
+      dealId: null,
+      storeName,
+      productUrl,
+      title: title || `${storeName} product`,
+      description: metadata.description || "",
+      imageUrl,
+      images: uniqueStrings([imageUrl]),
+      categoryName: inferCategoryName(`${title} ${storeName}`),
+      currentPrice: currentPrice ?? null,
+      originalPrice: originalPrice ?? null,
+      discountPercent,
+      youSave: originalPrice && currentPrice != null && originalPrice > currentPrice ? Math.round(originalPrice - currentPrice) : null,
+      lowestPrice: lowestPrice ?? null,
+      highestPrice: highestPrice ?? null,
+      averagePrice: averagePrice ?? null,
+      thirtyDayAverage: null,
+      currency: "INR",
+      lastCheckedAt: new Date().toISOString(),
+      historyDays: priceHistory.length ? 1 : 0,
+      dealScore: null,
+      isAllTimeLow: currentPrice != null && lowestPrice != null ? currentPrice <= lowestPrice : false,
+      recommendation: buildRecommendation({ currentPrice, lowestPrice, averagePrice, priceHistory }),
+      priceHistory,
+      storeComparisons,
+      relatedDeals,
+      bestDeal: storeComparisons.find((item) => item.isBest) || null,
+      platformProductId: platformProductId || null,
+      message: "Live product details loaded. More price history will appear after future checks."
+    };
+  } catch (error) {
+    console.warn("[track-price] live product metadata skipped:", error.message || error);
+    return null;
+  }
 }
 
 async function findTrackedProduct(normalizedUrl, platformProductId, storeName) {
@@ -234,6 +312,93 @@ async function findRelatedDeals({ categoryId, storeId, excludeDealId, excludeUrl
     .map(toApiDeal)
     .filter((deal) => deal.isValid && !deal.isExpired)
     .slice(0, 6);
+}
+
+async function findLiveRelatedDeals({ title, storeName, productUrl }) {
+  const terms = cleanText(title)
+    .split(/\s+/)
+    .filter((term) => term.length > 2 && !/^(with|for|and|the|cover|case)$/i.test(term))
+    .slice(0, 5);
+  const search = terms.join(" ");
+  if (!search) return [];
+
+  const { data, error } = await supabaseAdmin
+    .from("deals")
+    .select("*, categories(*), stores(*)")
+    .or(`title.ilike.%${escapeLike(search)}%,description.ilike.%${escapeLike(search)}%`)
+    .or(`status.eq.active,status.eq.approved,status.is.null`)
+    .gte("discounted_price", 0)
+    .or(`platform_expires_at.is.null,platform_expires_at.gt.${new Date().toISOString()}`)
+    .order("updated_at", { ascending: false })
+    .limit(12);
+  if (isMissingColumn(error)) return [];
+  throwIfSupabaseError(error, "deals");
+
+  const excludeUrl = normalizeUrl(productUrl);
+  const seen = new Set();
+  return (data || [])
+    .filter((row) => {
+      const rowStore = row.stores?.name || row.store_name || "";
+      if (storeName && rowStore && sameKey(rowStore, storeName)) return false;
+      const rowUrl = normalizeUrl(row.affiliate_link || row.source_url || row.platform_product_url || "");
+      if (excludeUrl && rowUrl === excludeUrl) return false;
+      const keyValue = row.id || rowUrl || row.title;
+      if (seen.has(keyValue)) return false;
+      seen.add(keyValue);
+      return true;
+    })
+    .map(toApiDeal)
+    .filter((deal) => deal.isValid && !deal.isExpired && Number(deal.dealPrice ?? deal.discountedPrice ?? 0) > 0)
+    .slice(0, 6);
+}
+
+function buildLiveStoreComparisons({ storeName, currentPrice, productUrl, relatedDeals, title }) {
+  const rows = [];
+  if (currentPrice != null) {
+    rows.push({
+      storeName: storeName || "Store",
+      price: currentPrice,
+      productUrl,
+      isBest: false,
+      difference: 0,
+      platformLogoUrl: getPlatformLogo(storeName)
+    });
+  }
+
+  for (const deal of relatedDeals || []) {
+    const price = Number(deal.dealPrice ?? deal.discountedPrice ?? deal.currentPrice ?? 0);
+    const url = deal.productUrl || deal.dealUrl || deal.affiliateUrl || "";
+    if (!Number.isFinite(price) || price <= 0 || !url) continue;
+    rows.push({
+      storeName: deal.storeName || "Store",
+      price,
+      productUrl: url,
+      isBest: false,
+      difference: 0,
+      platformLogoUrl: getPlatformLogo(deal.storeName)
+    });
+  }
+
+  const deduped = dedupeStoreComparisons(rows);
+  const searchRows = ["Amazon", "Flipkart", "Meesho", "Myntra", "Ajio", "Croma", "TataCliq"]
+    .filter((platform) => !deduped.some((row) => sameKey(row.storeName, platform)))
+    .map((platform) => ({
+      storeName: platform,
+      price: null,
+      productUrl: buildSearchUrl(platform, title),
+      isBest: false,
+      difference: 0,
+      platformLogoUrl: getPlatformLogo(platform)
+    }));
+  const withSearchLinks = [...deduped, ...searchRows].slice(0, 7);
+  const pricedRows = withSearchLinks.filter((item) => Number.isFinite(item.price) && item.price > 0);
+  const lowest = pricedRows.reduce((min, item) => (min == null || item.price < min.price ? item : min), null);
+
+  return withSearchLinks.map((item) => ({
+    ...item,
+    isBest: lowest ? item.storeName === lowest.storeName && item.price === lowest.price : false,
+    difference: lowest && Number.isFinite(item.price) ? Math.max(0, Math.round(item.price - lowest.price)) : 0
+  }));
 }
 
 function queryRelatedDeals() {
@@ -450,6 +615,44 @@ function lastCheckedAtValue(history, fallback) {
 
 function uniqueStrings(values) {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+}
+
+function cleanText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function escapeLike(value) {
+  return String(value || "").replace(/[\\%_]/g, (match) => `\\${match}`);
+}
+
+function inferCategoryName(text) {
+  const value = String(text || "").toLowerCase();
+  if (/laptop|notebook|macbook/.test(value)) return "Laptop";
+  if (/phone|mobile|smartphone/.test(value)) return "Mobile";
+  if (/flipkart|fkrt|flpkrt/.test(value)) return "Flipkart Deals";
+  if (/amazon|amzn/.test(value)) return "Amazon Deals";
+  if (/shirt|shoe|jeans|dress|fashion|bag|kurta|saree|cover|case/.test(value)) return "Fashion";
+  if (/grocery|food|snack|tea|coffee/.test(value)) return "Grocery";
+  if (/beauty|skin|makeup|cosmetic|cream|serum/.test(value)) return "Beauty";
+  if (/appliance|mixer|grinder|washing|fridge|microwave|air conditioner/.test(value)) return "Appliances";
+  if (/home|kitchen|storage|container|bottle|furniture/.test(value)) return "Home & Kitchen";
+  if (/earbud|speaker|watch|camera|charger|tablet|headphone|tv/.test(value)) return "Electronics";
+  return "Other Deals";
+}
+
+function isBadLiveTitle(value) {
+  return /^(access denied|forbidden|not found|page not found|error|meesho|amazon|flipkart)$/i.test(cleanText(value));
+}
+
+function titleFromProductUrl(productUrl) {
+  try {
+    const parsed = new URL(productUrl);
+    const parts = decodeURIComponent(parsed.pathname).split("/").filter(Boolean);
+    const slug = parts.find((part) => part.length > 12 && !/^p$/i.test(part)) || parts[0] || "";
+    return cleanText(slug.replace(/[-_]+/g, " ")).replace(/\b\w/g, (letter) => letter.toUpperCase()).slice(0, 140);
+  } catch {
+    return "";
+  }
 }
 
 async function saveTrackingRequest({ productUrl, normalizedUrl, storeName, platformProductId, userId }) {
