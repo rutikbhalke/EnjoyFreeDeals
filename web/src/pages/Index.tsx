@@ -131,7 +131,6 @@ export default function Index() {
   return (
     <MainLayout>
       <SEO canonical={SITE_URL} jsonLd={[websiteJsonLd, orgJsonLd, faqJsonLd]} />
-      <HeroBanner />
       <PriceTrackerSection />
       <PromoBanners />
       <StoreCarousel />
@@ -175,6 +174,7 @@ export default function Index() {
         isLoading={trending.isLoading}
         viewAllLink="/deals"
       />
+      <HeroBanner />
     </MainLayout>
   );
 }
