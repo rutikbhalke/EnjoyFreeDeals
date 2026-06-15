@@ -50,7 +50,6 @@ async function listDeals(filters) {
   throwIfSupabaseError(error, TABLE);
   const mappedDeals = (data || [])
     .map(toApiDeal)
-    .filter(isPublicDeal)
     .filter((deal) => filterByPlatform(deal, filters.platform));
   if (filters.sort === "score") {
     mappedDeals.sort((a, b) => Number(b.dealScore || 0) - Number(a.dealScore || 0));
@@ -82,7 +81,7 @@ async function getDealById(id, userId, guestId) {
   const { data, error } = await query.maybeSingle();
   throwIfSupabaseError(error, TABLE);
   const deal = data ? toApiDeal(data) : null;
-  if (!deal || !isPublicDeal(deal)) return null;
+  if (!deal) return null;
   const [dealWithUpvotes] = await applyUpvoteState([deal], userId, guestId);
   return dealWithUpvotes;
 }
@@ -248,21 +247,6 @@ function filterByPlatform(deal, platform) {
   const expected = String(platform).trim().toLowerCase();
   return String(deal.storeName || "").toLowerCase().includes(expected) ||
     String(deal.rawSourcePayload?.platform || "").toLowerCase().includes(expected);
-}
-
-function isPublicDeal(deal) {
-  const status = String(deal.status || "").toLowerCase();
-  if (status && !["active", "approved"].includes(status)) return false;
-  if (!deal.isValid || deal.isExpired) return false;
-  if (!hasUsablePrice(deal)) return false;
-  if (!deal.dealUrl && !deal.productUrl && !deal.affiliateUrl) return false;
-  return true;
-}
-
-function hasUsablePrice(deal) {
-  if (Number(deal.dealPrice || 0) > 0) return true;
-  return Number(deal.priceRangeMin || deal.price_range_min || deal.priceMin || deal.price_min || 0) > 0 ||
-    Number(deal.priceRangeMax || deal.price_range_max || deal.priceMax || deal.price_max || 0) > 0;
 }
 
 function isUuid(value) {
