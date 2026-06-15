@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useRef, useState } from "react";
 import PriceTrackerHero from "@/components/home/PriceTrackerHero";
 import PriceTrackingResult from "@/components/home/PriceTrackingResult";
 import { trackPrice, TrackPriceResult } from "@/lib/api";
@@ -8,6 +8,7 @@ export default function PriceTrackerSection() {
   const [result, setResult] = useState<TrackPriceResult | null>(null);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const resultRef = useRef<HTMLDivElement | null>(null);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -20,7 +21,11 @@ export default function PriceTrackerSection() {
     setIsLoading(true);
     setError("");
     try {
-      setResult(await trackPrice(trimmedUrl));
+      const trackingResult = await trackPrice(trimmedUrl);
+      setResult(trackingResult);
+      window.setTimeout(() => {
+        resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
     } catch (apiError) {
       const message = apiError instanceof Error ? apiError.message : "Price tracking failed.";
       setError(normalizeErrorMessage(message));
@@ -37,8 +42,11 @@ export default function PriceTrackerSection() {
         onSubmit={onSubmit}
         isLoading={isLoading}
         error={error}
+        hasResult={Boolean(result)}
       />
-      <PriceTrackingResult result={result} isLoading={isLoading} />
+      <div ref={resultRef}>
+        <PriceTrackingResult result={result} isLoading={isLoading} />
+      </div>
     </>
   );
 }

@@ -10,6 +10,7 @@ type Props = {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   isLoading: boolean;
   error: string;
+  hasResult: boolean;
 };
 
 const platforms = [
@@ -21,7 +22,7 @@ const platforms = [
   { name: "TataCliq", accent: "from-slate-100 to-emerald-50 text-slate-700" },
 ];
 
-export default function PriceTrackerHero({ productUrl, setProductUrl, onSubmit, isLoading, error }: Props) {
+export default function PriceTrackerHero({ productUrl, setProductUrl, onSubmit, isLoading, error, hasResult }: Props) {
   return (
     <section className="bg-gradient-to-b from-emerald-50/60 via-white to-white px-3 py-8 md:px-5 md:py-12">
       <div className="mx-auto w-full max-w-6xl">
@@ -104,14 +105,16 @@ export default function PriceTrackerHero({ productUrl, setProductUrl, onSubmit, 
               ))}
             </div>
 
-            <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/75 p-4 text-sm text-emerald-900 shadow-sm sm:flex-row sm:items-center">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-emerald-700 shadow-sm">
-                <Info className="h-5 w-5" />
+            {!hasResult && (
+              <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/75 p-4 text-sm text-emerald-900 shadow-sm sm:flex-row sm:items-center">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-emerald-700 shadow-sm">
+                  <Info className="h-5 w-5" />
+                </div>
+                <p className="leading-6">
+                  Price history will appear after more tracking data is collected.
+                </p>
               </div>
-              <p className="leading-6">
-                Price history will appear after more tracking data is collected.
-              </p>
-            </div>
+            )}
           </div>
         </div>
       </div>
