@@ -17,6 +17,7 @@ import { usePriceHistory } from "@/hooks/usePriceHistory";
 import { usePriceComparison } from "@/hooks/usePriceComparison";
 import PriceSummaryCards from "@/components/deals/PriceSummaryCards";
 import PriceComparisonPanel from "@/components/deals/PriceComparisonPanel";
+import PriceHistoryChart from "@/components/deals/PriceHistoryChart";
 import BuyScoreCard from "@/components/deals/BuyScoreCard";
 import WatchDealButton from "@/components/deals/WatchDealButton";
 import DealVoteButtons from "@/components/deals/DealVoteButtons";
@@ -288,6 +289,8 @@ export default function DealDetailPage() {
               lowestPrice={priceSummary.lowestPrice}
               highestPrice={priceSummary.highestPrice}
             />
+
+            <PriceHistoryChart history={history} currentPrice={currentPrice || null} />
           </div>
 
           <aside className="xl:sticky xl:top-24">
