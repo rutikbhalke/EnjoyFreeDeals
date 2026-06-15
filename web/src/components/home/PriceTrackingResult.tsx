@@ -41,13 +41,7 @@ export default function PriceTrackingResult({ result, isLoading }: Props) {
   const normalized = useMemo(() => normalizeResult(result), [result]);
 
   if (!normalized) {
-    return (
-      <section className="container px-5 pb-12">
-        <div className="rounded-xl border border-dashed border-border bg-background p-6 text-sm text-muted-foreground">
-          Price history will appear after more tracking data is collected.
-        </div>
-      </section>
-    );
+    return null;
   }
 
   if (!hasValidPriceData(normalized)) {

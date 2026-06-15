@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { History, Search, BarChart3 } from "lucide-react";
+import { BarChart3, ChevronRight, History, Info, Link2, Loader2, Sparkles } from "lucide-react";
 import { FormEvent } from "react";
 
 type Props = {
@@ -13,63 +13,125 @@ type Props = {
 };
 
 const platforms = [
-  "Amazon Price History",
-  "Flipkart Price History",
-  "Myntra Price History",
-  "Ajio Price History",
-  "Croma Price History",
-  "TataCliq Price History",
+  { name: "Amazon", accent: "from-amber-100 to-orange-50 text-orange-700" },
+  { name: "Flipkart", accent: "from-blue-100 to-sky-50 text-blue-700" },
+  { name: "Myntra", accent: "from-pink-100 to-rose-50 text-rose-700" },
+  { name: "Ajio", accent: "from-indigo-100 to-violet-50 text-indigo-700" },
+  { name: "Croma", accent: "from-cyan-100 to-emerald-50 text-cyan-700" },
+  { name: "TataCliq", accent: "from-slate-100 to-emerald-50 text-slate-700" },
 ];
 
 export default function PriceTrackerHero({ productUrl, setProductUrl, onSubmit, isLoading, error }: Props) {
   return (
-    <section className="border-y border-border/70 bg-secondary/25">
-      <div className="container px-5 py-10 md:py-14">
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)]">
-          <div className="space-y-7">
-            <div className="max-w-2xl space-y-4">
-              <Badge variant="outline" className="gap-2 border-primary/30 bg-background text-primary">
-                <History className="h-3.5 w-3.5" />
+    <section className="bg-gradient-to-b from-emerald-50/60 via-white to-white px-3 py-8 md:px-5 md:py-12">
+      <div className="mx-auto w-full max-w-6xl">
+        <div className="relative overflow-hidden rounded-[2rem] border border-emerald-200/70 bg-white shadow-[0_24px_80px_rgba(15,118,110,0.13)]">
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(16,185,129,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.08)_1px,transparent_1px)] bg-[size:38px_38px]" />
+          <div className="pointer-events-none absolute -right-24 -top-28 h-72 w-72 rounded-full bg-emerald-200/35 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-28 left-10 h-64 w-64 rounded-full bg-lime-100/70 blur-3xl" />
+          <svg
+            className="pointer-events-none absolute right-6 top-8 hidden h-28 w-72 text-emerald-500/20 lg:block"
+            viewBox="0 0 320 120"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 92 C44 80 58 34 100 48 C138 61 142 98 184 76 C222 56 226 18 266 28 C290 34 302 50 316 42"
+              stroke="currentColor"
+              strokeWidth="5"
+              strokeLinecap="round"
+            />
+            <path
+              d="M4 92 C44 80 58 34 100 48 C138 61 142 98 184 76 C222 56 226 18 266 28 C290 34 302 50 316 42"
+              stroke="currentColor"
+              strokeWidth="1"
+              strokeDasharray="8 10"
+              strokeLinecap="round"
+            />
+          </svg>
+
+          <div className="relative z-10 mx-auto max-w-6xl px-4 py-8 sm:px-7 md:px-10 md:py-12 lg:px-12">
+            <div className="mx-auto max-w-3xl text-center">
+              <Badge className="mb-5 gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-sm font-semibold text-emerald-700 shadow-sm hover:bg-emerald-50">
+                <Sparkles className="h-3.5 w-3.5" />
                 Web price tracker
               </Badge>
-              <h2 className="font-display text-3xl font-bold leading-tight md:text-5xl">
-                Never overpay again, because prices have a past!
+
+              <h2 className="font-display text-3xl font-bold leading-tight text-slate-950 sm:text-4xl md:text-5xl">
+                Never overpay again, because prices{" "}
+                <span className="text-emerald-600">have a past!</span>
               </h2>
-              <p className="max-w-xl text-base text-muted-foreground md:text-lg">
+              <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600 md:text-lg">
                 Track price history, compare prices, and buy at the right moment.
               </p>
             </div>
 
-            <form onSubmit={onSubmit} className="flex max-w-3xl flex-col gap-3 rounded-lg border border-border bg-background p-2 shadow-sm sm:flex-row">
-              <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <form
+              onSubmit={onSubmit}
+              className="mx-auto mt-8 flex max-w-4xl flex-col gap-2 rounded-[1.35rem] border border-emerald-200/80 bg-white/95 p-2 shadow-[0_16px_40px_rgba(15,118,110,0.14)] backdrop-blur sm:flex-row sm:items-center"
+            >
+              <div className="relative flex min-w-0 flex-1 items-center">
+                <div className="pointer-events-none absolute left-4 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                  <Link2 className="h-5 w-5" />
+                </div>
                 <Input
                   value={productUrl}
                   onChange={(event) => setProductUrl(event.target.value)}
                   placeholder="Paste Amazon / Flipkart / Myntra / Ajio product link"
-                  className="h-12 border-0 pl-10 shadow-none focus-visible:ring-0"
+                  className="h-14 rounded-2xl border-0 bg-transparent pl-16 pr-4 text-base shadow-none placeholder:text-slate-400 focus-visible:ring-0"
                 />
               </div>
-              <Button type="submit" size="lg" className="h-12 gap-2 px-6" disabled={isLoading}>
-                <BarChart3 className="h-4 w-4" />
+              <Button
+                type="submit"
+                size="lg"
+                className="h-14 rounded-2xl bg-emerald-600 px-6 font-bold text-white shadow-[0_12px_24px_rgba(5,150,105,0.28)] transition-all hover:-translate-y-0.5 hover:bg-emerald-700 hover:shadow-[0_16px_30px_rgba(5,150,105,0.34)] sm:min-w-44"
+                disabled={isLoading}
+              >
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BarChart3 className="h-4 w-4" />}
                 {isLoading ? "Tracking..." : "Track Price"}
               </Button>
             </form>
-            {error && <p className="text-sm font-medium text-destructive">{error}</p>}
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {error && (
+              <div className="mx-auto mt-3 max-w-4xl rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                {error}
+              </div>
+            )}
+
+            <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {platforms.map((platform) => (
-                <div key={platform} className="flex min-h-16 items-center gap-3 rounded-lg border border-border bg-background px-4 py-3 shadow-sm">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-                    <History className="h-4 w-4" />
-                  </div>
-                  <span className="text-sm font-semibold">{platform}</span>
-                </div>
+                <PlatformHistoryCard key={platform.name} platform={platform} />
               ))}
+            </div>
+
+            <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/75 p-4 text-sm text-emerald-900 shadow-sm sm:flex-row sm:items-center">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-emerald-700 shadow-sm">
+                <Info className="h-5 w-5" />
+              </div>
+              <p className="leading-6">
+                Price history will appear after more tracking data is collected.
+              </p>
             </div>
           </div>
         </div>
       </div>
     </section>
+  );
+}
+
+function PlatformHistoryCard({ platform }: { platform: (typeof platforms)[number] }) {
+  return (
+    <div className="group flex min-h-28 items-center gap-4 rounded-2xl border border-emerald-100 bg-white/95 p-4 shadow-[0_10px_26px_rgba(15,23,42,0.07)] transition-all hover:-translate-y-1 hover:border-emerald-200 hover:shadow-[0_18px_36px_rgba(15,118,110,0.13)]">
+      <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${platform.accent} shadow-inner`}>
+        <History className="h-6 w-6" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-base font-bold text-slate-950">{platform.name}</div>
+        <div className="mt-1 text-sm font-medium text-slate-500">Price History</div>
+      </div>
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-emerald-100 bg-emerald-50 text-emerald-700 transition-transform group-hover:translate-x-1">
+        <ChevronRight className="h-4 w-4" />
+      </div>
+    </div>
   );
 }
