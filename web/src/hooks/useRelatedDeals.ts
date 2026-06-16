@@ -1,29 +1,29 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchDeals } from "@/lib/api";
 
-export function useRelatedDeals(dealId: string | undefined, categoryId: string | null | undefined, storeId: string | undefined) {
+export function useRelatedDeals(
+  dealId: string | undefined,
+  categorySlug: string | null | undefined,
+  storeSlug: string | null | undefined,
+) {
   return useQuery({
-    queryKey: ["deals", "related", dealId],
+    queryKey: ["deals", "related", dealId, categorySlug, storeSlug],
     enabled: !!dealId,
     queryFn: async () => {
-      let query = supabase
-        .from("deals")
-        .select("*, stores(*), categories(*)")
-        .eq("status", "active")
-        .neq("id", dealId!)
-        .limit(4);
+      const params: Record<string, string | number | undefined> = {
+        limit: 8,
+        sort: "newest",
+      };
 
-      if (categoryId) {
-        query = query.eq("category_id", categoryId);
-      } else if (storeId) {
-        query = query.eq("store_id", storeId);
+      if (categorySlug) {
+        params.category = categorySlug;
+      } else if (storeSlug) {
+        params.platform = storeSlug;
       }
 
-      query = query.order("created_at", { ascending: false });
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return data;
+      const deals = await fetchDeals(params);
+      // Exclude the current deal and return up to 4
+      return deals.filter((d) => d.id !== dealId).slice(0, 4);
     },
   });
 }

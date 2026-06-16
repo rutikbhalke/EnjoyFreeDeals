@@ -16,6 +16,10 @@ interface DealCardProps {
     description: string | null;
     original_price: number | null;
     discounted_price: number | null;
+    price_status?: string | null;
+    price_min?: number | null;
+    price_max?: number | null;
+    manual_price_note?: string | null;
     discount_percentage: number | null;
     coupon_code: string | null;
     cashback_percentage: number | null;
@@ -36,6 +40,7 @@ export default function DealCard({ deal }: DealCardProps) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const imageUrl = validImageUrl(deal.image_url) || validImageUrl(deal.source_image_url);
   const updatedText = formatUpdatedTime(deal.updated_at || deal.created_at);
+  const hasPriceRange = deal.price_status === "manual_added" && (deal.price_min != null || deal.price_max != null);
   const isNew = Boolean(deal.created_at && Date.now() - new Date(deal.created_at).getTime() < 24 * 60 * 60 * 1000);
 
   return (
@@ -130,7 +135,11 @@ export default function DealCard({ deal }: DealCardProps) {
         </Link>
 
         <div className="flex items-baseline gap-2 mb-3">
-          {deal.discounted_price != null && (
+          {hasPriceRange ? (
+            <span className="font-display text-lg font-bold text-deal-save">
+              {"\u20b9"}{(deal.price_min ?? deal.price_max)?.toLocaleString("en-IN")} - {"\u20b9"}{(deal.price_max ?? deal.price_min)?.toLocaleString("en-IN")}
+            </span>
+          ) : deal.discounted_price != null && (
             <span className="font-display text-lg font-bold text-deal-save">
               {"\u20b9"}{deal.discounted_price.toLocaleString("en-IN")}
             </span>

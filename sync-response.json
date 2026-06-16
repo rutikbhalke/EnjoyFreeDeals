@@ -1,0 +1,13 @@
+{
+    "success":  true,
+    "data":  {
+                 "id":  "sync-genie-loot-mpxwvx3h-q9d3y7",
+                 "type":  "sync-genie-loot",
+                 "status":  "running",
+                 "startedAt":  "2026-06-03T10:16:29.261Z",
+                 "finishedAt":  null,
+                 "result":  null,
+                 "error":  "",
+                 "statusUrl":  "http://127.0.0.1:5000/api/admin/genie-loot-jobs/sync-genie-loot-mpxwvx3h-q9d3y7"
+             }
+}

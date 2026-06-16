@@ -1,0 +1,16 @@
+EnjoyFreeDeals backend running on port 5000
+[telegram-scraper] Channel started: king_deal_1
+[telegram-scraper] Direct Telegram fetch failed for king_deal_1: Telegram page fetch failed for https://t.me/s/king_deal_1: UND_ERR_CONNECT_TIMEOUT. Trying reader fallback.
+[telegram-scraper] Message checked: king_deal_1/57277
+[telegram-scraper] Deal rejected: king_deal_1/57277 - Promotion/non-shopping message
+[telegram-scraper] Message checked: king_deal_1/57278
+[telegram-scraper] Platform detected: Amazon
+[telegram-scraper] Supabase updated success: a134dcfa-793d-4ae5-8c61-40a118e0c515
+[telegram-scraper] Message checked: king_deal_1/57279
+[telegram-scraper] Platform detected: Amazon
+[telegram-scraper] Supabase updated success: c630edc5-21cf-4861-afdc-64b9a180f49e
+[telegram-scraper] Message checked: king_deal_1/57280
+[telegram-scraper] Platform detected: Amazon
+[telegram-scraper] Supabase updated success: 02280748-20ef-4ea1-b536-10620ddb6727
+[telegram-scraper] Message checked: king_deal_1/57281
+[telegram-scraper] Deal rejected: king_deal_1/57281 - Discount below 50%

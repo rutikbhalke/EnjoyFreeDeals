@@ -26,6 +26,7 @@ const AdminDeals = lazy(() => import("./pages/admin/AdminDeals"));
 const AdminStores = lazy(() => import("./pages/admin/AdminStores"));
 const AdminCategories = lazy(() => import("./pages/admin/AdminCategories"));
 const AdminUsers = lazy(() => import("./pages/admin/AdminUsers"));
+const AdminTelegramDeals = lazy(() => import("./pages/admin/AdminTelegramDeals"));
 const AdminWebhookDeals = lazy(() => import("./pages/admin/AdminWebhookDeals"));
 const AdminSubmissions = lazy(() => import("./pages/admin/AdminSubmissions"));
 const AdminBlog = lazy(() => import("./pages/admin/AdminBlog"));
@@ -81,6 +82,7 @@ function AnimatedRoutes() {
             <Route path="stores" element={<AdminStores />} />
             <Route path="categories" element={<AdminCategories />} />
             <Route path="users" element={<AdminUsers />} />
+            <Route path="telegram-deals" element={<AdminTelegramDeals />} />
             <Route path="webhook-deals" element={<AdminWebhookDeals />} />
             <Route path="submissions" element={<AdminSubmissions />} />
             <Route path="blog" element={<AdminBlog />} />

@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { LayoutDashboard, Tag, Store, FolderOpen, Users, ArrowLeft, Menu, Webhook, Send, BookOpen } from "lucide-react";
+import { LayoutDashboard, Tag, Store, FolderOpen, Users, ArrowLeft, Menu, Webhook, Send, BookOpen, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
@@ -11,6 +11,7 @@ const links = [
   { to: "/admin/stores", icon: Store, label: "Stores" },
   { to: "/admin/categories", icon: FolderOpen, label: "Categories" },
   { to: "/admin/users", icon: Users, label: "Users" },
+  { to: "/admin/telegram-deals", icon: MessageCircle, label: "Telegram Deals" },
   { to: "/admin/webhook-deals", icon: Webhook, label: "Webhook Deals" },
   { to: "/admin/submissions", icon: Send, label: "User Submissions" },
   { to: "/admin/blog", icon: BookOpen, label: "Blog" },

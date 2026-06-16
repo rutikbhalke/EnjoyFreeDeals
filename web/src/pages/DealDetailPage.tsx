@@ -26,7 +26,7 @@ import { formatUpdatedTime } from "@/lib/api";
 export default function DealDetailPage() {
   const { slug } = useParams<{ slug: string }>();
   const { data: deal, isLoading } = useDealBySlug(slug);
-  const { data: related } = useRelatedDeals(deal?.id, undefined, undefined);
+  const { data: related } = useRelatedDeals(deal?.id, deal?.categories?.slug ?? null, deal?.stores?.slug ?? null);
   const { trackAndOpen } = useDealClickTracker();
   const { trackDealView } = useActivityTracker();
   const isMobile = useIsMobile();
