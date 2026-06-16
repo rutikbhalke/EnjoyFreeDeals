@@ -1,4 +1,4 @@
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bar, BarChart, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -8,12 +8,15 @@ import {
   CheckCircle,
   ExternalLink,
   ImageOff,
+  KeyRound,
   MessageCircle,
   MousePointerClick,
   Pencil,
+  Plus,
   RefreshCw,
   Store,
   Tag,
+  Upload,
   Users,
   XCircle,
 } from "lucide-react";
@@ -25,6 +28,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
@@ -61,19 +65,34 @@ type EditForm = {
   couponCode: string;
   availability: string;
   adminNotes: string;
+  description: string;
   isValid: boolean;
   isExpired: boolean;
 };
 
-const sections: Array<{ key: ReviewSection; label: string }> = [
-  { key: "all", label: "Flagged Deals" },
-  { key: "telegram", label: "Telegram Scraped Deals" },
-  { key: "missing_image", label: "Missing Image Deals" },
-  { key: "zero_price", label: "Zero Price Deals" },
-  { key: "price_mismatch", label: "Price Mismatch Deals" },
-  { key: "pending", label: "Pending Approval Deals" },
-  { key: "approved", label: "Approved Deals" },
-  { key: "rejected", label: "Rejected Deals" },
+const STATUS_OPTIONS = [
+  { value: "pending_review", label: "Pending Review" },
+  { value: "active", label: "Active" },
+  { value: "approved", label: "Approved" },
+  { value: "rejected", label: "Rejected" },
+  { value: "expired", label: "Expired" },
+  { value: "draft", label: "Draft" },
+];
+
+const CATEGORY_OPTIONS = [
+  "Electronics", "Fashion", "Home & Kitchen", "Books", "Sports & Fitness",
+  "Beauty & Personal Care", "Toys & Games", "Food & Grocery", "Travel", "Other Deals",
+];
+
+const sections: Array<{ key: ReviewSection; label: string; color?: string }> = [
+  { key: "all", label: "Flagged Deals", color: "orange" },
+  { key: "telegram", label: "Telegram Scraped Deals", color: "blue" },
+  { key: "missing_image", label: "Missing Image Deals", color: "red" },
+  { key: "zero_price", label: "Zero Price Deals", color: "red" },
+  { key: "price_mismatch", label: "Price Mismatch Deals", color: "yellow" },
+  { key: "pending", label: "Pending Approval Deals", color: "gray" },
+  { key: "approved", label: "Approved Deals", color: "green" },
+  { key: "rejected", label: "Rejected Deals", color: "red" },
 ];
 
 function useAdminStats() {
@@ -157,6 +176,8 @@ function useAdminStats() {
   });
 }
 
+const ADMIN_SECRET_KEY = "enjoyfreedeals_admin_secret";
+
 export default function AdminDashboard() {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -165,15 +186,49 @@ export default function AdminDashboard() {
   const [section, setSection] = useState<ReviewSection>("all");
   const [editing, setEditing] = useState<FlaggedDeal | null>(null);
   const [form, setForm] = useState<EditForm>(emptyForm());
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addForm, setAddForm] = useState<EditForm>(emptyForm());
+  const [addStatus, setAddStatus] = useState<string>("pending_review");
+  const [imagePreview, setImagePreview] = useState<string>("");
+  const [addImagePreview, setAddImagePreview] = useState<string>("");
+  const [adminSecret, setAdminSecret] = useState<string>(() => localStorage.getItem(ADMIN_SECRET_KEY) || "");
+  const [secretInput, setSecretInput] = useState("");
+  const [secretDialogOpen, setSecretDialogOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const addFileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data, isLoading: reviewLoading } = useQuery({
-    queryKey: ["admin-flagged-deals", section],
+  // Auto-open secret dialog if secret is missing
+  useEffect(() => {
+    if (!localStorage.getItem(ADMIN_SECRET_KEY)) setSecretDialogOpen(true);
+  }, []);
+
+  const saveSecret = () => {
+    const s = secretInput.trim();
+    if (!s) return;
+    localStorage.setItem(ADMIN_SECRET_KEY, s);
+    setAdminSecret(s);
+    setSecretDialogOpen(false);
+    setSecretInput("");
+    qc.invalidateQueries({ queryKey: ["admin-flagged-deals"] });
+    toast({ title: "Admin secret saved", description: "Review data will now load." });
+  };
+
+  const clearSecret = () => {
+    localStorage.removeItem(ADMIN_SECRET_KEY);
+    setAdminSecret("");
+    toast({ title: "Admin secret cleared" });
+  };
+
+  const { data, isLoading: reviewLoading, error: reviewError } = useQuery({
+    queryKey: ["admin-flagged-deals", section, adminSecret],
     queryFn: () => fetchAdminFlaggedDeals(section),
+    retry: false,
   });
 
   const { data: allReviewData } = useQuery({
-    queryKey: ["admin-flagged-deals", "all", "telegram-section"],
+    queryKey: ["admin-flagged-deals", "all", "telegram-section", adminSecret],
     queryFn: () => fetchAdminFlaggedDeals("all"),
+    retry: false,
   });
 
   const items = data?.items || [];
@@ -182,6 +237,17 @@ export default function AdminDashboard() {
     () => (allReviewData?.items || items).filter((item) => String(item.sourceType || "").includes("telegram")),
     [allReviewData?.items, items]
   );
+
+  // Handle image file upload → convert to base64 data URL or hosted URL
+  const handleImageFile = useCallback((file: File, setter: (url: string) => void, previewSetter: (url: string) => void) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = String(e.target?.result || "");
+      previewSetter(dataUrl);
+      setter(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  }, []);
 
   const saveMutation = useMutation({
     mutationFn: () => {
@@ -192,6 +258,7 @@ export default function AdminDashboard() {
       qc.invalidateQueries({ queryKey: ["admin-flagged-deals"] });
       toast({ title: "Deal updated" });
       setEditing(null);
+      setImagePreview("");
     },
     onError: (error: Error) => toast({ title: "Save failed", description: error.message, variant: "destructive" }),
   });
@@ -249,9 +316,83 @@ export default function AdminDashboard() {
     },
   });
 
+  // Add new deal via Supabase
+  const addDealMutation = useMutation({
+    mutationFn: async () => {
+      const slug = slugify(addForm.title);
+      const payload: Record<string, unknown> = {
+        title: addForm.title,
+        slug,
+        image_url: addForm.imageUrl || null,
+        product_url: addForm.productUrl || null,
+        affiliate_link: addForm.productUrl || null,
+        description: addForm.description || null,
+        coupon_code: addForm.couponCode || null,
+        availability: addForm.availability || null,
+        admin_notes: addForm.adminNotes || null,
+        original_price: numericOrNull(addForm.originalPrice),
+        discounted_price: numericOrNull(addForm.dealPrice),
+        price_range_min: numericOrNull(addForm.priceRangeMin),
+        price_range_max: numericOrNull(addForm.priceRangeMax),
+        status: addStatus,
+        source_type: sectionToSourceType(section),
+        validation_flags: [],
+        is_verified: addStatus === "active" || addStatus === "approved",
+        is_featured: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      // Look up store_id by name
+      if (addForm.storeName) {
+        const { data: storeRows } = await supabase
+          .from("stores")
+          .select("id")
+          .ilike("name", addForm.storeName)
+          .limit(1);
+        if (storeRows && storeRows.length > 0) {
+          payload.store_id = storeRows[0].id;
+        }
+      }
+
+      // Look up category_id by name
+      if (addForm.categoryName) {
+        const { data: catRows } = await supabase
+          .from("categories")
+          .select("id")
+          .ilike("name", addForm.categoryName)
+          .limit(1);
+        if (catRows && catRows.length > 0) {
+          payload.category_id = catRows[0].id;
+        }
+      }
+
+      const { error } = await supabase.from("deals").insert(payload as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-flagged-deals"] });
+      qc.invalidateQueries({ queryKey: ["admin-stats"] });
+      toast({ title: "Deal added successfully" });
+      setAddDialogOpen(false);
+      setAddForm(emptyForm());
+      setAddImagePreview("");
+      setAddStatus("pending_review");
+    },
+    onError: (error: Error) => toast({ title: "Failed to add deal", description: error.message, variant: "destructive" }),
+  });
+
   const openEdit = (deal: FlaggedDeal) => {
     setEditing(deal);
     setForm(formFromDeal(deal));
+    setImagePreview(deal.imageUrl || "");
+  };
+
+  const openAddDeal = () => {
+    setAddForm(emptyForm());
+    setAddImagePreview("");
+    setAddStatus("pending_review");
+    setAddDialogOpen(true);
   };
 
   const cards = [
@@ -261,20 +402,72 @@ export default function AdminDashboard() {
     { label: "Total Users", value: stats?.totalUsers, icon: Users },
   ];
 
+  const currentSectionLabel = sections.find((s) => s.key === section)?.label || "Flagged Deals";
+
   return (
     <div className="space-y-7">
       <SEO title="Admin Dashboard - EnjoyFreeDeals" />
+
+      {/* Admin Secret Setup Dialog */}
+      <Dialog open={secretDialogOpen} onOpenChange={setSecretDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5 text-primary" />
+              Enter Admin Secret
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            The Admin API requires an <strong>ADMIN_API_SECRET</strong> to load deal review data.
+            Enter it below — it will be saved in your browser.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              type="password"
+              placeholder="Paste admin secret here..."
+              value={secretInput}
+              onChange={(e) => setSecretInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && saveSecret()}
+              autoFocus
+            />
+            <Button onClick={saveSecret} disabled={!secretInput.trim()}>Save</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Auth error banner */}
+      {reviewError && !adminSecret && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm">
+          <span className="text-destructive font-medium">⚠️ Admin API auth failed — please set your admin secret to load deal data.</span>
+          <Button size="sm" variant="outline" onClick={() => { setSecretInput(""); setSecretDialogOpen(true); }}>
+            <KeyRound className="mr-1 h-4 w-4" /> Set Secret
+          </Button>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold">Dashboard Overview</h1>
           <p className="text-sm text-muted-foreground">Deals review queue, Telegram monitor, and flagged deal controls.</p>
         </div>
-        <Button size="sm" asChild>
-          <Link to="/admin/deals">
-            <Tag className="mr-1 h-4 w-4" />
-            Manage Deals
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          {adminSecret && (
+            <Button size="sm" variant="ghost" onClick={() => { setSecretInput(""); setSecretDialogOpen(true); }} title="Change admin secret">
+              <KeyRound className="mr-1 h-4 w-4" />
+              Secret
+            </Button>
+          )}
+          <Button size="sm" variant="outline" onClick={openAddDeal}>
+            <Plus className="mr-1 h-4 w-4" />
+            Add Deal
+          </Button>
+          <Button size="sm" asChild>
+            <Link to="/admin/deals">
+              <Tag className="mr-1 h-4 w-4" />
+              Manage Deals
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
@@ -303,7 +496,7 @@ export default function AdminDashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Clicks & Views (Last 7 Days)</CardTitle>
+          <CardTitle>Clicks &amp; Views (Last 7 Days)</CardTitle>
         </CardHeader>
         <CardContent className="h-64">
           {stats?.chartData && (
@@ -350,6 +543,7 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
+      {/* Section Filter Tabs */}
       <div className="flex flex-wrap gap-2">
         {sections.map((item) => (
           <Button
@@ -363,10 +557,17 @@ export default function AdminDashboard() {
         ))}
       </div>
 
+      {/* Current section deals table */}
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="font-display text-xl font-semibold">Deals Review Queue</h2>
-          <Badge variant="secondary">{items.length} rows</Badge>
+          <h2 className="font-display text-xl font-semibold">{currentSectionLabel}</h2>
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">{items.length} rows</Badge>
+            <Button size="sm" variant="outline" onClick={openAddDeal}>
+              <Plus className="mr-1 h-4 w-4" />
+              Add Deal
+            </Button>
+          </div>
         </div>
         <FlaggedDealsTable
           items={items}
@@ -377,10 +578,12 @@ export default function AdminDashboard() {
         />
       </section>
 
+      {/* Telegram-specific review section */}
       <section className="space-y-3">
         <div className="flex items-center gap-2">
           <MessageCircle className="h-5 w-5 text-primary" />
           <h2 className="font-display text-xl font-semibold">Telegram Review Section</h2>
+          <Badge variant="secondary">{telegramItems.length} rows</Badge>
         </div>
         <FlaggedDealsTable
           items={telegramItems}
@@ -392,29 +595,126 @@ export default function AdminDashboard() {
         />
       </section>
 
-      <Dialog open={Boolean(editing)} onOpenChange={(open) => !open && setEditing(null)}>
+      {/* ── Edit Deal Dialog ── */}
+      <Dialog open={Boolean(editing)} onOpenChange={(open) => { if (!open) { setEditing(null); setImagePreview(""); } }}>
         <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle>Edit Deal</DialogTitle>
           </DialogHeader>
-          <form onSubmit={(event) => { event.preventDefault(); saveMutation.mutate(); }} className="space-y-4">
+          <form onSubmit={(event) => { event.preventDefault(); saveMutation.mutate(); }} className="space-y-5">
+
+            {/* Image preview + URL + file upload */}
+            <div className="space-y-3">
+              <Label className="text-base font-semibold">Deal Image</Label>
+              {(imagePreview || form.imageUrl) && (
+                <div className="flex justify-center">
+                  <div className="relative h-40 w-40 overflow-hidden rounded-xl border border-border bg-secondary">
+                    <img
+                      src={imagePreview || form.imageUrl}
+                      alt="Preview"
+                      className="h-full w-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Image URL</Label>
+                  <Input
+                    placeholder="https://example.com/image.jpg"
+                    value={form.imageUrl}
+                    onChange={(e) => {
+                      setForm({ ...form, imageUrl: e.target.value });
+                      setImagePreview(e.target.value);
+                    }}
+                  />
+                </div>
+                <div className="flex flex-col justify-end">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleImageFile(file, (url) => setForm({ ...form, imageUrl: url }), setImagePreview);
+                    }}
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+                    <Upload className="mr-1 h-4 w-4" />
+                    Upload
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Main fields grid */}
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Title" value={form.title} onChange={(value) => setForm({ ...form, title: value })} />
-              <Field label="Image URL" value={form.imageUrl} onChange={(value) => setForm({ ...form, imageUrl: value })} />
               <Field label="Product URL" value={form.productUrl} onChange={(value) => setForm({ ...form, productUrl: value })} />
               <Field label="Store name" value={form.storeName} onChange={(value) => setForm({ ...form, storeName: value })} />
-              <Field label="Category" value={form.categoryName} onChange={(value) => setForm({ ...form, categoryName: value })} />
+
+              {/* Category dropdown */}
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Select value={form.categoryName} onValueChange={(v) => setForm({ ...form, categoryName: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORY_OPTIONS.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <Field label="Coupon code" value={form.couponCode} onChange={(value) => setForm({ ...form, couponCode: value })} />
-              <Field label="Original price" type="number" value={form.originalPrice} onChange={(value) => setForm({ ...form, originalPrice: value })} />
-              <Field label="Deal price" type="number" value={form.dealPrice} onChange={(value) => setForm({ ...form, dealPrice: value })} />
-              <Field label="Price range min" type="number" value={form.priceRangeMin} onChange={(value) => setForm({ ...form, priceRangeMin: value })} />
-              <Field label="Price range max" type="number" value={form.priceRangeMax} onChange={(value) => setForm({ ...form, priceRangeMax: value })} />
               <Field label="Availability" value={form.availability} onChange={(value) => setForm({ ...form, availability: value })} />
             </div>
+
+            {/* Price section */}
+            <div className="rounded-lg border border-border p-4 space-y-3">
+              <Label className="text-base font-semibold">💰 Pricing</Label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Deal price (₹)" type="number" value={form.dealPrice} onChange={(value) => setForm({ ...form, dealPrice: value })} />
+                <Field label="Original price (₹)" type="number" value={form.originalPrice} onChange={(value) => setForm({ ...form, originalPrice: value })} />
+                <Field label="Price range min (₹)" type="number" value={form.priceRangeMin} onChange={(value) => setForm({ ...form, priceRangeMin: value })} />
+                <Field label="Price range max (₹)" type="number" value={form.priceRangeMax} onChange={(value) => setForm({ ...form, priceRangeMax: value })} />
+              </div>
+              {(form.dealPrice || form.originalPrice) && (
+                <div className="rounded-md bg-secondary p-3 text-sm">
+                  <span className="font-bold text-primary">Deal Price: ₹{form.dealPrice || "—"}</span>
+                  {form.originalPrice && (
+                    <span className="ml-3 text-muted-foreground line-through">₹{form.originalPrice}</span>
+                  )}
+                  {form.dealPrice && form.originalPrice && Number(form.originalPrice) > 0 && (
+                    <span className="ml-3 font-semibold text-green-600">
+                      {Math.round(((Number(form.originalPrice) - Number(form.dealPrice)) / Number(form.originalPrice)) * 100)}% off
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea
+                value={form.description}
+                onChange={(event) => setForm({ ...form, description: event.target.value })}
+                rows={2}
+                placeholder="Deal description..."
+              />
+            </div>
+
+            {/* Admin notes */}
             <div className="space-y-2">
               <Label>Admin notes</Label>
               <Textarea value={form.adminNotes} onChange={(event) => setForm({ ...form, adminNotes: event.target.value })} rows={3} />
             </div>
+
             <div className="flex flex-wrap gap-5">
               <label className="flex items-center gap-2 text-sm font-medium">
                 <Checkbox checked={form.isValid} onCheckedChange={(value) => setForm({ ...form, isValid: Boolean(value) })} />
@@ -425,6 +725,7 @@ export default function AdminDashboard() {
                 isExpired
               </label>
             </div>
+
             <div className="flex flex-wrap justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => editing && rejectMutation.mutate(editing)} disabled={rejectMutation.isPending}>
                 Reject deal
@@ -434,6 +735,168 @@ export default function AdminDashboard() {
               </Button>
               <Button type="submit" disabled={saveMutation.isPending}>
                 Save changes
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Add New Deal Dialog ── */}
+      <Dialog open={addDialogOpen} onOpenChange={(open) => { setAddDialogOpen(open); if (!open) setAddImagePreview(""); }}>
+        <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Add New Deal</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => { e.preventDefault(); addDealMutation.mutate(); }}
+            className="space-y-5"
+          >
+            {/* Image section */}
+            <div className="space-y-3">
+              <Label className="text-base font-semibold">Deal Image</Label>
+              {addImagePreview && (
+                <div className="flex justify-center">
+                  <div className="relative h-40 w-40 overflow-hidden rounded-xl border border-border bg-secondary">
+                    <img
+                      src={addImagePreview}
+                      alt="Preview"
+                      className="h-full w-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
+                  </div>
+                </div>
+              )}
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Image URL</Label>
+                  <Input
+                    placeholder="https://example.com/image.jpg"
+                    value={addForm.imageUrl}
+                    onChange={(e) => {
+                      setAddForm({ ...addForm, imageUrl: e.target.value });
+                      setAddImagePreview(e.target.value);
+                    }}
+                  />
+                </div>
+                <div className="flex flex-col justify-end">
+                  <input
+                    ref={addFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleImageFile(file, (url) => setAddForm({ ...addForm, imageUrl: url }), setAddImagePreview);
+                    }}
+                  />
+                  <Button type="button" variant="outline" size="sm" onClick={() => addFileInputRef.current?.click()}>
+                    <Upload className="mr-1 h-4 w-4" />
+                    Upload
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Main fields */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <Label>Title <span className="text-destructive">*</span></Label>
+                <Input
+                  value={addForm.title}
+                  onChange={(e) => setAddForm({ ...addForm, title: e.target.value })}
+                  required
+                  placeholder="Deal title..."
+                />
+              </div>
+              <Field label="Product URL" value={addForm.productUrl} onChange={(v) => setAddForm({ ...addForm, productUrl: v })} />
+              <Field label="Store name" value={addForm.storeName} onChange={(v) => setAddForm({ ...addForm, storeName: v })} />
+
+              {/* Category */}
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Select value={addForm.categoryName} onValueChange={(v) => setAddForm({ ...addForm, categoryName: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORY_OPTIONS.map((cat) => (
+                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Status */}
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={addStatus} onValueChange={setAddStatus}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STATUS_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Field label="Coupon code" value={addForm.couponCode} onChange={(v) => setAddForm({ ...addForm, couponCode: v })} />
+              <Field label="Availability" value={addForm.availability} onChange={(v) => setAddForm({ ...addForm, availability: v })} />
+            </div>
+
+            {/* Price */}
+            <div className="rounded-lg border border-border p-4 space-y-3">
+              <Label className="text-base font-semibold">💰 Pricing</Label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Deal price (₹)" type="number" value={addForm.dealPrice} onChange={(v) => setAddForm({ ...addForm, dealPrice: v })} />
+                <Field label="Original price (₹)" type="number" value={addForm.originalPrice} onChange={(v) => setAddForm({ ...addForm, originalPrice: v })} />
+                <Field label="Price range min (₹)" type="number" value={addForm.priceRangeMin} onChange={(v) => setAddForm({ ...addForm, priceRangeMin: v })} />
+                <Field label="Price range max (₹)" type="number" value={addForm.priceRangeMax} onChange={(v) => setAddForm({ ...addForm, priceRangeMax: v })} />
+              </div>
+              {(addForm.dealPrice || addForm.originalPrice) && (
+                <div className="rounded-md bg-secondary p-3 text-sm">
+                  <span className="font-bold text-primary">Deal Price: ₹{addForm.dealPrice || "—"}</span>
+                  {addForm.originalPrice && (
+                    <span className="ml-3 text-muted-foreground line-through">₹{addForm.originalPrice}</span>
+                  )}
+                  {addForm.dealPrice && addForm.originalPrice && Number(addForm.originalPrice) > 0 && (
+                    <span className="ml-3 font-semibold text-green-600">
+                      {Math.round(((Number(addForm.originalPrice) - Number(addForm.dealPrice)) / Number(addForm.originalPrice)) * 100)}% off
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Description */}
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea
+                value={addForm.description}
+                onChange={(e) => setAddForm({ ...addForm, description: e.target.value })}
+                rows={3}
+                placeholder="Describe the deal..."
+              />
+            </div>
+
+            {/* Admin notes */}
+            <div className="space-y-2">
+              <Label>Admin notes</Label>
+              <Textarea
+                value={addForm.adminNotes}
+                onChange={(e) => setAddForm({ ...addForm, adminNotes: e.target.value })}
+                rows={2}
+                placeholder="Internal notes..."
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setAddDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={addDealMutation.isPending || !addForm.title}>
+                {addDealMutation.isPending ? "Adding..." : "Add Deal"}
               </Button>
             </div>
           </form>
@@ -513,6 +976,7 @@ function FlaggedDealsTable({
             {!compact && <TableHead>Category</TableHead>}
             <TableHead>Deal price</TableHead>
             {!compact && <TableHead>Original price</TableHead>}
+            {!compact && <TableHead>Discount</TableHead>}
             <TableHead>Flags</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="text-right">Actions</TableHead>
@@ -520,50 +984,73 @@ function FlaggedDealsTable({
         </TableHeader>
         <TableBody>
           {loading ? (
-            <TableRow><TableCell colSpan={compact ? 6 : 9} className="py-8 text-center text-muted-foreground">Loading...</TableCell></TableRow>
+            <TableRow><TableCell colSpan={compact ? 6 : 10} className="py-8 text-center text-muted-foreground">Loading...</TableCell></TableRow>
           ) : items.length === 0 ? (
-            <TableRow><TableCell colSpan={compact ? 6 : 9} className="py-8 text-center text-muted-foreground">No deals in this queue.</TableCell></TableRow>
-          ) : items.map((deal) => (
-            <TableRow key={deal.id}>
-              <TableCell>
-                <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-md bg-secondary">
-                  {deal.imageUrl ? (
-                    <img src={deal.imageUrl} alt={deal.title} className="h-full w-full object-cover" />
-                  ) : (
-                    <ImageOff className="h-5 w-5 text-muted-foreground" />
+            <TableRow><TableCell colSpan={compact ? 6 : 10} className="py-8 text-center text-muted-foreground">No deals in this queue.</TableCell></TableRow>
+          ) : items.map((deal) => {
+            const discount = deal.dealPrice && deal.originalPrice && deal.originalPrice > 0
+              ? Math.round(((deal.originalPrice - deal.dealPrice) / deal.originalPrice) * 100)
+              : null;
+            return (
+              <TableRow key={deal.id}>
+                <TableCell>
+                  <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-md bg-secondary">
+                    {deal.imageUrl ? (
+                      <img src={deal.imageUrl} alt={deal.title} className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                    ) : (
+                      <ImageOff className="h-5 w-5 text-muted-foreground" />
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className="max-w-[220px]">
+                  <div className="line-clamp-2 font-medium">{deal.title || "Untitled deal"}</div>
+                  <div className="truncate text-xs text-muted-foreground">{deal.productUrl || "No product URL"}</div>
+                  {deal.couponCode && (
+                    <Badge variant="outline" className="mt-1 text-xs">{deal.couponCode}</Badge>
                   )}
-                </div>
-              </TableCell>
-              <TableCell className="max-w-[260px]">
-                <div className="line-clamp-2 font-medium">{deal.title || "Untitled deal"}</div>
-                <div className="text-xs text-muted-foreground">{deal.productUrl || "No product URL"}</div>
-              </TableCell>
-              {!compact && <TableCell>{deal.storeName || "Store"}</TableCell>}
-              {!compact && <TableCell>{deal.categoryName || "Other Deals"}</TableCell>}
-              <TableCell>{formatMoney(deal.dealPrice)}</TableCell>
-              {!compact && <TableCell>{formatMoney(deal.originalPrice)}</TableCell>}
-              <TableCell className="max-w-[240px]">
-                <div className="flex flex-wrap gap-1">
-                  {deal.flags.slice(0, compact ? 2 : 5).map((flag) => (
-                    <Badge key={flag} variant={flag.includes("price") || flag.includes("image") ? "destructive" : "secondary"} className="text-xs">
-                      {flag.replace(/_/g, " ")}
-                    </Badge>
-                  ))}
-                </div>
-              </TableCell>
-              <TableCell><Badge variant={deal.status === "approved" || deal.status === "active" ? "default" : "secondary"}>{deal.status}</Badge></TableCell>
-              <TableCell className="text-right">
-                <div className="flex justify-end gap-1">
-                  <Button variant="ghost" size="icon" title="Edit" onClick={() => onEdit(deal)}><Pencil className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" title="Approve" onClick={() => onApprove(deal)}><CheckCircle className="h-4 w-4 text-primary" /></Button>
-                  <Button variant="ghost" size="icon" title="Reject" onClick={() => onReject(deal)}><XCircle className="h-4 w-4 text-destructive" /></Button>
-                  <Button variant="ghost" size="icon" title="View deal" asChild>
-                    <Link to={`/deals/${deal.slug || deal.id}`}><ExternalLink className="h-4 w-4" /></Link>
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
+                </TableCell>
+                {!compact && <TableCell className="text-sm">{deal.storeName || "—"}</TableCell>}
+                {!compact && <TableCell className="text-sm">{deal.categoryName || "Other Deals"}</TableCell>}
+                <TableCell>
+                  <span className="font-semibold text-primary">{formatMoney(deal.dealPrice)}</span>
+                </TableCell>
+                {!compact && (
+                  <TableCell>
+                    <span className="text-muted-foreground line-through text-sm">{formatMoney(deal.originalPrice)}</span>
+                  </TableCell>
+                )}
+                {!compact && (
+                  <TableCell>
+                    {discount !== null && discount > 0 ? (
+                      <Badge variant="secondary" className="text-green-600 bg-green-50 text-xs">{discount}% off</Badge>
+                    ) : "—"}
+                  </TableCell>
+                )}
+                <TableCell className="max-w-[200px]">
+                  <div className="flex flex-wrap gap-1">
+                    {deal.flags.slice(0, compact ? 2 : 5).map((flag) => (
+                      <Badge key={flag} variant={flag.includes("price") || flag.includes("image") ? "destructive" : "secondary"} className="text-xs">
+                        {flag.replace(/_/g, " ")}
+                      </Badge>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={deal.status === "approved" || deal.status === "active" ? "default" : "secondary"}>{deal.status}</Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="icon" title="Edit" onClick={() => onEdit(deal)}><Pencil className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" title="Approve" onClick={() => onApprove(deal)}><CheckCircle className="h-4 w-4 text-primary" /></Button>
+                    <Button variant="ghost" size="icon" title="Reject" onClick={() => onReject(deal)}><XCircle className="h-4 w-4 text-destructive" /></Button>
+                    <Button variant="ghost" size="icon" title="View deal" asChild>
+                      <Link to={`/deals/${deal.slug || deal.id}`}><ExternalLink className="h-4 w-4" /></Link>
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>
@@ -593,6 +1080,7 @@ function formFromDeal(deal: FlaggedDeal): EditForm {
     couponCode: deal.couponCode || "",
     availability: deal.availability || "",
     adminNotes: deal.adminNotes || "",
+    description: "",
     isValid: deal.status === "approved" || deal.status === "active",
     isExpired: false,
   };
@@ -624,8 +1112,8 @@ function stringOrEmpty(value: number | null | undefined) {
 }
 
 function formatMoney(value: number | null | undefined) {
-  if (value === null || value === undefined) return "-";
-  return `Rs. ${Number(value).toLocaleString("en-IN")}`;
+  if (value === null || value === undefined) return "—";
+  return `₹${Number(value).toLocaleString("en-IN")}`;
 }
 
 function payloadFromForm(form: EditForm) {
@@ -645,4 +1133,18 @@ function payloadFromForm(form: EditForm) {
     isValid: form.isValid,
     isExpired: form.isExpired,
   };
+}
+
+function slugify(text: string) {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") || "deal";
+}
+
+function sectionToSourceType(section: ReviewSection): string | null {
+  if (section === "telegram") return "telegram";
+  return null;
 }
