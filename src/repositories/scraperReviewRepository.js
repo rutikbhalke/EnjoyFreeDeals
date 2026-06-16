@@ -179,6 +179,46 @@ async function markTelegramDealExpired(dealId, note = "") {
 async function listFlaggedDeals(filters = {}) {
   const limit = Math.min(500, Math.max(1, Number(filters.limit || 100)));
   const verifyImages = String(filters.verifyImages || "").toLowerCase() === "true";
+  const section = String(filters.section || filters.view || "all").toLowerCase();
+
+  // For approved and rejected sections, fetch ALL deals with that status directly from the DB.
+  // This guarantees these tabs always show the full list regardless of flags.
+  if (section === "approved") {
+    const { data, error } = await supabaseAdmin
+      .from("deals")
+      .select("*, categories(*), stores(*)")
+      .in("status", ["approved", "active"])
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    throwIfSupabaseError(error, "deals");
+    const imageStatus = verifyImages ? await checkImageStatuses(data || []) : new Map();
+    const items = (data || []).map((row) => toFlaggedDeal(row, imageStatus.get(row.id)));
+    return {
+      items,
+      summary: await getAdminSummary(items),
+      pagination: { page: 1, limit, total: items.length, totalPages: 1 }
+    };
+  }
+
+  if (section === "rejected") {
+    const { data, error } = await supabaseAdmin
+      .from("deals")
+      .select("*, categories(*), stores(*)")
+      .eq("status", "rejected")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    throwIfSupabaseError(error, "deals");
+    const imageStatus = verifyImages ? await checkImageStatuses(data || []) : new Map();
+    const items = (data || []).map((row) => toFlaggedDeal(row, imageStatus.get(row.id)));
+    return {
+      items,
+      summary: await getAdminSummary(items),
+      pagination: { page: 1, limit, total: items.length, totalPages: 1 }
+    };
+  }
+
+  // For all other sections (all/flagged, telegram, missing_image, zero_price,
+  // price_mismatch, pending) — only load deals that actually have problems.
   const { data, error } = await supabaseAdmin
     .from("deals")
     .select("*, categories(*), stores(*)")
@@ -187,8 +227,7 @@ async function listFlaggedDeals(filters = {}) {
   throwIfSupabaseError(error, "deals");
 
   const imageStatus = verifyImages ? await checkImageStatuses(data || []) : new Map();
-  const section = String(filters.section || filters.view || "all").toLowerCase();
-  const includeStatusOnly = ["telegram", "approved", "rejected", "pending"].includes(section);
+  const includeStatusOnly = ["telegram", "pending"].includes(section);
   const items = (data || [])
     .map((row) => toFlaggedDeal(row, imageStatus.get(row.id)))
     .filter((item) => item.flags.length > 0 || item.status === "pending_review" || includeStatusOnly);
