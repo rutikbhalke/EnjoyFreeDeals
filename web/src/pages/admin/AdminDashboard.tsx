@@ -36,6 +36,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   apiRequest,
   approveAdminDeal,
+  createAdminDeal,
   fetchAdminFlaggedDeals,
   rejectAdminDeal,
   updateAdminDeal,
@@ -377,15 +378,30 @@ export default function AdminDashboard() {
         }
       }
 
-      let { error } = await supabase.from("deals").insert(insertPayload as any);
+      // Map frontend camelCase naming to the backend's expected structure
+      const apiPayload = {
+        title: insertPayload.title,
+        slug: insertPayload.slug,
+        imageUrl: insertPayload.image_url,
+        productUrl: insertPayload.source_url, // Maps to affiliate_link on backend
+        source_url: insertPayload.source_url, // Kept as source_url on backend
+        description: insertPayload.description,
+        couponCode: insertPayload.coupon_code,
+        originalPrice: insertPayload.original_price,
+        dealPrice: insertPayload.discounted_price,
+        status: insertPayload.status,
+        availability: insertPayload.availability,
+        admin_notes: insertPayload.admin_notes, // Kept as admin_notes on backend
+        price_range_min: insertPayload.price_range_min, // Kept as price_range_min on backend
+        price_range_max: insertPayload.price_range_max, // Kept as price_range_max on backend
+        sourceType: insertPayload.source_type,
+        store_id: insertPayload.store_id, // Kept as store_id on backend
+        category_id: insertPayload.category_id, // Kept as category_id on backend
+        is_verified: insertPayload.is_verified,
+        is_featured: insertPayload.is_featured,
+      };
 
-      // If schema error (missing column), retry with core columns only
-      if (error && (error.message?.includes("column") || error.code === "PGRST204" || error.code === "42703")) {
-        const fallback = await supabase.from("deals").insert(payload as any);
-        if (fallback.error) throw fallback.error;
-      } else if (error) {
-        throw error;
-      }
+      await createAdminDeal(apiPayload);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-flagged-deals"] });

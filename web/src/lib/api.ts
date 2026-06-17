@@ -526,6 +526,13 @@ export async function fetchAdminFlaggedDeals(section = "all") {
   return adminRequest<AdminFlaggedDealsResponse>(`/api/admin/flagged-deals?section=${encodeURIComponent(section)}`);
 }
 
+export async function createAdminDeal(payload: any) {
+  return adminRequest<BackendDeal>("/api/deals", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function updateAdminDeal(id: string, payload: AdminDealUpdatePayload) {
   return adminRequest<BackendDeal>(`/api/admin/deals/${encodeURIComponent(id)}`, {
     method: "PATCH",
