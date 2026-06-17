@@ -325,7 +325,7 @@ export default function AdminDashboard() {
         title: addForm.title,
         slug,
         image_url: addForm.imageUrl || null,
-        product_url: addForm.productUrl || null,
+        source_url: addForm.productUrl || null,
         affiliate_link: addForm.productUrl || null,
         description: addForm.description || null,
         coupon_code: addForm.couponCode || null,
