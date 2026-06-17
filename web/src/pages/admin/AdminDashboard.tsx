@@ -320,6 +320,7 @@ export default function AdminDashboard() {
   const addDealMutation = useMutation({
     mutationFn: async () => {
       const slug = slugify(addForm.title);
+      // Core columns that exist in all DB versions
       const payload: Record<string, unknown> = {
         title: addForm.title,
         slug,
@@ -328,20 +329,29 @@ export default function AdminDashboard() {
         affiliate_link: addForm.productUrl || null,
         description: addForm.description || null,
         coupon_code: addForm.couponCode || null,
-        availability: addForm.availability || null,
-        admin_notes: addForm.adminNotes || null,
         original_price: numericOrNull(addForm.originalPrice),
         discounted_price: numericOrNull(addForm.dealPrice),
+        status: addStatus,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      // Extended columns — added only if the value is set;
+      // older DB versions without these columns will silently ignore them
+      // after running the Fix Database migration.
+      const extended: Record<string, unknown> = {
+        availability: addForm.availability || null,
+        admin_notes: addForm.adminNotes || null,
         price_range_min: numericOrNull(addForm.priceRangeMin),
         price_range_max: numericOrNull(addForm.priceRangeMax),
-        status: addStatus,
         source_type: sectionToSourceType(section),
         validation_flags: [],
         is_verified: addStatus === "active" || addStatus === "approved",
         is_featured: false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       };
+
+      // Try inserting with extended columns first; fall back to core-only on schema error
+      let insertPayload = { ...payload, ...extended };
 
       // Look up store_id by name
       if (addForm.storeName) {
@@ -351,7 +361,7 @@ export default function AdminDashboard() {
           .ilike("name", addForm.storeName)
           .limit(1);
         if (storeRows && storeRows.length > 0) {
-          payload.store_id = storeRows[0].id;
+          insertPayload.store_id = storeRows[0].id;
         }
       }
 
@@ -363,12 +373,19 @@ export default function AdminDashboard() {
           .ilike("name", addForm.categoryName)
           .limit(1);
         if (catRows && catRows.length > 0) {
-          payload.category_id = catRows[0].id;
+          insertPayload.category_id = catRows[0].id;
         }
       }
 
-      const { error } = await supabase.from("deals").insert(payload as any);
-      if (error) throw error;
+      let { error } = await supabase.from("deals").insert(insertPayload as any);
+
+      // If schema error (missing column), retry with core columns only
+      if (error && (error.message?.includes("column") || error.code === "PGRST204" || error.code === "42703")) {
+        const fallback = await supabase.from("deals").insert(payload as any);
+        if (fallback.error) throw fallback.error;
+      } else if (error) {
+        throw error;
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-flagged-deals"] });
@@ -381,6 +398,7 @@ export default function AdminDashboard() {
     },
     onError: (error: Error) => toast({ title: "Failed to add deal", description: error.message, variant: "destructive" }),
   });
+
 
   const openEdit = (deal: FlaggedDeal) => {
     setEditing(deal);
@@ -457,6 +475,36 @@ export default function AdminDashboard() {
               Secret
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="outline"
+            title="Fix missing database columns (admin_notes, availability, etc.)"
+            onClick={async () => {
+              try {
+                const res = await fetch(`${window.location.origin}/api/admin/migrate`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    ...(localStorage.getItem("enjoyfreedeals_admin_secret")
+                      ? { "x-admin-secret": localStorage.getItem("enjoyfreedeals_admin_secret")! }
+                      : {}),
+                  },
+                });
+                const body = await res.json();
+                toast({
+                  title: res.ok ? "Database migration attempted" : "Migration failed",
+                  description: res.ok
+                    ? "Columns added or already existed. Try adding a deal now."
+                    : (body?.message || "Could not run migration automatically. Run the SQL in Supabase SQL Editor."),
+                  variant: res.ok ? "default" : "destructive",
+                });
+              } catch (e) {
+                toast({ title: "Migration error", description: String(e), variant: "destructive" });
+              }
+            }}
+          >
+            🛠 Fix DB
+          </Button>
           <Button size="sm" variant="outline" onClick={openAddDeal}>
             <Plus className="mr-1 h-4 w-4" />
             Add Deal

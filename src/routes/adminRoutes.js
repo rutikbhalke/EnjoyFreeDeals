@@ -1,6 +1,7 @@
 const express = require("express");
 const scraperReviewController = require("../controllers/scraperReviewController");
 const telegramImportController = require("../controllers/telegramImportController");
+const migrationController = require("../controllers/migrationController");
 const { requireAdmin } = require("../middleware/adminAuth");
 const { requireImportAccess } = require("../middleware/importAuth");
 
@@ -19,6 +20,8 @@ router.get("/enrich-genie-loot", requireImportAccess, telegramImportController.e
 router.post("/enrich-genie-loot", requireImportAccess, telegramImportController.enrichDetails);
 router.get("/genie-loot-jobs/:id", requireImportAccess, telegramImportController.jobStatus);
 router.get("/flagged-deals", requireAdmin, scraperReviewController.listFlaggedDeals);
+router.get("/migrate", requireAdmin, migrationController.getMigrationSql);
+router.post("/migrate", requireAdmin, migrationController.runMigration);
 router.patch("/deals/:id", requireAdmin, scraperReviewController.updateAdminDeal);
 router.post("/deals/:id/approve", requireAdmin, scraperReviewController.approveAdminDeal);
 router.post("/deals/:id/reject", requireAdmin, scraperReviewController.rejectAdminDeal);
