@@ -87,24 +87,47 @@ async function getDealById(id, userId, guestId) {
 }
 
 async function createDeal(payload) {
-  const { data, error } = await supabaseAdmin
+  const normalized = normalizeDealPayload(payload);
+  let result = await supabaseAdmin
     .from(TABLE)
-    .insert(normalizeDealPayload(payload))
+    .insert(normalized)
     .select("*, categories(*), stores(*)")
-    .single();
-  throwIfSupabaseError(error, TABLE);
-  return toApiDeal(data);
+    .maybeSingle();
+
+  if (result.error && isMissingOptionalDealColumn(result.error)) {
+    const corePayload = filterCoreDealColumns(normalized);
+    result = await supabaseAdmin
+      .from(TABLE)
+      .insert(corePayload)
+      .select("*, categories(*), stores(*)")
+      .maybeSingle();
+  }
+
+  throwIfSupabaseError(result.error, TABLE);
+  return toApiDeal(result.data);
 }
 
 async function updateDeal(id, payload) {
-  const { data, error } = await supabaseAdmin
+  const normalized = normalizeDealPayload(payload);
+  let result = await supabaseAdmin
     .from(TABLE)
-    .update({ ...normalizeDealPayload(payload), updated_at: new Date().toISOString() })
+    .update({ ...normalized, updated_at: new Date().toISOString() })
     .eq("id", id)
     .select("*, categories(*), stores(*)")
-    .single();
-  throwIfSupabaseError(error, TABLE);
-  return toApiDeal(data);
+    .maybeSingle();
+
+  if (result.error && isMissingOptionalDealColumn(result.error)) {
+    const corePayload = filterCoreDealColumns(normalized);
+    result = await supabaseAdmin
+      .from(TABLE)
+      .update({ ...corePayload, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select("*, categories(*), stores(*)")
+      .maybeSingle();
+  }
+
+  throwIfSupabaseError(result.error, TABLE);
+  return toApiDeal(result.data);
 }
 
 async function softDeleteDeal(id) {
@@ -251,6 +274,47 @@ function filterByPlatform(deal, platform) {
 
 function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ""));
+}
+
+const CORE_DEAL_COLUMNS = new Set([
+  "id",
+  "title",
+  "slug",
+  "description",
+  "store_id",
+  "category_id",
+  "original_price",
+  "discounted_price",
+  "discount_percentage",
+  "coupon_code",
+  "cashback_percentage",
+  "affiliate_link",
+  "image_url",
+  "expiry_date",
+  "status",
+  "is_featured",
+  "is_verified",
+  "click_count",
+  "submitted_by",
+  "created_at",
+  "updated_at",
+  "source",
+  "vote_score",
+  "source_product_id",
+  "source_url",
+  "dedupe_key",
+  "last_scraped_at",
+  "raw_source_payload"
+]);
+
+function filterCoreDealColumns(payload) {
+  const filtered = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (CORE_DEAL_COLUMNS.has(key)) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
 }
 
 module.exports = {
