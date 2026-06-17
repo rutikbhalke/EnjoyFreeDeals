@@ -228,9 +228,16 @@ async function listFlaggedDeals(filters = {}) {
 
   const imageStatus = verifyImages ? await checkImageStatuses(data || []) : new Map();
   const includeStatusOnly = ["telegram", "pending"].includes(section);
+
+  // For "all" section: include every deal. For specific sections: only problem deals.
   const items = (data || [])
     .map((row) => toFlaggedDeal(row, imageStatus.get(row.id)))
-    .filter((item) => item.flags.length > 0 || item.status === "pending_review" || includeStatusOnly);
+    .filter((item) =>
+      section === "all" ||
+      item.flags.length > 0 ||
+      item.status === "pending_review" ||
+      includeStatusOnly
+    );
 
   return {
     items: filterFlaggedItems(items, filters),
