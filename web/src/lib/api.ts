@@ -13,7 +13,8 @@ const ADMIN_SECRET_STORAGE_KEY = "enjoyfreedeals_admin_secret";
 
 function resolveApiBaseUrls() {
   const configured = String(import.meta.env.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "");
-  const candidates = [configured, DEFAULT_API_BASE_URL, ...FALLBACK_API_BASE_URLS]
+  const currentOrigin = typeof window !== "undefined" ? window.location.origin : "";
+  const candidates = [configured, currentOrigin, DEFAULT_API_BASE_URL, ...FALLBACK_API_BASE_URLS]
     .map((value) => String(value || "").trim().replace(/\/+$/, ""))
     .filter(Boolean);
   return [...new Set(candidates)];
