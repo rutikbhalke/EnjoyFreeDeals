@@ -6,6 +6,35 @@ const { throwIfSupabaseError } = require("../utils/supabaseErrors");
 
 const TABLE = "scraped_deal_items";
 
+const LEGACY_DEAL_UPDATE_COLUMNS = new Set([
+  "title",
+  "slug",
+  "description",
+  "store_id",
+  "category_id",
+  "original_price",
+  "discounted_price",
+  "discount_percentage",
+  "coupon_code",
+  "cashback_percentage",
+  "affiliate_link",
+  "image_url",
+  "expiry_date",
+  "status",
+  "is_featured",
+  "is_verified",
+  "click_count",
+  "submitted_by",
+  "updated_at",
+  "source",
+  "vote_score",
+  "source_product_id",
+  "source_url",
+  "dedupe_key",
+  "last_scraped_at",
+  "raw_source_payload"
+]);
+
 async function listScrapedDeals(filters) {
   const { page, limit, from, to } = getPagination(filters);
   let query = supabaseAdmin
@@ -57,7 +86,19 @@ async function listTelegramDeals(filters) {
     query = query.eq("admin_review_status", "needs_review");
   }
 
-  const { data, error, count } = await query;
+  let { data, error, count } = await query;
+  if (error && isMissingDealColumn(error)) {
+    const fallback = await supabaseAdmin
+      .from("deals")
+      .select("*, categories(*), stores(*)", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(from, to);
+    data = (fallback.data || [])
+      .filter(isTelegramDeal)
+      .filter((row) => matchesTelegramReview(row, review));
+    error = fallback.error;
+    count = data.length;
+  }
   throwIfSupabaseError(error, "deals");
   return {
     items: (data || []).map(toApiDeal),
@@ -106,24 +147,18 @@ async function updateManualPrice(dealId, payload = {}) {
 
   const now = new Date().toISOString();
   const activePrice = priceMin ?? priceMax ?? 0;
-  const { data, error } = await supabaseAdmin
-    .from("deals")
-    .update({
-      price_min: priceMin,
-      price_max: priceMax,
-      manual_price_note: note || "Price range added by admin.",
-      price_status: "manual_added",
-      admin_review_status: "approved",
-      discounted_price: activePrice,
-      original_price: priceMax || priceMin,
-      status: "active",
-      is_verified: true,
-      updated_at: now
-    })
-    .eq("id", dealId)
-    .select("*, categories(*), stores(*)")
-    .single();
-  throwIfSupabaseError(error, "deals");
+  const data = await updateDealWithSchemaFallback(dealId, {
+    price_min: priceMin,
+    price_max: priceMax,
+    manual_price_note: note || "Price range added by admin.",
+    price_status: "manual_added",
+    admin_review_status: "approved",
+    discounted_price: activePrice,
+    original_price: priceMax || priceMin,
+    status: "active",
+    is_verified: true,
+    updated_at: now
+  });
   return toApiDeal(data);
 }
 
@@ -138,43 +173,105 @@ async function updateManualExpiry(dealId, payload = {}) {
 
   const now = new Date().toISOString();
   const expired = new Date(expiryAt).getTime() <= Date.now();
-  const { data, error } = await supabaseAdmin
-    .from("deals")
-    .update({
-      expiry_at: expiryAt,
-      expiry_date: expiryAt,
-      platform_expires_at: expiryAt,
-      expiry_note: note || "Expiry added by admin.",
-      expiry_status: "manual_added",
-      admin_review_status: "approved",
-      is_expired: expired,
-      status: expired ? "expired" : "active",
-      is_verified: !expired,
-      updated_at: now
-    })
-    .eq("id", dealId)
-    .select("*, categories(*), stores(*)")
-    .single();
-  throwIfSupabaseError(error, "deals");
+  const data = await updateDealWithSchemaFallback(dealId, {
+    expiry_at: expiryAt,
+    expiry_date: expiryAt,
+    platform_expires_at: expiryAt,
+    expiry_note: note || "Expiry added by admin.",
+    expiry_status: "manual_added",
+    admin_review_status: "approved",
+    is_expired: expired,
+    status: expired ? "expired" : "active",
+    is_verified: !expired,
+    updated_at: now
+  });
   return toApiDeal(data);
 }
 
 async function markTelegramDealExpired(dealId, note = "") {
   const now = new Date().toISOString();
-  const { data, error } = await supabaseAdmin
+  const data = await updateDealWithSchemaFallback(dealId, {
+    is_expired: true,
+    status: "expired",
+    admin_review_status: "expired",
+    expiry_note: note || "Marked expired by admin.",
+    updated_at: now
+  });
+  return toApiDeal(data);
+}
+
+async function updateDealWithSchemaFallback(dealId, update) {
+  let result = await updateDealRow(dealId, update);
+  if (result.error && shouldUseLegacyDealUpdate(result.error)) {
+    result = await updateDealRow(dealId, toLegacyDealUpdate(update));
+  }
+  throwIfSupabaseError(result.error, "deals");
+  return result.data;
+}
+
+function updateDealRow(dealId, update) {
+  return supabaseAdmin
     .from("deals")
-    .update({
-      is_expired: true,
-      status: "expired",
-      admin_review_status: "expired",
-      expiry_note: note || "Marked expired by admin.",
-      updated_at: now
-    })
+    .update(update)
     .eq("id", dealId)
     .select("*, categories(*), stores(*)")
     .single();
-  throwIfSupabaseError(error, "deals");
-  return toApiDeal(data);
+}
+
+function toLegacyDealUpdate(update = {}) {
+  const legacy = {};
+  for (const [key, value] of Object.entries(update)) {
+    if (LEGACY_DEAL_UPDATE_COLUMNS.has(key)) {
+      legacy[key] = value;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(legacy, "status")) {
+    legacy.status = legacyDealStatus(legacy.status);
+  }
+  if (!Object.keys(legacy).length) {
+    legacy.updated_at = new Date().toISOString();
+  }
+  return legacy;
+}
+
+async function queryApprovedDeals(limit) {
+  let result = await supabaseAdmin
+    .from("deals")
+    .select("*, categories(*), stores(*)")
+    .in("status", ["approved", "active"])
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (result.error && isInvalidDealStatus(result.error)) {
+    result = await supabaseAdmin
+      .from("deals")
+      .select("*, categories(*), stores(*)")
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+  }
+  return result;
+}
+
+function shouldUseLegacyDealUpdate(error) {
+  return isMissingDealColumn(error) || isInvalidDealStatus(error);
+}
+
+function isMissingDealColumn(error) {
+  return /column .* does not exist|could not find .* column|schema cache/i.test(error?.message || "") ||
+    error?.code === "42703";
+}
+
+function isInvalidDealStatus(error) {
+  return /invalid input value for enum .*deal_status|deal_status/i.test(error?.message || "");
+}
+
+function legacyDealStatus(status) {
+  const value = String(status || "").trim().toLowerCase();
+  if (value === "pending_review") return "pending";
+  if (value === "draft") return "pending";
+  if (value === "approved") return "active";
+  return value || status;
 }
 
 async function listFlaggedDeals(filters = {}) {
@@ -185,12 +282,7 @@ async function listFlaggedDeals(filters = {}) {
   // For approved and rejected sections, fetch ALL deals with that status directly from the DB.
   // This guarantees these tabs always show the full list regardless of flags.
   if (section === "approved") {
-    const { data, error } = await supabaseAdmin
-      .from("deals")
-      .select("*, categories(*), stores(*)")
-      .in("status", ["approved", "active"])
-      .order("created_at", { ascending: false })
-      .limit(limit);
+    const { data, error } = await queryApprovedDeals(limit);
     throwIfSupabaseError(error, "deals");
     const imageStatus = verifyImages ? await checkImageStatuses(data || []) : new Map();
     const items = (data || []).map((row) => toFlaggedDeal(row, imageStatus.get(row.id)));
@@ -237,6 +329,7 @@ async function listFlaggedDeals(filters = {}) {
       section === "all" ||
       item.flags.length > 0 ||
       item.status === "pending_review" ||
+      item.status === "pending" ||
       includeStatusOnly
     );
 
@@ -262,13 +355,7 @@ async function updateAdminDeal(dealId, payload = {}, adminUser = {}) {
   validateAdminDealUpdate(merged, payload);
   const finalUpdate = finalizeAdminDealUpdate(current, update, payload);
 
-  const { data, error } = await supabaseAdmin
-    .from("deals")
-    .update(finalUpdate)
-    .eq("id", dealId)
-    .select("*, categories(*), stores(*)")
-    .single();
-  throwIfSupabaseError(error, "deals");
+  const data = await updateDealWithSchemaFallback(dealId, finalUpdate);
   return toApiDeal(data);
 }
 
@@ -287,25 +374,19 @@ async function approveAdminDeal(dealId, payload = {}, adminUser = {}) {
     throw error;
   }
 
-  const { data, error } = await supabaseAdmin
-    .from("deals")
-    .update({
-      status: "approved",
-      category_id: categoryId,
-      is_valid: true,
-      is_verified: true,
-      admin_review_status: "approved",
-      validation_flags: flags,
-      approved_at: now,
-      approved_by: adminIdentity(adminUser),
-      rejected_at: null,
-      rejected_reason: null,
-      updated_at: now
-    })
-    .eq("id", dealId)
-    .select("*, categories(*), stores(*)")
-    .single();
-  throwIfSupabaseError(error, "deals");
+  const data = await updateDealWithSchemaFallback(dealId, {
+    status: "approved",
+    category_id: categoryId,
+    is_valid: true,
+    is_verified: true,
+    admin_review_status: "approved",
+    validation_flags: flags,
+    approved_at: now,
+    approved_by: adminIdentity(adminUser),
+    rejected_at: null,
+    rejected_reason: null,
+    updated_at: now
+  });
   return toApiDeal(data);
 }
 
@@ -321,18 +402,12 @@ async function enrichDealBeforeApproval(deal) {
     const update = buildApprovalEnrichmentUpdate(deal, metadata, { needsImage, needsPrice });
     if (!Object.keys(update).length) return deal;
 
-    const { data, error } = await supabaseAdmin
-      .from("deals")
-      .update({
-        ...update,
-        updated_at: new Date().toISOString(),
-        fetched_at: new Date().toISOString(),
-        source_updated_at: new Date().toISOString()
-      })
-      .eq("id", deal.id)
-      .select("*, categories(*), stores(*)")
-      .single();
-    throwIfSupabaseError(error, "deals");
+    const data = await updateDealWithSchemaFallback(deal.id, {
+      ...update,
+      updated_at: new Date().toISOString(),
+      fetched_at: new Date().toISOString(),
+      source_updated_at: new Date().toISOString()
+    });
     return data || deal;
   } catch (error) {
     console.warn("[admin-approval] product metadata enrichment skipped:", error.message || error);
@@ -382,21 +457,15 @@ function buildApprovalEnrichmentUpdate(deal, metadata = {}, options = {}) {
 
 async function rejectAdminDeal(dealId, reason = "", adminUser = {}) {
   const now = new Date().toISOString();
-  const { data, error } = await supabaseAdmin
-    .from("deals")
-    .update({
-      status: "rejected",
-      is_valid: false,
-      is_verified: false,
-      admin_review_status: "rejected",
-      rejected_at: now,
-      rejected_reason: String(reason || "Rejected by admin.").trim(),
-      updated_at: now
-    })
-    .eq("id", dealId)
-    .select("*, categories(*), stores(*)")
-    .single();
-  throwIfSupabaseError(error, "deals");
+  const data = await updateDealWithSchemaFallback(dealId, {
+    status: "rejected",
+    is_valid: false,
+    is_verified: false,
+    admin_review_status: "rejected",
+    rejected_at: now,
+    rejected_reason: String(reason || "Rejected by admin.").trim(),
+    updated_at: now
+  });
   return toApiDeal(data);
 }
 
@@ -407,21 +476,15 @@ async function flagAdminDeal(dealId, reason = "", adminUser = {}) {
   const flags = [...new Set([...existingFlags, manualFlag || "manual_review"])];
   const now = new Date().toISOString();
 
-  const { data, error } = await supabaseAdmin
-    .from("deals")
-    .update({
-      status: "pending_review",
-      is_valid: false,
-      is_verified: false,
-      admin_review_status: "needs_review",
-      admin_notes: appendNote(current.admin_notes, reason),
-      validation_flags: flags,
-      updated_at: now
-    })
-    .eq("id", dealId)
-    .select("*, categories(*), stores(*)")
-    .single();
-  throwIfSupabaseError(error, "deals");
+  const data = await updateDealWithSchemaFallback(dealId, {
+    status: "pending_review",
+    is_valid: false,
+    is_verified: false,
+    admin_review_status: "needs_review",
+    admin_notes: appendNote(current.admin_notes, reason),
+    validation_flags: flags,
+    updated_at: now
+  });
   return toApiDeal(data);
 }
 
@@ -773,7 +836,7 @@ function buildValidationFlags(row, options = {}) {
   if (!clean(row.title)) flags.push("missing_title");
   if (!dealProductUrl(row)) flags.push("missing_product_url");
   if (row.is_valid === false) flags.push("invalid_deal");
-  if (row.status === "pending_review" || row.admin_review_status === "needs_review") flags.push("pending_review");
+  if (row.status === "pending_review" || row.status === "pending" || row.admin_review_status === "needs_review") flags.push("pending_review");
   if (isTelegramDeal(row) && (flags.length > 0 || arrayFromJson(row.validation_flags).length > 0)) {
     flags.push("suspicious_telegram");
   }
@@ -786,7 +849,7 @@ async function getAdminSummary(flaggedItems) {
     countDeals(),
     countDeals((query) => query.eq("status", "active")),
     countDeals((query) => query.eq("status", "approved")),
-    countDeals((query) => query.eq("status", "pending_review")),
+    countPendingReviewDeals(),
     countDeals((query) => query.eq("status", "rejected")),
     countDeals((query) => query.not("telegram_channel", "is", null))
   ]);
@@ -811,18 +874,31 @@ async function countDeals(applyFilter = (query) => query) {
   return Number(count || 0);
 }
 
+async function countPendingReviewDeals() {
+  const [pendingReview, legacyPending] = await Promise.all([
+    countDeals((query) => query.eq("status", "pending_review")),
+    countDeals((query) => query.eq("status", "pending"))
+  ]);
+  return pendingReview + legacyPending;
+}
+
+function statusesMatch(actual, expected) {
+  if (actual === expected) return true;
+  return expected === "pending_review" && actual === "pending";
+}
+
 function filterFlaggedItems(items, filters = {}) {
   const section = String(filters.section || filters.view || "all").toLowerCase();
   const flag = String(filters.flag || "").toLowerCase();
   const status = String(filters.status || "").toLowerCase();
   return items.filter((item) => {
     if (flag && !item.flags.includes(flag)) return false;
-    if (status && String(item.status || "").toLowerCase() !== status) return false;
+    if (status && !statusesMatch(String(item.status || "").toLowerCase(), status)) return false;
     if (section === "telegram") return item.sourceType.includes("telegram");
     if (section === "missing_image") return item.flags.includes("missing_image") || item.flags.includes("broken_image");
     if (section === "zero_price") return item.flags.includes("zero_price") || item.flags.includes("missing_price");
     if (section === "price_mismatch") return item.flags.includes("price_mismatch");
-    if (section === "pending") return item.status === "pending_review";
+    if (section === "pending") return item.status === "pending_review" || item.status === "pending";
     if (section === "approved") return item.status === "approved" || item.status === "active";
     if (section === "rejected") return item.status === "rejected";
     return true;
@@ -904,6 +980,27 @@ function isTelegramDeal(row) {
   return String(row.source_type || "").includes("telegram") ||
     String(row.telegram_channel || row.source_channel || "").trim() !== "" ||
     String(row.raw_source_payload?.connectorMode || "").includes("telegram");
+}
+
+function matchesTelegramReview(row, review) {
+  const flags = buildValidationFlags(row);
+  if (review === "price" || review === "needs_price_review") {
+    return row.price_status === "manual_required" ||
+      flags.includes("missing_price") ||
+      flags.includes("zero_price");
+  }
+  if (review === "expiry" || review === "needs_expiry_review") {
+    return row.expiry_status === "manual_required";
+  }
+  if (review === "expired") {
+    return row.is_expired === true || row.status === "expired";
+  }
+  if (review === "pending") {
+    return row.admin_review_status === "needs_review" ||
+      row.status === "pending_review" ||
+      row.status === "pending";
+  }
+  return true;
 }
 
 function arrayFromJson(value) {

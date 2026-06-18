@@ -94,8 +94,8 @@ async function createDeal(payload) {
     .select("*, categories(*), stores(*)")
     .maybeSingle();
 
-  if (result.error && isMissingOptionalDealColumn(result.error)) {
-    const corePayload = filterCoreDealColumns(normalized);
+  if (result.error && shouldUseLegacyDealPayload(result.error)) {
+    const corePayload = buildLegacyDealPayload(normalized);
     result = await supabaseAdmin
       .from(TABLE)
       .insert(corePayload)
@@ -116,8 +116,8 @@ async function updateDeal(id, payload) {
     .select("*, categories(*), stores(*)")
     .maybeSingle();
 
-  if (result.error && isMissingOptionalDealColumn(result.error)) {
-    const corePayload = filterCoreDealColumns(normalized);
+  if (result.error && shouldUseLegacyDealPayload(result.error)) {
+    const corePayload = buildLegacyDealPayload(normalized);
     result = await supabaseAdmin
       .from(TABLE)
       .update({ ...corePayload, updated_at: new Date().toISOString() })
@@ -174,6 +174,30 @@ async function buildBaseListQuery(filters, from, to) {
 
 function isMissingOptionalDealColumn(error) {
   return /column .* does not exist|could not find .* column|schema cache/i.test(error?.message || "");
+}
+
+function isInvalidDealStatus(error) {
+  return /invalid input value for enum .*deal_status|deal_status/i.test(error?.message || "");
+}
+
+function shouldUseLegacyDealPayload(error) {
+  return isMissingOptionalDealColumn(error) || isInvalidDealStatus(error);
+}
+
+function buildLegacyDealPayload(payload) {
+  const filtered = filterCoreDealColumns(payload);
+  if (Object.prototype.hasOwnProperty.call(filtered, "status")) {
+    filtered.status = legacyDealStatus(filtered.status);
+  }
+  return filtered;
+}
+
+function legacyDealStatus(status) {
+  const value = String(status || "").trim().toLowerCase();
+  if (value === "pending_review") return "pending";
+  if (value === "draft") return "pending";
+  if (value === "approved") return "active";
+  return value || status;
 }
 
 function nonExpiredDealFilter() {

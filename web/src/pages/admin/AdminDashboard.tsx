@@ -72,7 +72,7 @@ type EditForm = {
 };
 
 const STATUS_OPTIONS = [
-  { value: "pending_review", label: "Pending Review" },
+  { value: "pending", label: "Pending Review" },
   { value: "active", label: "Active" },
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
@@ -189,7 +189,7 @@ export default function AdminDashboard() {
   const [form, setForm] = useState<EditForm>(emptyForm());
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addForm, setAddForm] = useState<EditForm>(emptyForm());
-  const [addStatus, setAddStatus] = useState<string>("pending_review");
+  const [addStatus, setAddStatus] = useState<string>("pending");
   const [imagePreview, setImagePreview] = useState<string>("");
   const [addImagePreview, setAddImagePreview] = useState<string>("");
   const [adminSecret, setAdminSecret] = useState<string>(() => localStorage.getItem(ADMIN_SECRET_KEY) || "");
@@ -410,7 +410,7 @@ export default function AdminDashboard() {
       setAddDialogOpen(false);
       setAddForm(emptyForm());
       setAddImagePreview("");
-      setAddStatus("pending_review");
+      setAddStatus("pending");
     },
     onError: (error: Error) => toast({ title: "Failed to add deal", description: error.message, variant: "destructive" }),
   });
@@ -425,7 +425,7 @@ export default function AdminDashboard() {
   const openAddDeal = () => {
     setAddForm(emptyForm());
     setAddImagePreview("");
-    setAddStatus("pending_review");
+    setAddStatus("pending");
     setAddDialogOpen(true);
   };
 
@@ -1161,7 +1161,7 @@ function emptyForm(): EditForm {
     categoryName: "Other Deals",
     productUrl: "",
     flags: [],
-    status: "pending_review",
+    status: "pending",
   });
 }
 

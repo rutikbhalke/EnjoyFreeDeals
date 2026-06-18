@@ -19,6 +19,7 @@ alter table public.deals
   add column if not exists source_type           text          default 'manual',
   add column if not exists source_channel        text          null,
   add column if not exists source_image_url      text          null,
+  add column if not exists final_image_url       text          null,
   add column if not exists platform_product_url  text          null,
   add column if not exists price_status          text          default 'detected',
   add column if not exists price_min             numeric       null,
@@ -32,6 +33,11 @@ alter table public.deals
   add column if not exists is_valid              boolean       default true,
   add column if not exists is_verified           boolean       default false,
   add column if not exists is_featured           boolean       default false,
+  add column if not exists fetched_at            timestamptz   null,
+  add column if not exists source_updated_at     timestamptz   null,
+  add column if not exists platform_expires_at   timestamptz   null,
+  add column if not exists telegram_channel      text          null,
+  add column if not exists raw_source_payload    jsonb         default '{}'::jsonb,
   add column if not exists last_scraped_at       timestamptz   null,
   add column if not exists lowest_price          numeric       null,
   add column if not exists best_platform         text          null,
@@ -51,21 +57,31 @@ alter table public.deals
   add column if not exists is_best_price         boolean       default false,
   add column if not exists is_hot_deal           boolean       default false;
 
+alter table public.deals alter column status drop default;
+alter table public.deals alter column status type text using status::text;
+alter table public.deals alter column status set default 'approved';
+
+create index if not exists idx_deals_admin_review_status
+  on public.deals(admin_review_status);
+create index if not exists idx_deals_platform_expires_at
+  on public.deals(platform_expires_at);
+create index if not exists idx_deals_telegram_channel
+  on public.deals(telegram_channel);
+
 notify pgrst, 'reload schema';
 `;
 
 async function runMigration(req, res, next) {
   try {
-    const { error } = await supabaseAdmin.rpc("exec_sql", { sql: MIGRATION_SQL }).catch(() => ({ error: null }));
-
-    // Fallback: try direct SQL via the REST API approach
-    // Since supabase-js doesn't expose raw SQL, we use a known workaround:
-    // Insert a dummy record with all new columns to force schema refresh
-    // We also call notify pgrst separately
-    await supabaseAdmin.rpc("exec_sql", { sql: "notify pgrst, 'reload schema';" }).catch(() => {});
+    const { error } = await supabaseAdmin.rpc("exec_sql", { sql: MIGRATION_SQL });
+    if (error) {
+      const migrationError = new Error(`${error.message || "Unable to run migration automatically."} Copy the SQL from /api/admin/migrate/sql and run it in Supabase SQL Editor.`);
+      migrationError.statusCode = 501;
+      throw migrationError;
+    }
 
     return sendSuccess(res, {
-      message: "Migration attempted. If columns still missing, please run the SQL manually in Supabase SQL Editor.",
+      message: "Migration applied. PostgREST schema cache reload requested.",
       sql: MIGRATION_SQL.trim()
     });
   } catch (err) {
