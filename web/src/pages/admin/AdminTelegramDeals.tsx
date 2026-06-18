@@ -1,9 +1,9 @@
 import { type ReactNode, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle, Clock, MessageCircle, Pencil, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, ExternalLink, ImageOff, MessageCircle, Pencil, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import SEO from "@/components/SEO";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,41 +12,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  approveAdminDeal,
+  expireAdminTelegramDeal,
+  fetchAdminTelegramDeals,
+  fetchAdminTelegramScrapeLogs,
+  rejectAdminDeal,
+  updateAdminTelegramManualExpiry,
+  updateAdminTelegramManualPrice,
+  type AdminTelegramScrapeLog,
+  type BackendDeal,
+} from "@/lib/api";
 
 type ReviewSection = "all" | "price" | "expiry" | "expired" | "failed";
-
-type TelegramDeal = {
-  id: string;
-  title: string;
-  discounted_price: number | null;
-  original_price: number | null;
-  price_status: string | null;
-  price_min: number | null;
-  price_max: number | null;
-  manual_price_note: string | null;
-  expiry_status: string | null;
-  expiry_at: string | null;
-  expiry_note: string | null;
-  source_channel: string | null;
-  telegram_channel: string | null;
-  telegram_message_id: string | null;
-  admin_review_status: string | null;
-  status: string | null;
-  is_expired: boolean | null;
-  scrape_status: string | null;
-  last_scraped_at: string | null;
-  created_at: string;
-};
-
-type ScrapeLog = {
-  id: string;
-  source_channel: string | null;
-  telegram_message_id: string | null;
-  scrape_status: string;
-  error_message: string | null;
-  message_text: string | null;
-  created_at: string;
-};
 
 const sections: Array<{ key: ReviewSection; label: string }> = [
   { key: "all", label: "Telegram Scraped Deals" },
@@ -60,75 +38,42 @@ export default function AdminTelegramDeals() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [section, setSection] = useState<ReviewSection>("all");
-  const [editingPrice, setEditingPrice] = useState<TelegramDeal | null>(null);
-  const [editingExpiry, setEditingExpiry] = useState<TelegramDeal | null>(null);
+  const [editingPrice, setEditingPrice] = useState<BackendDeal | null>(null);
+  const [editingExpiry, setEditingExpiry] = useState<BackendDeal | null>(null);
   const [priceForm, setPriceForm] = useState({ min: "", max: "", note: "" });
   const [expiryForm, setExpiryForm] = useState({ expiryAt: "", note: "" });
 
   const dealsQuery = useQuery({
     queryKey: ["admin-telegram-deals", section],
     enabled: section !== "failed",
-    queryFn: async () => {
-      let query = supabase
-        .from("deals")
-        .select("*")
-        .or("source_type.eq.telegram,telegram_channel.not.is.null,source_channel.not.is.null")
-        .order("last_scraped_at", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false })
-        .limit(100);
-
-      if (section === "price") query = query.eq("price_status", "manual_required");
-      if (section === "expiry") query = query.eq("expiry_status", "manual_required");
-      if (section === "expired") query = query.or("is_expired.eq.true,status.eq.expired");
-
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []) as TelegramDeal[];
-    },
+    queryFn: () => fetchAdminTelegramDeals(section),
+    retry: false,
   });
 
   const logsQuery = useQuery({
     queryKey: ["admin-telegram-scrape-logs"],
     enabled: section === "failed",
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("scrape_logs")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(100);
-      if (error) throw error;
-      return (data || []) as ScrapeLog[];
-    },
+    queryFn: fetchAdminTelegramScrapeLogs,
+    retry: false,
   });
 
   const counts = useMemo(() => {
     const deals = dealsQuery.data || [];
     return {
-      price: deals.filter((deal) => deal.price_status === "manual_required").length,
-      expiry: deals.filter((deal) => deal.expiry_status === "manual_required").length,
-      expired: deals.filter((deal) => deal.is_expired || deal.status === "expired").length,
+      price: deals.filter((deal) => priceStatus(deal) === "manual_required" || !hasPositiveDealPrice(deal)).length,
+      expiry: deals.filter((deal) => expiryStatus(deal) === "manual_required").length,
+      expired: deals.filter((deal) => isExpiredDeal(deal)).length,
     };
   }, [dealsQuery.data]);
 
   const manualPriceMutation = useMutation({
     mutationFn: async () => {
-      if (!editingPrice) return;
-      const priceMin = priceForm.min ? Number(priceForm.min) : null;
-      const priceMax = priceForm.max ? Number(priceForm.max) : null;
-      const activePrice = priceMin ?? priceMax ?? 0;
-      const { error } = await supabase.from("deals").update({
-        price_min: priceMin,
-        price_max: priceMax,
-        manual_price_note: priceForm.note || "Price range added by admin.",
-        price_status: "manual_added",
-        admin_review_status: "approved",
-        discounted_price: activePrice,
-        original_price: priceMax ?? priceMin,
-        status: "active",
-        is_verified: true,
-        updated_at: new Date().toISOString(),
-      }).eq("id", editingPrice.id);
-      if (error) throw error;
+      if (!editingPrice) return null;
+      return updateAdminTelegramManualPrice(editingPrice.id, {
+        priceMin: priceForm.min ? Number(priceForm.min) : null,
+        priceMax: priceForm.max ? Number(priceForm.max) : null,
+        manualPriceNote: priceForm.note || "Price range added by admin.",
+      });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-telegram-deals"] });
@@ -140,22 +85,11 @@ export default function AdminTelegramDeals() {
 
   const manualExpiryMutation = useMutation({
     mutationFn: async () => {
-      if (!editingExpiry) return;
-      const expiryAt = expiryForm.expiryAt ? new Date(expiryForm.expiryAt).toISOString() : null;
-      const expired = expiryAt ? new Date(expiryAt).getTime() <= Date.now() : false;
-      const { error } = await supabase.from("deals").update({
-        expiry_at: expiryAt,
-        expiry_date: expiryAt,
-        platform_expires_at: expiryAt,
-        expiry_note: expiryForm.note || "Expiry added by admin.",
-        expiry_status: "manual_added",
-        admin_review_status: "approved",
-        is_expired: expired,
-        status: expired ? "expired" : "active",
-        is_verified: !expired,
-        updated_at: new Date().toISOString(),
-      }).eq("id", editingExpiry.id);
-      if (error) throw error;
+      if (!editingExpiry) return null;
+      return updateAdminTelegramManualExpiry(editingExpiry.id, {
+        expiryAt: new Date(expiryForm.expiryAt).toISOString(),
+        expiryNote: expiryForm.note || "Expiry added by admin.",
+      });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-telegram-deals"] });
@@ -166,15 +100,14 @@ export default function AdminTelegramDeals() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: "active" | "rejected" | "expired" }) => {
-      const { error } = await supabase.from("deals").update({
-        status,
-        is_verified: status === "active",
-        is_expired: status === "expired",
-        admin_review_status: status === "active" ? "approved" : status,
-        updated_at: new Date().toISOString(),
-      }).eq("id", id);
-      if (error) throw error;
+    mutationFn: async ({ deal, status }: { deal: BackendDeal; status: "active" | "rejected" | "expired" }) => {
+      if (status === "active") {
+        return approveAdminDeal(deal.id, { allowMissingImage: true, allowFlags: true });
+      }
+      if (status === "expired") {
+        return expireAdminTelegramDeal(deal.id, "Marked expired in Telegram review.");
+      }
+      return rejectAdminDeal(deal.id, "Rejected in Telegram review.");
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-telegram-deals"] });
@@ -183,19 +116,19 @@ export default function AdminTelegramDeals() {
     onError: (error: Error) => toast({ title: "Status update failed", description: error.message, variant: "destructive" }),
   });
 
-  const openPriceDialog = (deal: TelegramDeal) => {
+  const openPriceDialog = (deal: BackendDeal) => {
     setEditingPrice(deal);
     setPriceForm({
-      min: deal.price_min?.toString() || "",
-      max: deal.price_max?.toString() || "",
-      note: deal.manual_price_note || "",
+      min: numberString(deal.priceMin ?? deal.price_min),
+      max: numberString(deal.priceMax ?? deal.price_max),
+      note: deal.manualPriceNote || deal.manual_price_note || "",
     });
   };
 
-  const openExpiryDialog = (deal: TelegramDeal) => {
+  const openExpiryDialog = (deal: BackendDeal) => {
     setEditingExpiry(deal);
-    const value = deal.expiry_at ? new Date(deal.expiry_at).toISOString().slice(0, 16) : "";
-    setExpiryForm({ expiryAt: value, note: deal.expiry_note || "" });
+    const value = expiryAt(deal) ? new Date(expiryAt(deal) || "").toISOString().slice(0, 16) : "";
+    setExpiryForm({ expiryAt: value, note: deal.expiryNote || deal.expiry_note || "" });
   };
 
   const deals = dealsQuery.data || [];
@@ -240,9 +173,9 @@ export default function AdminTelegramDeals() {
             loading={loading}
             onEditPrice={openPriceDialog}
             onEditExpiry={openExpiryDialog}
-            onApprove={(id) => statusMutation.mutate({ id, status: "active" })}
-            onReject={(id) => statusMutation.mutate({ id, status: "rejected" })}
-            onExpire={(id) => statusMutation.mutate({ id, status: "expired" })}
+            onApprove={(deal) => statusMutation.mutate({ deal, status: "active" })}
+            onReject={(deal) => statusMutation.mutate({ deal, status: "rejected" })}
+            onExpire={(deal) => statusMutation.mutate({ deal, status: "expired" })}
           />
         )}
       </div>
@@ -285,18 +218,19 @@ function MetricCard({ label, value, icon }: { label: string; value: number; icon
 }
 
 function DealsTable({ deals, loading, onEditPrice, onEditExpiry, onApprove, onReject, onExpire }: {
-  deals: TelegramDeal[];
+  deals: BackendDeal[];
   loading: boolean;
-  onEditPrice: (deal: TelegramDeal) => void;
-  onEditExpiry: (deal: TelegramDeal) => void;
-  onApprove: (id: string) => void;
-  onReject: (id: string) => void;
-  onExpire: (id: string) => void;
+  onEditPrice: (deal: BackendDeal) => void;
+  onEditExpiry: (deal: BackendDeal) => void;
+  onApprove: (deal: BackendDeal) => void;
+  onReject: (deal: BackendDeal) => void;
+  onExpire: (deal: BackendDeal) => void;
 }) {
   return (
     <Table>
       <TableHeader>
         <TableRow>
+          <TableHead>Image</TableHead>
           <TableHead>Deal</TableHead>
           <TableHead>Channel</TableHead>
           <TableHead>Price</TableHead>
@@ -307,40 +241,40 @@ function DealsTable({ deals, loading, onEditPrice, onEditExpiry, onApprove, onRe
       </TableHeader>
       <TableBody>
         {loading ? (
-          <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">Loading...</TableCell></TableRow>
+          <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Loading...</TableCell></TableRow>
         ) : deals.length === 0 ? (
-          <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">No Telegram deals found.</TableCell></TableRow>
+          <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">No Telegram deals found.</TableCell></TableRow>
         ) : deals.map((deal) => (
           <TableRow key={deal.id}>
-            <TableCell className="max-w-[260px]">
-              <div className="truncate font-medium">{deal.title}</div>
-              <div className="text-xs text-muted-foreground">Message {deal.telegram_message_id || "-"}</div>
-            </TableCell>
-            <TableCell>{deal.source_channel || deal.telegram_channel || "-"}</TableCell>
             <TableCell>
-              {deal.price_status === "manual_required" ? (
-                <Badge variant="destructive">Needs price</Badge>
-              ) : deal.price_min || deal.price_max ? (
-                <span>₹{deal.price_min ?? deal.price_max} - ₹{deal.price_max ?? deal.price_min}</span>
-              ) : (
-                <span>₹{deal.discounted_price ?? 0}</span>
+              <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-md bg-secondary">
+                {dealImageUrl(deal) ? (
+                  <img src={dealImageUrl(deal)} alt={deal.title} className="h-full w-full object-cover" onError={(event) => { (event.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                ) : (
+                  <ImageOff className="h-5 w-5 text-muted-foreground" />
+                )}
+              </div>
+            </TableCell>
+            <TableCell className="max-w-[280px]">
+              <div className="line-clamp-2 font-medium">{deal.title || "Untitled deal"}</div>
+              <div className="truncate text-xs text-muted-foreground">{dealProductUrl(deal) || "No product URL"}</div>
+              {deal.slug && (
+                <Button variant="link" size="sm" className="h-auto p-0 text-xs" asChild>
+                  <Link to={`/deals/${deal.slug}`}>Deal page <ExternalLink className="ml-1 h-3 w-3" /></Link>
+                </Button>
               )}
             </TableCell>
-            <TableCell>
-              {deal.expiry_status === "manual_required" ? (
-                <Badge variant="outline">Needs expiry</Badge>
-              ) : deal.expiry_at ? (
-                <span>{format(new Date(deal.expiry_at), "dd MMM yyyy, h:mm a")}</span>
-              ) : "Expiry not confirmed"}
-            </TableCell>
-            <TableCell><Badge variant={deal.status === "active" ? "default" : "secondary"}>{deal.status || deal.admin_review_status}</Badge></TableCell>
+            <TableCell>{sourceChannel(deal) || "-"}</TableCell>
+            <TableCell><PriceCell deal={deal} /></TableCell>
+            <TableCell><ExpiryCell deal={deal} /></TableCell>
+            <TableCell><Badge variant={deal.status === "active" || deal.status === "approved" ? "default" : "secondary"}>{deal.status || adminReviewStatus(deal) || "-"}</Badge></TableCell>
             <TableCell className="text-right">
               <div className="flex flex-wrap justify-end gap-1">
                 <Button variant="ghost" size="icon" title="Edit price" onClick={() => onEditPrice(deal)}><Pencil className="h-4 w-4" /></Button>
                 <Button variant="ghost" size="icon" title="Edit expiry" onClick={() => onEditExpiry(deal)}><Clock className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" title="Approve" onClick={() => onApprove(deal.id)}><CheckCircle className="h-4 w-4 text-primary" /></Button>
-                <Button variant="ghost" size="icon" title="Reject" onClick={() => onReject(deal.id)}><XCircle className="h-4 w-4 text-destructive" /></Button>
-                <Button variant="outline" size="sm" onClick={() => onExpire(deal.id)}>Expire</Button>
+                <Button variant="ghost" size="icon" title="Approve" onClick={() => onApprove(deal)}><CheckCircle className="h-4 w-4 text-primary" /></Button>
+                <Button variant="ghost" size="icon" title="Reject" onClick={() => onReject(deal)}><XCircle className="h-4 w-4 text-destructive" /></Button>
+                <Button variant="outline" size="sm" onClick={() => onExpire(deal)}>Expire</Button>
               </div>
             </TableCell>
           </TableRow>
@@ -350,7 +284,32 @@ function DealsTable({ deals, loading, onEditPrice, onEditExpiry, onApprove, onRe
   );
 }
 
-function ScrapeLogsTable({ logs, loading }: { logs: ScrapeLog[]; loading: boolean }) {
+function PriceCell({ deal }: { deal: BackendDeal }) {
+  const min = numberOrNull(deal.priceMin ?? deal.price_min);
+  const max = numberOrNull(deal.priceMax ?? deal.price_max);
+  const hasRange = min !== null || max !== null;
+
+  if (priceStatus(deal) === "manual_required" || (!hasPositiveDealPrice(deal) && !hasRange)) {
+    return <Badge variant="destructive">Needs price</Badge>;
+  }
+
+  if (min !== null || max !== null) {
+    return <span>{formatMoney(min ?? max)} - {formatMoney(max ?? min)}</span>;
+  }
+
+  return <span>{formatMoney(dealPrice(deal))}</span>;
+}
+
+function ExpiryCell({ deal }: { deal: BackendDeal }) {
+  if (expiryStatus(deal) === "manual_required") {
+    return <Badge variant="outline">Needs expiry</Badge>;
+  }
+
+  const value = expiryAt(deal);
+  return value ? <span>{format(new Date(value), "dd MMM yyyy, h:mm a")}</span> : <span>Expiry not confirmed</span>;
+}
+
+function ScrapeLogsTable({ logs, loading }: { logs: AdminTelegramScrapeLog[]; loading: boolean }) {
   return (
     <Table>
       <TableHeader>
@@ -367,16 +326,80 @@ function ScrapeLogsTable({ logs, loading }: { logs: ScrapeLog[]; loading: boolea
           <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">Loading...</TableCell></TableRow>
         ) : logs.length === 0 ? (
           <TableRow><TableCell colSpan={5} className="py-8 text-center text-muted-foreground">No failed scrape logs found.</TableCell></TableRow>
-        ) : logs.map((log) => (
-          <TableRow key={log.id}>
-            <TableCell>{log.source_channel || "-"}</TableCell>
-            <TableCell>{log.telegram_message_id || "-"}</TableCell>
-            <TableCell><Badge variant={log.scrape_status === "failed" ? "destructive" : "secondary"}>{log.scrape_status}</Badge></TableCell>
-            <TableCell className="max-w-[360px] truncate">{log.error_message || log.message_text || "-"}</TableCell>
-            <TableCell>{format(new Date(log.created_at), "dd MMM yyyy, h:mm a")}</TableCell>
-          </TableRow>
-        ))}
+        ) : logs.map((log) => {
+          const status = log.scrapeStatus || log.scrape_status || "";
+          const createdAt = log.createdAt || log.created_at || "";
+          return (
+            <TableRow key={log.id}>
+              <TableCell>{log.sourceChannel || log.source_channel || "-"}</TableCell>
+              <TableCell>{log.telegramMessageId || log.telegram_message_id || "-"}</TableCell>
+              <TableCell><Badge variant={status === "failed" ? "destructive" : "secondary"}>{status || "-"}</Badge></TableCell>
+              <TableCell className="max-w-[360px] truncate">{log.errorMessage || log.error_message || log.messageText || log.message_text || "-"}</TableCell>
+              <TableCell>{createdAt ? format(new Date(createdAt), "dd MMM yyyy, h:mm a") : "-"}</TableCell>
+            </TableRow>
+          );
+        })}
       </TableBody>
     </Table>
   );
+}
+
+function hasPositiveDealPrice(deal: BackendDeal) {
+  const price = dealPrice(deal);
+  return price !== null && price > 0;
+}
+
+function dealPrice(deal: BackendDeal) {
+  return numberOrNull(deal.dealPrice ?? deal.discountedPrice ?? deal.discounted_price ?? deal.deal_price);
+}
+
+function dealImageUrl(deal: BackendDeal) {
+  return firstHttpUrl(deal.imageUrl, deal.image_url, deal.finalImageUrl, deal.final_image_url, deal.sourceImageUrl, deal.source_image_url);
+}
+
+function dealProductUrl(deal: BackendDeal) {
+  return firstHttpUrl(deal.productUrl, deal.dealUrl, deal.affiliateUrl, deal.affiliate_link, deal.source_url, deal.platformProductUrl, deal.platform_product_url);
+}
+
+function priceStatus(deal: BackendDeal) {
+  return deal.priceStatus || deal.price_status || "";
+}
+
+function expiryStatus(deal: BackendDeal) {
+  return deal.expiryStatus || deal.expiry_status || "";
+}
+
+function expiryAt(deal: BackendDeal) {
+  return deal.expiryAt || deal.expiry_at || deal.platformExpiresAt || null;
+}
+
+function sourceChannel(deal: BackendDeal) {
+  return deal.sourceChannel || deal.source_channel || "";
+}
+
+function adminReviewStatus(deal: BackendDeal) {
+  return deal.adminReviewStatus || deal.admin_review_status || "";
+}
+
+function isExpiredDeal(deal: BackendDeal) {
+  return Boolean(deal.isExpired || deal.is_expired || deal.status === "expired");
+}
+
+function numberOrNull(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function numberString(value: unknown) {
+  const numeric = numberOrNull(value);
+  return numeric === null ? "" : String(numeric);
+}
+
+function formatMoney(value: number | null) {
+  return value === null ? "-" : `Rs.${Number(value).toLocaleString("en-IN")}`;
+}
+
+function firstHttpUrl(...values: Array<string | null | undefined>) {
+  return values.map((value) => String(value || "").trim()).find((value) => /^https?:\/\//i.test(value)) || "";
 }

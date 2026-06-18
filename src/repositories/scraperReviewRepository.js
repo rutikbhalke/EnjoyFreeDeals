@@ -1,5 +1,6 @@
 const { supabaseAdmin } = require("../config/supabaseClient");
 const { toApiDeal } = require("../mappers/dealMapper");
+const { fetchProductMetadata } = require("../services/dealDetailEnricher");
 const { getPagination } = require("../utils/pagination");
 const { throwIfSupabaseError } = require("../utils/supabaseErrors");
 
@@ -272,7 +273,7 @@ async function updateAdminDeal(dealId, payload = {}, adminUser = {}) {
 }
 
 async function approveAdminDeal(dealId, payload = {}, adminUser = {}) {
-  const current = await findDeal(dealId);
+  const current = await enrichDealBeforeApproval(await findDeal(dealId));
   const categoryId = current.category_id || await ensureCategoryByName("Other Deals");
   const merged = { ...current, category_id: categoryId, status: "approved", is_valid: true, is_verified: true };
   validateAdminDealUpdate(merged, { ...payload, status: "approved" });
@@ -306,6 +307,77 @@ async function approveAdminDeal(dealId, payload = {}, adminUser = {}) {
     .single();
   throwIfSupabaseError(error, "deals");
   return toApiDeal(data);
+}
+
+async function enrichDealBeforeApproval(deal) {
+  const productUrl = dealProductUrl(deal);
+  const needsImage = !dealImageUrl(deal);
+  const needsPrice = !hasPositivePrice(deal) && !hasPriceRange(deal);
+
+  if (!productUrl || (!needsImage && !needsPrice)) return deal;
+
+  try {
+    const metadata = await fetchProductMetadata(productUrl, { timeoutMs: 12000 });
+    const update = buildApprovalEnrichmentUpdate(deal, metadata, { needsImage, needsPrice });
+    if (!Object.keys(update).length) return deal;
+
+    const { data, error } = await supabaseAdmin
+      .from("deals")
+      .update({
+        ...update,
+        updated_at: new Date().toISOString(),
+        fetched_at: new Date().toISOString(),
+        source_updated_at: new Date().toISOString()
+      })
+      .eq("id", deal.id)
+      .select("*, categories(*), stores(*)")
+      .single();
+    throwIfSupabaseError(error, "deals");
+    return data || deal;
+  } catch (error) {
+    console.warn("[admin-approval] product metadata enrichment skipped:", error.message || error);
+    return deal;
+  }
+}
+
+function buildApprovalEnrichmentUpdate(deal, metadata = {}, options = {}) {
+  const update = {};
+  const imageUrl = clean(metadata.imageUrl);
+  const currentPrice = numberOrNull(metadata.discountedPrice);
+  const originalPrice = numberOrNull(metadata.originalPrice);
+
+  if (options.needsImage && isHttpUrl(imageUrl)) {
+    update.image_url = imageUrl;
+    update.source_image_url = imageUrl;
+    update.final_image_url = imageUrl;
+  }
+
+  if (options.needsPrice && metadata.priceReliable && currentPrice && currentPrice > 0) {
+    update.discounted_price = currentPrice;
+    update.price_status = "detected";
+    const resolvedOriginalPrice = originalPrice && originalPrice >= currentPrice
+      ? originalPrice
+      : Math.max(numberOrNull(deal.original_price) || 0, currentPrice);
+    update.original_price = resolvedOriginalPrice;
+    update.discount_percentage = calculateDiscount(resolvedOriginalPrice, currentPrice);
+  }
+
+  if (!clean(deal.title) && clean(metadata.title)) {
+    update.title = truncateClean(metadata.title, 96);
+  }
+  if (!clean(deal.description) && clean(metadata.description)) {
+    update.description = truncateClean(metadata.description, 220);
+  }
+
+  const existingPayload = isObject(deal.raw_source_payload) ? deal.raw_source_payload : {};
+  update.raw_source_payload = {
+    ...existingPayload,
+    adminApprovalEnrichedAt: new Date().toISOString(),
+    adminApprovalMetadataFound: Boolean(metadata.title || metadata.imageUrl || metadata.discountedPrice),
+    adminApprovalPriceSource: metadata.priceSource || existingPayload.adminApprovalPriceSource || ""
+  };
+
+  return update;
 }
 
 async function rejectAdminDeal(dealId, reason = "", adminUser = {}) {
@@ -887,6 +959,42 @@ function numberOrNull(value) {
   if (value === "" || value === null || value === undefined) return null;
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : null;
+}
+
+function hasPositivePrice(row) {
+  const price = numberOrNull(row.discounted_price);
+  return Boolean(price && price > 0);
+}
+
+function hasPriceRange(row) {
+  const rangeMin = numberOrNull(row.price_range_min ?? row.price_min);
+  const rangeMax = numberOrNull(row.price_range_max ?? row.price_max);
+  return Number(rangeMin || 0) > 0 || Number(rangeMax || 0) > 0;
+}
+
+function calculateDiscount(originalPrice, dealPrice) {
+  if (!originalPrice || !dealPrice || originalPrice <= 0 || dealPrice < 0 || dealPrice > originalPrice) return 0;
+  return Math.max(0, Math.min(100, Math.round(((originalPrice - dealPrice) / originalPrice) * 100)));
+}
+
+function truncateClean(value, maxLength) {
+  const text = clean(value).replace(/\s+/g, " ");
+  if (text.length <= maxLength) return text;
+  const truncated = text.slice(0, maxLength + 1);
+  return truncated.slice(0, truncated.lastIndexOf(" ")).trim() || text.slice(0, maxLength).trim();
+}
+
+function isHttpUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function hasValue(value) {

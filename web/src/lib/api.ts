@@ -27,19 +27,30 @@ export type BackendDeal = {
   slug?: string;
   description?: string | null;
   imageUrl?: string | null;
+  image_url?: string | null;
   sourceImageUrl?: string | null;
+  source_image_url?: string | null;
   productImage?: string | null;
+  finalImageUrl?: string | null;
+  final_image_url?: string | null;
   productUrl?: string | null;
   dealUrl?: string | null;
   affiliateUrl?: string | null;
+  affiliate_link?: string | null;
+  source_url?: string | null;
+  platformProductUrl?: string | null;
+  platform_product_url?: string | null;
   storeName?: string | null;
   storeLogo?: string | null;
   categoryId?: string | null;
   categoryName?: string | null;
   categorySlug?: string | null;
   originalPrice?: number | null;
+  original_price?: number | null;
   dealPrice?: number | null;
+  deal_price?: number | null;
   discountedPrice?: number | null;
+  discounted_price?: number | null;
   priceStatus?: string | null;
   priceMin?: number | null;
   priceMax?: number | null;
@@ -63,14 +74,20 @@ export type BackendDeal = {
   sourceUpdatedAt?: string | null;
   platformExpiresAt?: string | null;
   expiryStatus?: string | null;
+  expiry_status?: string | null;
   expiryAt?: string | null;
+  expiry_at?: string | null;
   expiryNote?: string | null;
+  expiry_note?: string | null;
   lowestPrice?: number | null;
   bestPlatform?: string | null;
   comparisonCount?: number | null;
   lastPriceCheckedAt?: string | null;
   createdAt?: string | null;
+  created_at?: string | null;
   status?: string | null;
+  isExpired?: boolean | null;
+  is_expired?: boolean | null;
   price_status?: string | null;
   priceRangeMin?: number | null;
   price_range_min?: number | null;
@@ -84,6 +101,15 @@ export type BackendDeal = {
   validationFlags?: string[];
   validation_flags?: string[];
   availability?: string | null;
+  sourceChannel?: string | null;
+  source_channel?: string | null;
+  telegramMessageId?: string | null;
+  telegram_message_id?: string | null;
+  adminReviewStatus?: string | null;
+  admin_review_status?: string | null;
+  lastScrapedAt?: string | null;
+  last_scraped_at?: string | null;
+  scrape_status?: string | null;
   sourceType?: string | null;
   source_type?: string | null;
 };
@@ -501,6 +527,44 @@ export type AdminFlaggedDealsResponse = {
   summary: AdminSummary;
 };
 
+export type AdminDatabaseTableStatus = {
+  name: string;
+  group: string;
+  migration: string;
+  status: "ok" | "missing" | "error";
+  count: number | null;
+  latencyMs: number;
+  errorCode?: string;
+  errorMessage?: string;
+};
+
+export type AdminDatabaseTablesResponse = {
+  summary: {
+    total: number;
+    ok: number;
+    missing: number;
+    error: number;
+  };
+  tables: AdminDatabaseTableStatus[];
+  checkedAt: string;
+};
+
+export type AdminTelegramScrapeLog = {
+  id: string;
+  source_channel?: string | null;
+  sourceChannel?: string | null;
+  telegram_message_id?: string | null;
+  telegramMessageId?: string | null;
+  scrape_status?: string | null;
+  scrapeStatus?: string | null;
+  error_message?: string | null;
+  errorMessage?: string | null;
+  message_text?: string | null;
+  messageText?: string | null;
+  created_at?: string | null;
+  createdAt?: string | null;
+};
+
 export type AdminDealUpdatePayload = {
   title?: string;
   description?: string;
@@ -525,6 +589,39 @@ export type AdminDealUpdatePayload = {
 
 export async function fetchAdminFlaggedDeals(section = "all") {
   return adminRequest<AdminFlaggedDealsResponse>(`/api/admin/flagged-deals?section=${encodeURIComponent(section)}`);
+}
+
+export async function fetchAdminDatabaseTables() {
+  return adminRequest<AdminDatabaseTablesResponse>("/api/admin/database/tables");
+}
+
+export async function fetchAdminTelegramDeals(section = "all") {
+  return adminRequest<BackendDeal[]>(`/api/admin/telegram-scraped-deals?section=${encodeURIComponent(section)}`);
+}
+
+export async function fetchAdminTelegramScrapeLogs() {
+  return adminRequest<AdminTelegramScrapeLog[]>("/api/admin/telegram-scrape-logs");
+}
+
+export async function updateAdminTelegramManualPrice(id: string, payload: { priceMin: number | null; priceMax: number | null; manualPriceNote?: string }) {
+  return adminRequest<BackendDeal>(`/api/admin/telegram-scraped-deals/${encodeURIComponent(id)}/manual-price`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateAdminTelegramManualExpiry(id: string, payload: { expiryAt: string; expiryNote?: string }) {
+  return adminRequest<BackendDeal>(`/api/admin/telegram-scraped-deals/${encodeURIComponent(id)}/manual-expiry`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function expireAdminTelegramDeal(id: string, reason = "") {
+  return adminRequest<BackendDeal>(`/api/admin/telegram-scraped-deals/${encodeURIComponent(id)}/expire`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
 }
 
 export async function createAdminDeal(payload: any) {
