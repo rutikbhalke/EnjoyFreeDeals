@@ -141,6 +141,24 @@ async function fetchProductPage(url, options = {}) {
 async function fetchProductMetadata(url, options = {}) {
   const page = await fetchProductPage(url, options);
   const metadata = extractProductMetadata(page.html, page.finalUrl);
+  const blocked = isBlockedProductPage(page, metadata);
+  if (blocked) {
+    return {
+      ...metadata,
+      title: "",
+      description: "",
+      imageUrl: "",
+      canonicalUrl: "",
+      discountedPrice: 0,
+      originalPrice: 0,
+      priceReliable: false,
+      originalPriceReliable: false,
+      blocked: true,
+      blockReason: "captcha_or_access",
+      finalUrl: page.finalUrl,
+      status: page.status
+    };
+  }
   return {
     ...metadata,
     finalUrl: metadata.canonicalUrl || page.finalUrl,
@@ -616,7 +634,18 @@ function isUsableProductTitle(value) {
 function isBadProductTitle(value) {
   const title = cleanText(value);
   return /^(page not found|not found|access denied|robot check|captcha|just a moment|amazon\.in|amazon|error|oops)$/i.test(title) ||
-    /\b(page not found|robot check|enter the characters you see below|sorry, we just need to make sure)\b/i.test(title);
+    /\b(page not found|recaptcha|captcha|robot check|verify you are human|unusual traffic|enter the characters you see below|sorry, we just need to make sure)\b/i.test(title);
+}
+
+function isBlockedProductPage(page, metadata = {}) {
+  const status = Number(page?.status || 0);
+  const html = String(page?.html || "").slice(0, 12000);
+  const title = cleanText(metadata.title);
+  const description = cleanText(metadata.description);
+  const combined = `${title} ${description} ${html}`;
+  return status === 403 ||
+    status === 429 ||
+    /\b(recaptcha|captcha|robot check|verify you are human|unusual traffic|access denied|just a moment)\b/i.test(combined);
 }
 
 function isLowSignalTitle(value) {

@@ -120,13 +120,14 @@ async function tryBuildLiveTrackingSummary({ normalizedUrl, storeName, platformP
   try {
     const metadata = await fetchProductMetadata(normalizedUrl, { timeoutMs: 12000 });
     const metadataTitle = cleanText(metadata.title);
-    const title = isBadLiveTitle(metadataTitle) ? titleFromProductUrl(normalizedUrl) : metadataTitle;
+    const blocked = isBlockedLiveMetadata(metadata, storeName);
+    const title = blocked || isBadLiveTitle(metadataTitle) ? titleFromProductUrl(normalizedUrl) : metadataTitle;
     const productUrl = normalizeUrl(metadata.finalUrl || normalizedUrl) || normalizedUrl;
-    const currentPrice = firstNumeric(metadata.discountedPrice);
-    const originalPrice = firstNumeric(metadata.originalPrice);
-    const imageUrl = normalizeUrl(metadata.imageUrl) || metadata.imageUrl || "";
+    const currentPrice = metadata.priceReliable ? firstPositiveNumeric(metadata.discountedPrice) : null;
+    const originalPrice = metadata.originalPriceReliable ? firstPositiveNumeric(metadata.originalPrice) : null;
+    const imageUrl = blocked ? "" : normalizeUrl(metadata.imageUrl) || metadata.imageUrl || "";
 
-    if (!title && !imageUrl && currentPrice == null) return null;
+    if ((blocked && currentPrice == null && !imageUrl) || (!title && !imageUrl && currentPrice == null)) return null;
 
     const relatedDeals = title
       ? await findLiveRelatedDeals({ title, storeName, productUrl })
@@ -641,7 +642,21 @@ function inferCategoryName(text) {
 }
 
 function isBadLiveTitle(value) {
-  return /^(access denied|forbidden|not found|page not found|error|meesho|amazon|flipkart)$/i.test(cleanText(value));
+  const title = cleanText(value);
+  return /^(access denied|forbidden|not found|page not found|error|meesho|amazon|flipkart)$/i.test(title) ||
+    /\b(recaptcha|captcha|robot check|verify you are human|access denied|unusual traffic|just a moment)\b/i.test(title);
+}
+
+function isBlockedLiveMetadata(metadata = {}, storeName = "") {
+  if (metadata.blocked) return true;
+  const title = cleanText(metadata.title);
+  const description = cleanText(metadata.description);
+  const status = Number(metadata.status || 0);
+  const text = `${title} ${description}`;
+  return status === 403 ||
+    status === 429 ||
+    /\b(recaptcha|captcha|robot check|verify you are human|access denied|unusual traffic|just a moment)\b/i.test(text) ||
+    (sameKey(storeName, "Flipkart") && /\brecaptcha\b/i.test(title));
 }
 
 function titleFromProductUrl(productUrl) {
@@ -705,6 +720,15 @@ function firstNumeric(...values) {
     if (value === null || value === undefined || value === "") continue;
     const numeric = Number(value);
     if (Number.isFinite(numeric) && numeric >= 0) return numeric;
+  }
+  return null;
+}
+
+function firstPositiveNumeric(...values) {
+  for (const value of values) {
+    if (value === null || value === undefined || value === "") continue;
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > 0) return numeric;
   }
   return null;
 }
