@@ -1016,4 +1016,4 @@ function isObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-module.exports = { enrichGenieLootDetails, fetchProductMetadata };
+module.exports = { enrichGenieLootDetails, fetchProductMetadata, amazonImageFromUrl };

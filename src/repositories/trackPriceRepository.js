@@ -4,7 +4,7 @@ const { throwIfSupabaseError } = require("../utils/supabaseErrors");
 const { detectPlatform } = require("../../lib/platformDetector");
 const { buildSearchUrl, normalizeUrl } = require("../../lib/urlUtils");
 const { getPlatformLogo } = require("../../lib/platformLogos");
-const { fetchProductMetadata } = require("../services/dealDetailEnricher");
+const { fetchProductMetadata, amazonImageFromUrl } = require("../services/dealDetailEnricher");
 
 async function trackProductPrice(productUrl, userId = null) {
   const normalizedUrl = normalizeUrl(productUrl);
@@ -122,12 +122,13 @@ async function tryBuildLiveTrackingSummary({ normalizedUrl, storeName, platformP
     const metadataTitle = cleanText(metadata.title);
     const blocked = isBlockedLiveMetadata(metadata, storeName);
     const title = blocked || isBadLiveTitle(metadataTitle) ? titleFromProductUrl(normalizedUrl) : metadataTitle;
-    const productUrl = normalizeUrl(metadata.finalUrl || normalizedUrl) || normalizedUrl;
+    const productUrl = blocked ? normalizedUrl : normalizeUrl(metadata.finalUrl || normalizedUrl) || normalizedUrl;
     const currentPrice = metadata.priceReliable ? firstPositiveNumeric(metadata.discountedPrice) : null;
     const originalPrice = metadata.originalPriceReliable ? firstPositiveNumeric(metadata.originalPrice) : null;
-    const imageUrl = blocked ? "" : normalizeUrl(metadata.imageUrl) || metadata.imageUrl || "";
+    const fallbackImageUrl = fallbackImageFromProductUrl(normalizedUrl, storeName);
+    const imageUrl = blocked ? fallbackImageUrl : normalizeUrl(metadata.imageUrl) || metadata.imageUrl || fallbackImageUrl;
 
-    if ((blocked && currentPrice == null && !imageUrl) || (!title && !imageUrl && currentPrice == null)) return null;
+    if (!title && !imageUrl && currentPrice == null) return null;
 
     const relatedDeals = title
       ? await findLiveRelatedDeals({ title, storeName, productUrl })
@@ -182,7 +183,9 @@ async function tryBuildLiveTrackingSummary({ normalizedUrl, storeName, platformP
       relatedDeals,
       bestDeal: storeComparisons.find((item) => item.isBest) || null,
       platformProductId: platformProductId || null,
-      message: "Live product details loaded. More price history will appear after future checks."
+      message: currentPrice != null
+        ? "Live product details loaded. More price history will appear after future checks."
+        : "Product details loaded from the pasted URL. We will keep tracking for verified price updates."
     };
   } catch (error) {
     console.warn("[track-price] live product metadata skipped:", error.message || error);
@@ -359,6 +362,15 @@ function buildLiveStoreComparisons({ storeName, currentPrice, productUrl, relate
     rows.push({
       storeName: storeName || "Store",
       price: currentPrice,
+      productUrl,
+      isBest: false,
+      difference: 0,
+      platformLogoUrl: getPlatformLogo(storeName)
+    });
+  } else if (storeName && productUrl) {
+    rows.push({
+      storeName,
+      price: null,
       productUrl,
       isBest: false,
       difference: 0,
@@ -657,6 +669,11 @@ function isBlockedLiveMetadata(metadata = {}, storeName = "") {
     status === 429 ||
     /\b(recaptcha|captcha|robot check|verify you are human|access denied|unusual traffic|just a moment)\b/i.test(text) ||
     (sameKey(storeName, "Flipkart") && /\brecaptcha\b/i.test(title));
+}
+
+function fallbackImageFromProductUrl(productUrl, storeName) {
+  if (sameKey(storeName, "Amazon")) return amazonImageFromUrl(productUrl);
+  return "";
 }
 
 function titleFromProductUrl(productUrl) {
