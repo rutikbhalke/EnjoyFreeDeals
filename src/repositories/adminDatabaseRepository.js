@@ -4,8 +4,10 @@ const { isMissingTableError } = require("../utils/supabaseErrors");
 const ADMIN_TABLES = [
   { name: "profiles", group: "Users", migration: "supabase/schema.sql" },
   { name: "sample_whatsapp_otp_logins", group: "Users", migration: "supabase/schema.sql" },
+  { name: "otp_verifications", group: "Users", migration: "supabase/migrations/20260621_ensure_missing_admin_tables.sql" },
   { name: "user_roles", group: "Users", migration: "supabase/schema.sql" },
   { name: "user_preferences", group: "Users", migration: "supabase/schema.sql" },
+  { name: "user_activity", group: "Users", migration: "supabase/migrations/20260621_ensure_missing_admin_tables.sql" },
   { name: "categories", group: "Catalog", migration: "supabase/schema.sql" },
   { name: "stores", group: "Catalog", migration: "supabase/schema.sql" },
   { name: "deals", group: "Deals", migration: "supabase/schema.sql" },

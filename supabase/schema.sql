@@ -28,6 +28,18 @@ create table if not exists public.sample_whatsapp_otp_logins (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.otp_verifications (
+  id uuid primary key default gen_random_uuid(),
+  mobile text not null,
+  otp_code text,
+  otp_hash text,
+  expires_at timestamptz not null,
+  used boolean not null default false,
+  is_test_user boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.categories (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -520,6 +532,18 @@ create table if not exists public.deal_clicks (
   ip_address text
 );
 
+create table if not exists public.user_activity (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  event_type text not null,
+  deal_id uuid references public.deals(id) on delete set null,
+  category_id uuid references public.categories(id) on delete set null,
+  store_id uuid references public.stores(id) on delete set null,
+  search_query text,
+  metadata jsonb default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.deal_votes (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -674,6 +698,8 @@ create table if not exists public.scraped_deal_items (
 
 create unique index if not exists deals_dedupe_key_unique_idx on public.deals (dedupe_key) where dedupe_key is not null;
 create unique index if not exists profiles_user_id_unique_idx on public.profiles (user_id);
+create index if not exists idx_otp_verifications_mobile on public.otp_verifications (mobile);
+create index if not exists idx_otp_verifications_mobile_used on public.otp_verifications (mobile, used);
 create index if not exists categories_active_name_idx on public.categories (is_active, name);
 create index if not exists stores_active_name_idx on public.stores (is_active, name);
 create index if not exists deals_status_created_idx on public.deals (status, created_at desc);
@@ -699,12 +725,17 @@ create index if not exists cashback_transactions_user_status_idx on public.cashb
 create index if not exists scraper_jobs_source_status_idx on public.scraper_jobs (source_name, status, created_at desc);
 create index if not exists deal_sources_enabled_idx on public.deal_sources (enabled, source_key);
 create index if not exists scraped_deal_items_status_idx on public.scraped_deal_items (status, created_at desc);
+create index if not exists user_activity_user_created_idx on public.user_activity (user_id, created_at desc);
+create index if not exists user_activity_deal_event_idx on public.user_activity (deal_id, event_type, created_at desc);
+create index if not exists user_activity_category_created_idx on public.user_activity (category_id, created_at desc);
+create index if not exists user_activity_store_created_idx on public.user_activity (store_id, created_at desc);
 create unique index if not exists price_comparisons_deal_unique_idx on public.price_comparisons (deal_id);
 create unique index if not exists price_comparison_platform_unique_idx on public.price_comparison_platforms (comparison_id, lower(platform));
 create index if not exists price_comparison_platform_available_price_idx on public.price_comparison_platforms (comparison_id, available, price);
 
 alter table public.profiles enable row level security;
 alter table public.sample_whatsapp_otp_logins enable row level security;
+alter table public.otp_verifications enable row level security;
 alter table public.categories enable row level security;
 alter table public.stores enable row level security;
 alter table public.deals enable row level security;
@@ -720,6 +751,7 @@ alter table public.recently_viewed_deals enable row level security;
 alter table public.price_history enable row level security;
 alter table public.notifications enable row level security;
 alter table public.user_preferences enable row level security;
+alter table public.user_activity enable row level security;
 alter table public.deal_clicks enable row level security;
 alter table public.deal_votes enable row level security;
 alter table public.deal_comments enable row level security;
@@ -797,6 +829,18 @@ create policy "Users update own notifications" on public.notifications
 drop policy if exists "Users manage own preferences" on public.user_preferences;
 create policy "Users manage own preferences" on public.user_preferences
   for all to authenticated using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists "Users insert own activity" on public.user_activity;
+create policy "Users insert own activity" on public.user_activity
+  for insert to anon, authenticated with check (user_id is null or auth.uid() = user_id);
+
+drop policy if exists "Users read own activity" on public.user_activity;
+create policy "Users read own activity" on public.user_activity
+  for select to authenticated using (auth.uid() = user_id);
+
+drop policy if exists "Service role can manage otp verifications" on public.otp_verifications;
+create policy "Service role can manage otp verifications" on public.otp_verifications
+  for all using (auth.role() = 'service_role') with check (auth.role() = 'service_role');
 
 -- Backend service_role bypasses RLS for admin/scraper writes.
 -- Do not add anon/authenticated write policies to scraper_jobs, deal_sources, or scraped_deal_items.
