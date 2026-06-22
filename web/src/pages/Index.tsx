@@ -25,7 +25,8 @@ export default function Index() {
     "@type": "WebSite",
     name: SITE_NAME,
     url: SITE_URL,
-    description: "India's smartest free deals & cashback platform. Find the best deals, coupons, and cashback offers.",
+    description: "Best deals, coupons, and cashback offers from top Indian stores.",
+    inLanguage: "en-IN",
     potentialAction: {
       "@type": "SearchAction",
       target: { "@type": "EntryPoint", urlTemplate: `${SITE_URL}/deals?q={search_term_string}` },
@@ -39,6 +40,22 @@ export default function Index() {
     name: SITE_NAME,
     url: SITE_URL,
     logo: `${SITE_URL}/logo.png`,
+    description: "India's trusted deals aggregator offering verified coupons, cashback offers, and exclusive discounts from 200+ stores.",
+    foundingDate: "2024",
+    address: {
+      "@type": "PostalAddress",
+      addressCountry: "IN",
+    },
+    contactPoint: {
+      "@type": "ContactPoint",
+      contactType: "customer support",
+      email: "support@enjoyfreedeals.com",
+    },
+    sameAs: [
+      "https://twitter.com/EnjoyFreeDeals",
+      "https://www.facebook.com/EnjoyFreeDeals",
+      "https://www.instagram.com/EnjoyFreeDeals",
+    ],
   };
 
   const faqJsonLd = {

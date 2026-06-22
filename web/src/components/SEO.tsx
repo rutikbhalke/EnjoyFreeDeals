@@ -11,9 +11,9 @@ interface SEOProps {
 }
 
 const SITE_NAME = "EnjoyFreeDeals";
-const SITE_URL = "https://enjoyfreedeals.lovable.app";
+const SITE_URL = "https://enjoyfreedeals.com";
 const DEFAULT_DESCRIPTION = "Find the best deals, coupons, and cashback offers from top Indian stores. Save money on electronics, fashion, food, travel & more.";
-const DEFAULT_OG_IMAGE = "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/30bafd9b-fcca-4842-a384-fdc660b3b1c4/id-preview-465db127--c08f5723-218a-403e-bb28-c43fc9a18171.lovable.app-1771597699017.png";
+const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 export { SITE_URL, SITE_NAME };
 
@@ -41,12 +41,16 @@ export default function SEO({
       <meta property="og:description" content={description} />
       <meta property="og:type" content={ogType} />
       <meta property="og:image" content={ogImage} />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
+      <meta property="og:image:type" content="image/png" />
       {canonical && <meta property="og:url" content={canonical} />}
 
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content={fullTitle} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={ogImage} />
+      <meta name="twitter:image:alt" content="EnjoyFreeDeals - Best Deals, Coupons & Cashback" />
 
       <meta name="ai-content-declaration" content="human-created" />
 

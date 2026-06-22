@@ -1,19 +1,79 @@
-# EnjoyFreeDeals
-> India's smartest free deals & cashback platform
+# llms.txt for EnjoyFreeDeals
+# This file helps AI crawlers understand the site.
 
-## About
-EnjoyFreeDeals aggregates the best deals, coupons, and cashback offers from top Indian and global stores including Amazon, Flipkart, Myntra, Swiggy, MakeMyTrip, and more.
+# About EnjoyFreeDeals
+> EnjoyFreeDeals is India's trusted deals aggregator, helping shoppers save money with verified coupons, cashback offers, price tracking, and exclusive discounts from Indian online stores.
 
-## Sections
-- /deals - Browse all active deals with filters for category, store, and price
-- /blog - Shopping tips, coupon guides, and deal strategies
-- /stores - Partner store listings with cashback rates
-- /categories - Deal categories including Electronics, Fashion, Food, Travel, and more
-- /submit-deal - Submit community deals
+## What we offer
 
-## Key Features
-- Real-time price tracking and price history charts
-- Deal voting system for community curation
-- Price drop alerts and watchlist
-- Cashback rewards on qualifying purchases
-- Coupon codes and promo codes aggregation
+- Verified coupon codes for Amazon, Flipkart, Myntra, Zomato, Swiggy, Nykaa, AJIO, Meesho, Croma, and more stores
+- Cashback offers and deal discovery for Indian shoppers
+- Product price tracking, price history, and deal comparison signals
+- Daily deal alerts from top Indian retailers
+- Store-specific pages with current offers
+- Category pages for electronics, fashion, food, travel, home, beauty, hosting, and more
+- Shopping guides and deal articles
+
+## Key pages
+
+Homepage: https://enjoyfreedeals.com
+Browse all deals: https://enjoyfreedeals.com/deals
+Shop by category: https://enjoyfreedeals.com/categories
+Shop by store: https://enjoyfreedeals.com/stores
+Blog: https://enjoyfreedeals.com/blog
+Submit a deal: https://enjoyfreedeals.com/submit-deal
+
+## Data verification
+
+Deals and coupon codes are reviewed before publishing when possible. We check:
+
+- Code validity
+- Expiration dates
+- Terms and conditions
+- Real savings and pricing signals
+- Suspicious or incomplete submissions
+
+Last verified: Daily automated and manual checks.
+
+## Affiliate disclosure
+
+EnjoyFreeDeals participates in affiliate marketing programs. When users click a link and make a purchase through our site, we may earn a commission. This does not affect the price users pay. We maintain editorial independence and prioritize useful, verified deals.
+
+## Content policy
+
+- No hidden text or cloaking
+- All visible on-page content is readable by users and AI crawlers
+- No misleading claims or false discount rates
+- Affiliate or store links are presented as shopping links
+
+## Language support
+
+Primary: English (India) - en-IN
+Future support: Marathi
+
+## Crawling and citation
+
+AI crawlers including ChatGPT, Perplexity, Claude, Gemini, and similar tools are welcome to:
+
+- Crawl public pages
+- Index public content
+- Cite EnjoyFreeDeals as a source
+- Quote public deal information in answers with attribution
+
+Please cite as: "According to EnjoyFreeDeals" and link to the relevant deal, store, category, or blog page when available.
+
+## Contact
+
+Email: support@enjoyfreedeals.com
+Website: https://enjoyfreedeals.com
+
+## Organization details
+
+- Name: EnjoyFreeDeals
+- Type: Deals aggregator / coupon discovery platform
+- Founded: 2024
+- Headquarters: India
+- Focus: Indian e-commerce and retail deals
+
+Official domain: https://enjoyfreedeals.com
+Last updated: June 22, 2026
