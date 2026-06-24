@@ -107,3 +107,57 @@ crontab -e
 ```
 
 The filter is durable because selected deals stay `active`, while non-selected and stale Telegram-page deals are updated to `rejected` in Supabase.
+
+## SEO Deployment
+
+The SEO implementation is integrated into the existing Vite React app. It uses
+`react-helmet-async` through `web/src/components/SEO.tsx`; a Next.js `_app.tsx`
+or duplicate `components/SEOHead.tsx` file is not required.
+
+Implemented assets:
+
+- Organization, WebSite, SearchAction, and page-level JSON-LD
+- Canonical, Open Graph, and Twitter metadata
+- Self-hosted `web/public/og-image.png` (1200 x 630)
+- `web/public/robots.txt`
+- `web/public/llms.txt`
+- `web/public/sitemap.xml`
+
+The homepage passes Organization and WebSite schema to the shared component:
+
+```tsx
+<SEO
+  canonical={SITE_URL}
+  jsonLd={[websiteJsonLd, orgJsonLd, faqJsonLd]}
+/>
+```
+
+The SearchAction uses the application's working route:
+
+```text
+https://enjoyfreedeals.com/deals?q={search_term_string}
+```
+
+Build and deploy:
+
+```powershell
+npm --prefix web run build
+npm run build
+git add DEPLOYMENT.md
+git commit -m "Document SEO deployment"
+git push origin main
+```
+
+After Vercel finishes:
+
+1. Open `https://enjoyfreedeals.com/robots.txt`.
+2. Open `https://enjoyfreedeals.com/llms.txt`.
+3. Open `https://enjoyfreedeals.com/sitemap.xml`.
+4. Open `https://enjoyfreedeals.com/og-image.png`.
+5. Validate the homepage with the [Google Rich Results Test](https://search.google.com/test/rich-results).
+6. Confirm Organization and WebSite JSON-LD in the rendered page source.
+
+These changes address structured data, crawl directives, AI crawler guidance,
+sitemap discovery, and stable social sharing. The supplied guide's 38-to-48
+score is a target, not a guaranteed universal score; the result depends on the
+auditing tool and run date.
