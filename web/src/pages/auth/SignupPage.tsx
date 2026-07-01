@@ -36,7 +36,7 @@ export default function SignupPage() {
       <SEO title="Sign Up" description="Create your free EnjoyFreeDeals account and start saving with cashback, coupons and exclusive deals." />
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
-          <Link to="/">
+          <Link to="/" className="inline-block rounded-lg dark:bg-white dark:px-2 dark:py-1 dark:shadow-sm">
             <img src={logo} alt="EnjoyFreeDeals" className="h-10 mx-auto" />
           </Link>
           <h1 className="mt-6 font-display text-2xl font-bold">Create an account</h1>

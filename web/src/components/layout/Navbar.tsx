@@ -51,7 +51,7 @@ export default function Navbar() {
   return (
     <header className={`sticky top-0 z-50 border-b bg-card/80 backdrop-blur-xl transition-shadow duration-300 ${scrolled ? "shadow-md border-transparent" : "border-border"}`}>
       <div className="container flex h-16 items-center justify-between gap-4">
-        <Link to="/" className="flex items-center">
+        <Link to="/" className="flex items-center rounded-lg dark:bg-white dark:px-2 dark:py-1 dark:shadow-sm">
           <img src={logo} alt="EnjoyFreeDeals" className="h-9" />
         </Link>
 

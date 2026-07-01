@@ -102,7 +102,7 @@ export default function LoginPage() {
       <div className="pointer-events-none absolute -right-24 bottom-10 h-72 w-72 rounded-full bg-[#14b87a]/12" />
 
       <main className="relative mx-auto flex min-h-[calc(100vh-4rem)] max-w-md flex-col items-center justify-center">
-        <Link to="/" className="mb-7 block">
+        <Link to="/" className="mb-7 block rounded-xl dark:bg-white dark:px-3 dark:py-2 dark:shadow-sm">
           <img src={logo} alt="EnjoyFreeDeals" className="mx-auto h-20 w-auto object-contain" />
           <p className="mt-1 text-center text-sm font-semibold text-muted-foreground">Save More. Earn More.</p>
         </Link>
