@@ -9,7 +9,6 @@ if (!fs.existsSync(webDistDir)) {
   throw new Error(`Web build output not found: ${webDistDir}`);
 }
 
-fs.rmSync(publicDir, { recursive: true, force: true });
 copyDirectory(webDistDir, publicDir);
 console.log(`Copied web build output to ${publicDir}`);
 
