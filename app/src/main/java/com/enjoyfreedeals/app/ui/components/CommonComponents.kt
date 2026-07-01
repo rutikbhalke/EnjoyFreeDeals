@@ -176,24 +176,14 @@ fun SparkleCanvas(modifier: Modifier = Modifier) {
 
 @Composable
 fun AppLogo(modifier: Modifier = Modifier, compact: Boolean = false) {
-    Surface(
+    Image(
+        painter = painterResource(R.drawable.enjoyfreedeals_logo),
+        contentDescription = "EnjoyFreeDeals logo",
         modifier = modifier
             .fillMaxWidth(if (compact) 0.58f else 0.86f)
             .height(if (compact) 48.dp else 90.dp),
-        shape = RoundedCornerShape(if (compact) 14.dp else 22.dp),
-        color = Color.White,
-        border = BorderStroke(1.dp, PrimaryGreen.copy(alpha = 0.14f)),
-        shadowElevation = if (compact) 2.dp else 4.dp
-    ) {
-        Image(
-            painter = painterResource(R.drawable.enjoyfreedeals_logo),
-            contentDescription = "EnjoyFreeDeals logo",
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(if (compact) 4.dp else 8.dp),
-            contentScale = ContentScale.Fit
-        )
-    }
+        contentScale = ContentScale.Fit
+    )
 }
 
 @Composable

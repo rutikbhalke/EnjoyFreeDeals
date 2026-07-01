@@ -52,7 +52,7 @@ export default function ResetPasswordPage() {
       <SEO title="Set New Password" description="Set a new password for your EnjoyFreeDeals account." />
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
-          <Link to="/" className="inline-block rounded-lg dark:bg-white dark:px-2 dark:py-1 dark:shadow-sm">
+          <Link to="/">
             <img src={logo} alt="EnjoyFreeDeals" className="h-10 mx-auto" />
           </Link>
           <h1 className="mt-6 font-display text-2xl font-bold">Set new password</h1>

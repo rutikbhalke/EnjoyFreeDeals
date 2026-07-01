@@ -11,7 +11,7 @@ export default function Footer() {
       <div className="container py-12 px-5">
         <div className="grid gap-8 grid-cols-1 md:grid-cols-3">
           <div>
-            <Link to="/" className="mb-3 inline-block rounded-lg dark:bg-white dark:px-2 dark:py-1 dark:shadow-sm">
+            <Link to="/" className="mb-3 inline-block">
               <img src={logo} alt="EnjoyFreeDeals" className="h-8" />
             </Link>
             <p className="text-sm text-muted-foreground">
