@@ -11,7 +11,7 @@ object MockBlogs {
             shortDescription = "Get a free 15-day ExportFlow demo for export invoices, shipment tracking, payment follow-up and reports. Demo booking: 8888567870.",
             fullContent = listOf(
                 "Get a free 15-day ExportFlow demo for export invoices, shipment tracking, payment follow-up and reports. Demo booking: 8888567870.",
-                "Offer: free 15-day demo access for ExportFlow export management software.",
+                "Deal type: Free 15-day demo offer.",
                 "Use the demo to try GST export invoices, proforma invoices, multi-currency payment tracking, shipment and freight tracking, customer ledgers, export cost calculations, and reports with your real workflow.",
                 "ExportFlow: https://exportflow.mywebz.in/",
                 "Book demo: https://bizflowindia.cloud/",

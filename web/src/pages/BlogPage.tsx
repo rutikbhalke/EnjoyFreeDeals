@@ -7,7 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { BookOpen } from "lucide-react";
 
-const CATEGORIES = ["All", "Coupon Guides", "Shopping Tips", "Tech Deals", "Food & Dining", "Travel Tips", "Platform Guide"];
+const CATEGORIES = ["All", "Software Deals", "Coupon Guides", "Shopping Tips", "Tech Deals", "Food & Dining", "Travel Tips", "Platform Guide"];
 
 export default function BlogPage() {
   const [activeCategory, setActiveCategory] = useState("All");

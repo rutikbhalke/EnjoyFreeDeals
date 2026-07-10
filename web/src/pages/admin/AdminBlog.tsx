@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Pencil, Eye, EyeOff } from "lucide-react";
 import { format } from "date-fns";
 
-const BLOG_CATEGORIES = ["Coupon Guides", "Shopping Tips", "Tech Deals", "Food & Dining", "Travel Tips", "Platform Guide"];
+const BLOG_CATEGORIES = ["Software Deals", "Coupon Guides", "Shopping Tips", "Tech Deals", "Food & Dining", "Travel Tips", "Platform Guide"];
 
 function slugify(str: string) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
