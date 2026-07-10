@@ -26,6 +26,30 @@ const EXPORTFLOW_BLOG_DEAL = {
   createdAt: "2026-07-10T00:00:00.000Z",
   updatedAt: "2026-07-10T00:00:00.000Z"
 };
+const EDUFLOW_BLOG_DEAL = {
+  blogId: "eduflow-education-management-software-offer",
+  id: "eduflow-education-management-software-offer",
+  title: "EduFlow Education Management Software Offer: Free Trial",
+  slug: "eduflow-education-management-software-offer",
+  image: "https://storage.googleapis.com/gpt-engineer-file-uploads/lAaVSYx4RVVmxIS64ld97TLZWug1/social-images/social-1760781174571-clg%20crm.JPG",
+  shortDescription: "Try EduFlow for students, faculty, fees, attendance, hostel, library, transport, exams and placements. Free trial available.",
+  fullContent: [
+    "Try EduFlow for students, faculty, fees, attendance, hostel, library, transport, exams and placements. Free trial available.",
+    "Deal type: Free trial education ERP offer.",
+    "EduFlow is an education management platform for schools, colleges, universities and institutes that need student records, faculty workflows, fee collection, attendance tracking, hostel, library, transport, exams, placements and reports in one system.",
+    "Use the trial to check admissions, student dashboards, attendance, fee receipts, exam/result workflows and institute reports with your real education management process.",
+    "EduFlow: https://eduflow.mywebz.in/"
+  ].join("\n\n"),
+  author: "BizFlow Team",
+  category: "Software Deals",
+  tags: ["eduflow", "education-management", "school-erp", "college-erp", "software-offer", "free-trial"],
+  isPublished: true,
+  metaDescription: "EduFlow education management software offer with a free trial. Manage students, faculty, fees, attendance, exams, hostel, library, transport and placements.",
+  publishedAt: "2026-07-10T00:00:00.000Z",
+  createdAt: "2026-07-10T00:00:00.000Z",
+  updatedAt: "2026-07-10T00:00:00.000Z"
+};
+const STATIC_BLOG_DEALS = [EDUFLOW_BLOG_DEAL, EXPORTFLOW_BLOG_DEAL];
 
 async function listPublishedBlogs() {
   const { data, error } = await supabaseAdmin
@@ -35,8 +59,8 @@ async function listPublishedBlogs() {
     .order("published_at", { ascending: false, nullsFirst: false });
   throwIfSupabaseError(error, TABLE);
   const blogs = (data || []).map(toApiBlog);
-  const withoutDuplicate = blogs.filter((blog) => blog.slug !== EXPORTFLOW_BLOG_DEAL.slug);
-  return [EXPORTFLOW_BLOG_DEAL, ...withoutDuplicate];
+  const withoutDuplicate = blogs.filter((blog) => !STATIC_BLOG_DEALS.some((deal) => deal.slug === blog.slug));
+  return [...STATIC_BLOG_DEALS, ...withoutDuplicate];
 }
 
 function toApiBlog(row) {

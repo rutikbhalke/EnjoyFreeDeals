@@ -19,6 +19,20 @@ object MockBlogs {
             ).joinToString("\n\n"),
             author = "BizFlow Team"
         ),
+        BlogModel(
+            blogId = "eduflow-education-management-software-offer",
+            title = "EduFlow Education Management Software Offer: Free Trial",
+            image = "https://storage.googleapis.com/gpt-engineer-file-uploads/lAaVSYx4RVVmxIS64ld97TLZWug1/social-images/social-1760781174571-clg%20crm.JPG",
+            shortDescription = "Try EduFlow for students, faculty, fees, attendance, hostel, library, transport, exams and placements. Free trial available.",
+            fullContent = listOf(
+                "Try EduFlow for students, faculty, fees, attendance, hostel, library, transport, exams and placements. Free trial available.",
+                "Deal type: Free trial education ERP offer.",
+                "EduFlow is an education management platform for schools, colleges, universities and institutes that need student records, faculty workflows, fee collection, attendance tracking, hostel, library, transport, exams, placements and reports in one system.",
+                "Use the trial to check admissions, student dashboards, attendance, fee receipts, exam/result workflows and institute reports with your real education management process.",
+                "EduFlow: https://eduflow.mywebz.in/"
+            ).joinToString("\n\n"),
+            author = "BizFlow Team"
+        ),
         blog("best-deals-online", "How to Find Best Deals Online", "Learn the simple checklist for spotting genuine discounts before checkout."),
         blog("amazon-sale-tips", "Top 10 Amazon Sale Tips", "Wishlist tracking, bank offers, lightning deals and coupon stacking made easy."),
         blog("flipkart-tricks", "Best Flipkart Shopping Tricks", "A practical guide to exchange bonuses, super coins and sale timing."),

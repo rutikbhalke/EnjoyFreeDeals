@@ -311,3 +311,50 @@ on conflict (slug) do update set
   published_at = excluded.published_at,
   meta_description = excluded.meta_description,
   updated_at = now();
+
+insert into public.blog_posts (
+  title,
+  slug,
+  excerpt,
+  content,
+  cover_image,
+  category,
+  tags,
+  author_name,
+  status,
+  published_at,
+  meta_description
+)
+values (
+  'EduFlow Education Management Software Offer: Free Trial',
+  'eduflow-education-management-software-offer',
+  'Try EduFlow for students, faculty, fees, attendance, hostel, library, transport, exams and placements. Free trial available.',
+  $content$Try EduFlow for students, faculty, fees, attendance, hostel, library, transport, exams and placements. Free trial available.
+
+Deal type: Free trial education ERP offer.
+
+EduFlow is an education management platform for schools, colleges, universities and institutes that need student records, faculty workflows, fee collection, attendance tracking, hostel, library, transport, exams, placements and reports in one system.
+
+Use the trial to check admissions, student dashboards, attendance, fee receipts, exam/result workflows and institute reports with your real education management process.
+
+EduFlow: https://eduflow.mywebz.in/$content$,
+  'https://storage.googleapis.com/gpt-engineer-file-uploads/lAaVSYx4RVVmxIS64ld97TLZWug1/social-images/social-1760781174571-clg%20crm.JPG',
+  'Software Deals',
+  array['eduflow', 'education-management', 'school-erp', 'college-erp', 'software-offer', 'free-trial'],
+  'BizFlow Team',
+  'published',
+  timestamp with time zone '2026-07-10 00:00:00+00',
+  'EduFlow education management software offer with a free trial. Manage students, faculty, fees, attendance, exams, hostel, library, transport and placements.'
+)
+on conflict (slug) do update set
+  title = excluded.title,
+  excerpt = excluded.excerpt,
+  content = excluded.content,
+  cover_image = excluded.cover_image,
+  category = excluded.category,
+  tags = excluded.tags,
+  author_name = excluded.author_name,
+  status = excluded.status,
+  published_at = excluded.published_at,
+  meta_description = excluded.meta_description,
+  updated_at = now();
