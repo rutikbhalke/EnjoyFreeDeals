@@ -31,7 +31,7 @@ export const EXPORTFLOW_BLOG_DEAL: BlogPost = {
     "Book demo: https://bizflowindia.cloud/",
     "Mobile: 8888567870",
   ].join("\n\n"),
-  cover_image: "https://storage.googleapis.com/gpt-engineer-file-uploads/6PFzlUjLQ0ZD0L2f3zOhWk0VaY42/social-images/social-1759382293023-export.JPG",
+  cover_image: "/exportflow-document-hub.png",
   category: "Software Deals",
   tags: ["exportflow", "export-management", "software-offer", "free-demo"],
   author_name: "BizFlow Team",

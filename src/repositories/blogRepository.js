@@ -7,7 +7,7 @@ const EXPORTFLOW_BLOG_DEAL = {
   id: "exportflow-15-day-free-demo",
   title: "ExportFlow Software Offer: Free 15-Day Demo",
   slug: "exportflow-15-day-free-demo",
-  image: "https://storage.googleapis.com/gpt-engineer-file-uploads/6PFzlUjLQ0ZD0L2f3zOhWk0VaY42/social-images/social-1759382293023-export.JPG",
+  image: "https://freedeals1.vercel.app/exportflow-document-hub.png",
   shortDescription: "Get a free 15-day ExportFlow demo for export invoices, shipment tracking, payment follow-up and reports. Demo booking: 8888567870.",
   fullContent: [
     "Get a free 15-day ExportFlow demo for export invoices, shipment tracking, payment follow-up and reports. Demo booking: 8888567870.",
