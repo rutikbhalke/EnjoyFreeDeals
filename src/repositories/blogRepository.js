@@ -264,6 +264,154 @@ const BIZFLOW_SOFTWARE_PRODUCTS = [
     excerpt: "Try TableFlow Offline for Windows restaurant POS, table billing, KOT printing, mobile captain app and backups. Demo available.",
     description: "TableFlow Offline gives restaurants a Windows POS setup with table billing, KOT printing, Mobile KOT Manager, Android captain app, backup/restore and safe update packages.",
     tags: ["tableflow-offline", "restaurant-pos", "offline-pos", "kot-printing"]
+  },
+  {
+    id: "bizflow-academy-management-software-india-offer",
+    title: "BizFlow Academy Management Software",
+    url: "https://bizflowindia.cloud/academy-management-software-india",
+    excerpt: "Compare BizFlow AcademyFlow for academy management software in India with cloud access, local support and practical daily workflows. Free 14-day trial available.",
+    description: "This offer page helps academies and coaching institutes check AcademyFlow for admissions, fees, batch schedules, attendance, student records and day-to-day management.",
+    tags: ["academy-management", "academyflow", "coaching-management", "education-software"]
+  },
+  {
+    id: "bizflow-barcode-pos-software-india-offer",
+    title: "BizFlow Barcode POS Software",
+    url: "https://bizflowindia.cloud/barcode-pos-software-india",
+    excerpt: "Compare BizFlow BillFlow for barcode POS software in India with retail billing, inventory and local support. Free 14-day trial available.",
+    description: "This offer page is for shops that need barcode billing, stock control, GST invoices, quick checkout, WhatsApp receipts and retail reports.",
+    tags: ["barcode-pos", "billflow", "retail-pos", "inventory"]
+  },
+  {
+    id: "bizflow-clinic-management-software-india-offer",
+    title: "BizFlow Clinic Management Software",
+    url: "https://bizflowindia.cloud/clinic-management-software-india",
+    excerpt: "Try BizFlow OPDFlow for appointments, patient records, prescriptions, billing, lab orders and follow-up communication. Free 14-day trial available.",
+    description: "This offer page helps clinics review OPDFlow for patient registration, appointment queues, prescription records, billing, lab coordination and follow-up workflows.",
+    tags: ["clinic-management", "opdflow", "appointments", "prescriptions"]
+  },
+  {
+    id: "bizflow-cloud-erp-software-india-offer",
+    title: "BizFlow Cloud ERP Software",
+    url: "https://bizflowindia.cloud/cloud-erp-software-india",
+    excerpt: "Try BizFlow Cloud ERP for billing, inventory, purchasing, CRM, finance, HR and operations. Free 14-day trial available.",
+    description: "This offer page is for SMEs that are outgrowing spreadsheets and need connected workflows for billing, inventory, purchasing, CRM, finance, HR and reporting.",
+    tags: ["cloud-erp", "bizflow-erp", "inventory", "operations"]
+  },
+  {
+    id: "bizflow-contractor-management-software-india-offer",
+    title: "BizFlow Contractor Management Software",
+    url: "https://bizflowindia.cloud/contractor-management-software-india",
+    excerpt: "Compare BizFlow ContractorFlow for contractor management software in India with estimates, billing and site workflows. Free 14-day trial available.",
+    description: "This offer page helps contractors check ContractorFlow for project estimates, billing, labor tracking, material use, payment follow-up and site reports.",
+    tags: ["contractor-management", "contractorflow", "construction", "project-billing"]
+  },
+  {
+    id: "bizflow-dairy-management-software-india-offer",
+    title: "BizFlow Dairy Management Software",
+    url: "https://bizflowindia.cloud/dairy-management-software-india",
+    excerpt: "Compare BizFlow DairyFlow for dairy management software in India with milk collection, testing, records and payments. Free 14-day trial available.",
+    description: "This offer page is for dairies that need milk collection records, fat/SNF testing, supplier ledgers, digital payments and dairy reports.",
+    tags: ["dairy-management", "dairyflow", "milk-collection", "payments"]
+  },
+  {
+    id: "bizflow-e-invoicing-software-india-offer",
+    title: "BizFlow E-Invoicing Software",
+    url: "https://bizflowindia.cloud/e-invoicing-software-india",
+    excerpt: "Compare BizFlow BillFlow for e-invoicing software in India with GST billing, inventory and daily workflows. Free 14-day trial available.",
+    description: "This offer page helps businesses review e-invoicing-ready billing workflows for GST invoices, inventory, customer records, payment tracking and reports.",
+    tags: ["e-invoicing", "billflow", "gst-billing", "accounting"]
+  },
+  {
+    id: "bizflow-export-management-software-india-offer",
+    title: "BizFlow Export Management Software",
+    url: "https://bizflowindia.cloud/export-management-software-india",
+    offer: "Free 15-Day Demo",
+    dealType: "Free 15-day demo offer.",
+    excerpt: "Compare BizFlow ExportFlow for export management software in India with documents, shipments and payment follow-up. Free 15-day demo available.",
+    description: "This offer page helps exporters evaluate ExportFlow for export documents, invoices, shipment tracking, multi-currency records, ledgers and reports.",
+    tags: ["export-management", "exportflow", "shipping-management", "free-demo"]
+  },
+  {
+    id: "bizflow-gst-billing-software-india-offer",
+    title: "BizFlow GST Billing Software",
+    url: "https://bizflowindia.cloud/gst-billing-software-india",
+    excerpt: "Try BizFlow BillFlow for GST invoices, stock management, WhatsApp receipts and accounting reports. Free 14-day trial available.",
+    description: "This offer page is for SMEs that need GST billing, inventory, WhatsApp receipts, customer records, accounting reports and practical billing workflows.",
+    tags: ["gst-billing", "billflow", "inventory", "accounting"]
+  },
+  {
+    id: "bizflow-hotel-management-software-india-offer",
+    title: "BizFlow Hotel Management Software",
+    url: "https://bizflowindia.cloud/hotel-management-software-india",
+    excerpt: "Compare BizFlow LodgeFlow for hotel management software in India with rooms, check-ins, billing and reports. Free 14-day trial available.",
+    description: "This offer page helps hotels and lodges review LodgeFlow for room booking, guest check-in, housekeeping, billing, occupancy and daily reports.",
+    tags: ["hotel-management", "lodgeflow", "room-booking", "guest-checkin"]
+  },
+  {
+    id: "bizflow-inventory-management-software-india-offer",
+    title: "BizFlow Inventory Management Software",
+    url: "https://bizflowindia.cloud/inventory-management-software-india",
+    excerpt: "Compare BizFlow ERP for inventory management software in India with stock, purchases, billing and reports. Free 14-day trial available.",
+    description: "This offer page helps businesses review inventory workflows for stock control, purchase records, billing links, reorder visibility and operational reporting.",
+    tags: ["inventory-management", "bizflow-erp", "stock-control", "purchase-management"]
+  },
+  {
+    id: "bizflow-pathology-lab-software-india-offer",
+    title: "BizFlow Pathology Lab Software",
+    url: "https://bizflowindia.cloud/pathology-lab-software-india",
+    excerpt: "Compare BizFlow LabFlow for pathology lab software in India with samples, reports, billing and local support. Free 14-day trial available.",
+    description: "This offer page helps labs check LabFlow for sample registration, report generation, doctor records, billing and lab workflow tracking.",
+    tags: ["pathology-lab", "labflow", "sample-tracking", "reports"]
+  },
+  {
+    id: "bizflow-payment-reminder-software-india-offer",
+    title: "BizFlow Payment Reminder Software",
+    url: "https://bizflowindia.cloud/payment-reminder-software-india",
+    excerpt: "Compare BizFlow Billing for payment reminder software in India with invoices, dues and follow-up workflows. Free 14-day trial available.",
+    description: "This offer page is for businesses that need invoice tracking, due reminders, customer follow-ups, payment history and practical collection workflows.",
+    tags: ["payment-reminder", "billing", "follow-up", "accounts-receivable"]
+  },
+  {
+    id: "bizflow-restaurant-pos-software-india-offer",
+    title: "BizFlow Restaurant POS Software",
+    url: "https://bizflowindia.cloud/restaurant-pos-software-india",
+    excerpt: "Try BizFlow TableFlow for tables, KOT, menu billing, kitchen workflow, GST invoices and customer communication. Free 14-day trial available.",
+    description: "This offer page helps restaurants check TableFlow for table orders, KOT printing, kitchen coordination, billing, GST invoices and restaurant reports.",
+    tags: ["restaurant-pos", "tableflow", "kot-printing", "billing"]
+  },
+  {
+    id: "bizflow-retail-billing-software-india-offer",
+    title: "BizFlow Retail Billing Software",
+    url: "https://bizflowindia.cloud/retail-billing-software-india",
+    excerpt: "Try BizFlow BillFlow for POS billing, barcode support, stock tracking, GST invoices and WhatsApp receipts. Free 14-day trial available.",
+    description: "This offer page is for retail shops that need fast billing, barcode support, stock tracking, GST invoices, returns and receipt sharing.",
+    tags: ["retail-billing", "billflow", "barcode-pos", "gst-billing"]
+  },
+  {
+    id: "bizflow-school-erp-software-india-offer",
+    title: "BizFlow School ERP Software",
+    url: "https://bizflowindia.cloud/school-erp-software-india",
+    excerpt: "Try BizFlow EduFlow for admissions, fees, attendance, exams, communication and school administration. Free 14-day trial available.",
+    description: "This offer page helps schools and colleges review EduFlow for student lifecycle, fees, attendance, exams, communication and institute administration.",
+    tags: ["school-erp", "eduflow", "education-management", "fees"]
+  },
+  {
+    id: "bizflow-tailoring-management-software-india-offer",
+    title: "BizFlow Tailoring Management Software",
+    url: "https://bizflowindia.cloud/tailoring-management-software-india",
+    excerpt: "Compare BizFlow SilaiFlow for tailoring management software in India with measurements, orders and billing. Free 14-day trial available.",
+    description: "This offer page helps tailors and boutiques check SilaiFlow for customer measurements, order tracking, delivery dates, billing and payment follow-up.",
+    tags: ["tailoring-management", "silaiflow", "measurements", "boutique-software"]
+  },
+  {
+    id: "bizflow-whatsapp-crm-india-offer",
+    title: "BizFlow WhatsApp CRM",
+    url: "https://bizflowindia.cloud/whatsapp-crm-india",
+    offer: "Free Demo",
+    dealType: "Special software deal, free demo offer.",
+    excerpt: "Try BizFlow Smart CRM for WhatsApp leads, pipelines, follow-ups and connected customer conversations. Free demo available.",
+    description: "This offer page helps sales teams review WhatsApp CRM workflows for lead capture, pipelines, follow-ups, customer history and connected messaging.",
+    tags: ["whatsapp-crm", "smart-crm", "lead-tracking", "sales-pipeline"]
   }
 ];
 
