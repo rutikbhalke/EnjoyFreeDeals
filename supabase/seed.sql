@@ -262,3 +262,54 @@ on conflict (slug) do update set
   last_scraped_at = excluded.last_scraped_at,
   raw_source_payload = excluded.raw_source_payload,
   updated_at = now();
+
+insert into public.blog_posts (
+  title,
+  slug,
+  excerpt,
+  content,
+  cover_image,
+  category,
+  tags,
+  author_name,
+  status,
+  published_at,
+  meta_description
+)
+values (
+  'ExportFlow Export Management Software Deal: 15-Day Free Demo',
+  'exportflow-15-day-free-demo',
+  'Try ExportFlow for export invoices, shipment tracking, payments and reports with a free 15-day demo. Contact BizFlow India at 8888567870.',
+  $content$Try ExportFlow for export invoices, shipment tracking, payments and reports with a free 15-day demo. Contact BizFlow India at 8888567870.
+
+ExportFlow is an export management software deal for exporters who want GST invoices, proforma invoices, multi-currency payment tracking, shipment and freight tracking, customer ledgers, export cost calculations, and compliance reports in one workflow.
+
+Deal highlight: get a free 15-day demo before choosing a plan. Use the demo to test invoice creation, shipment tracking, payment follow-up, and export reports with your real workflow.
+
+Product link: https://exportflow.mywebz.in/
+
+Contact/demo: https://bizflowindia.cloud/
+
+Mobile: 8888567870
+
+This is listed as a software demo deal so buyers can evaluate the workflow before paying, not as a regular advertisement.$content$,
+  'https://storage.googleapis.com/gpt-engineer-file-uploads/6PFzlUjLQ0ZD0L2f3zOhWk0VaY42/social-images/social-1759382293023-export.JPG',
+  'Platform Guide',
+  array['exportflow', 'export-management', 'software-deal', 'free-demo'],
+  'BizFlow Team',
+  'published',
+  timestamp with time zone '2026-07-10 00:00:00+00',
+  'ExportFlow export management software deal with a free 15-day demo. Manage invoices, shipments, payments and export reports. Contact 8888567870.'
+)
+on conflict (slug) do update set
+  title = excluded.title,
+  excerpt = excluded.excerpt,
+  content = excluded.content,
+  cover_image = excluded.cover_image,
+  category = excluded.category,
+  tags = excluded.tags,
+  author_name = excluded.author_name,
+  status = excluded.status,
+  published_at = excluded.published_at,
+  meta_description = excluded.meta_description,
+  updated_at = now();

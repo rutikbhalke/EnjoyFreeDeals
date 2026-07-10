@@ -1,4 +1,5 @@
 const { supabaseAdmin } = require("../config/supabaseClient");
+const { supabaseProjectRef } = require("../middleware/envValidator");
 const { throwIfSupabaseError } = require("../utils/supabaseErrors");
 
 async function checkSupabase() {
@@ -11,7 +12,7 @@ async function checkSupabase() {
 
   return {
     status: "ok",
-    projectId: process.env.SUPABASE_PROJECT_ID,
+    projectId: process.env.SUPABASE_PROJECT_ID || supabaseProjectRef(process.env.SUPABASE_URL),
     latencyMs: Date.now() - startedAt,
     categoriesCount: count || 0
   };

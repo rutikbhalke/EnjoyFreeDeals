@@ -3,6 +3,11 @@ package com.enjoyfreedeals.app.utils
 fun Throwable.friendlyMessage(default: String = "Something went wrong. Please try again."): String {
     val text = localizedMessage.orEmpty()
     return when {
+        text.contains("ENV_VALIDATION_FAILED", ignoreCase = true) ||
+            text.contains("environment variable", ignoreCase = true) ||
+            text.contains("server configuration", ignoreCase = true) ||
+            text.contains("Supabase is not configured", ignoreCase = true) ->
+            "App service is temporarily unavailable. Please contact support."
         text.contains("backend", ignoreCase = true) ->
             "Backend server is unreachable. Start the backend and use 10.0.2.2 for emulator or your PC Wi-Fi IP for a phone."
         text.contains("network", ignoreCase = true) -> "Please check your internet connection."
