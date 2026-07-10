@@ -277,29 +277,27 @@ insert into public.blog_posts (
   meta_description
 )
 values (
-  'ExportFlow Export Management Software Deal: 15-Day Free Demo',
+  'ExportFlow Software Offer: Free 15-Day Demo',
   'exportflow-15-day-free-demo',
-  'Try ExportFlow for export invoices, shipment tracking, payments and reports with a free 15-day demo. Contact BizFlow India at 8888567870.',
-  $content$Try ExportFlow for export invoices, shipment tracking, payments and reports with a free 15-day demo. Contact BizFlow India at 8888567870.
+  'Get a free 15-day ExportFlow demo for export invoices, shipment tracking, payment follow-up and reports. Demo booking: 8888567870.',
+  $content$Get a free 15-day ExportFlow demo for export invoices, shipment tracking, payment follow-up and reports. Demo booking: 8888567870.
 
-ExportFlow is an export management software deal for exporters who want GST invoices, proforma invoices, multi-currency payment tracking, shipment and freight tracking, customer ledgers, export cost calculations, and compliance reports in one workflow.
+Offer: free 15-day demo access for ExportFlow export management software.
 
-Deal highlight: get a free 15-day demo before choosing a plan. Use the demo to test invoice creation, shipment tracking, payment follow-up, and export reports with your real workflow.
+Use the demo to try GST export invoices, proforma invoices, multi-currency payment tracking, shipment and freight tracking, customer ledgers, export cost calculations, and reports with your real workflow.
 
-Product link: https://exportflow.mywebz.in/
+ExportFlow: https://exportflow.mywebz.in/
 
-Contact/demo: https://bizflowindia.cloud/
+Book demo: https://bizflowindia.cloud/
 
-Mobile: 8888567870
-
-This is listed as a software demo deal so buyers can evaluate the workflow before paying, not as a regular advertisement.$content$,
+Mobile: 8888567870$content$,
   'https://storage.googleapis.com/gpt-engineer-file-uploads/6PFzlUjLQ0ZD0L2f3zOhWk0VaY42/social-images/social-1759382293023-export.JPG',
   'Platform Guide',
-  array['exportflow', 'export-management', 'software-deal', 'free-demo'],
+  array['exportflow', 'export-management', 'software-offer', 'free-demo'],
   'BizFlow Team',
   'published',
   timestamp with time zone '2026-07-10 00:00:00+00',
-  'ExportFlow export management software deal with a free 15-day demo. Manage invoices, shipments, payments and export reports. Contact 8888567870.'
+  'ExportFlow software offer with a free 15-day demo. Manage export invoices, shipments, payments and reports. Demo booking: 8888567870.'
 )
 on conflict (slug) do update set
   title = excluded.title,

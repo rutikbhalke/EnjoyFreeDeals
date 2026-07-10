@@ -20,27 +20,26 @@ export interface BlogPost {
 
 export const EXPORTFLOW_BLOG_DEAL: BlogPost = {
   id: "exportflow-15-day-free-demo",
-  title: "ExportFlow Export Management Software Deal: 15-Day Free Demo",
+  title: "ExportFlow Software Offer: Free 15-Day Demo",
   slug: "exportflow-15-day-free-demo",
-  excerpt: "Try ExportFlow for export invoices, shipment tracking, payments and reports with a free 15-day demo. Contact BizFlow India at 8888567870.",
+  excerpt: "Get a free 15-day ExportFlow demo for export invoices, shipment tracking, payment follow-up and reports. Demo booking: 8888567870.",
   content: [
-    "Try ExportFlow for export invoices, shipment tracking, payments and reports with a free 15-day demo. Contact BizFlow India at 8888567870.",
-    "ExportFlow is an export management software deal for exporters who want GST invoices, proforma invoices, multi-currency payment tracking, shipment and freight tracking, customer ledgers, export cost calculations, and compliance reports in one workflow.",
-    "Deal highlight: get a free 15-day demo before choosing a plan. Use the demo to test invoice creation, shipment tracking, payment follow-up, and export reports with your real workflow.",
-    "Product link: https://exportflow.mywebz.in/",
-    "Contact/demo: https://bizflowindia.cloud/",
+    "Get a free 15-day ExportFlow demo for export invoices, shipment tracking, payment follow-up and reports. Demo booking: 8888567870.",
+    "Offer: free 15-day demo access for ExportFlow export management software.",
+    "Use the demo to try GST export invoices, proforma invoices, multi-currency payment tracking, shipment and freight tracking, customer ledgers, export cost calculations, and reports with your real workflow.",
+    "ExportFlow: https://exportflow.mywebz.in/",
+    "Book demo: https://bizflowindia.cloud/",
     "Mobile: 8888567870",
-    "This is listed as a software demo deal so buyers can evaluate the workflow before paying, not as a regular advertisement.",
   ].join("\n\n"),
   cover_image: "https://storage.googleapis.com/gpt-engineer-file-uploads/6PFzlUjLQ0ZD0L2f3zOhWk0VaY42/social-images/social-1759382293023-export.JPG",
   category: "Platform Guide",
-  tags: ["exportflow", "export-management", "software-deal", "free-demo"],
+  tags: ["exportflow", "export-management", "software-offer", "free-demo"],
   author_name: "BizFlow Team",
   status: "published",
   published_at: "2026-07-10T00:00:00.000Z",
   created_at: "2026-07-10T00:00:00.000Z",
   updated_at: "2026-07-10T00:00:00.000Z",
-  meta_description: "ExportFlow export management software deal with a free 15-day demo. Manage invoices, shipments, payments and export reports. Contact 8888567870.",
+  meta_description: "ExportFlow software offer with a free 15-day demo. Manage export invoices, shipments, payments and reports. Demo booking: 8888567870.",
 };
 
 export function useBlogPosts(category?: string) {
