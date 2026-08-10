@@ -774,4 +774,8 @@ function isMissingColumn(error) {
   return /column .* does not exist|could not find .* column|schema cache/i.test(error?.message || "");
 }
 
+function isHttpUrl(value) {
+  return /^https?:\/\//i.test(String(value || "").trim());
+}
+
 module.exports = { extractPlatformProductId, trackProductPrice };
