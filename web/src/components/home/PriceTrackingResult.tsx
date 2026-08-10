@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
+import { cn, isHttpUrl } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiPost, BackendDeal, TrackPriceResult } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -561,10 +561,6 @@ function formatChartDate(value: string) {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return "";
   return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
-}
-
-function isHttpUrl(value?: string | null) {
-  return /^https?:\/\//i.test(String(value || "").trim());
 }
 
 function uniqueStrings(values: Array<string | null | undefined>) {
