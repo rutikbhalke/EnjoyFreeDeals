@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
@@ -539,18 +539,8 @@ function validStoreComparisons(comparisons: TrackPriceResult["storeComparisons"]
 }
 
 function hasValidPriceData(result: TrackPriceResult | null) {
-  if (
-    result?.status === "live_result" &&
-    String(result.title || "").trim() &&
-    isHttpUrl(result.productUrl)
-  ) {
-    return true;
-  }
-
+  if (!result) return false;
   return Boolean(
-    result &&
-    result.status !== "tracking_started" &&
-    isPositivePrice(result.currentPrice) &&
     String(result.title || "").trim() &&
     isHttpUrl(result.productUrl)
   );
@@ -591,5 +581,3 @@ function normalizeResult(result: TrackPriceResult | null): TrackPriceResult | nu
     relatedDeals: result.relatedDeals || [],
   };
 }
-
-

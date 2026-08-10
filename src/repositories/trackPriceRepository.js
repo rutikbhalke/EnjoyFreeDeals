@@ -117,80 +117,83 @@ async function trackProductPrice(productUrl, userId = null) {
 }
 
 async function tryBuildLiveTrackingSummary({ normalizedUrl, storeName, platformProductId }) {
+  let metadata = {};
   try {
-    const metadata = await fetchProductMetadata(normalizedUrl, { timeoutMs: 12000 });
-    const metadataTitle = cleanText(metadata.title);
-    const blocked = isBlockedLiveMetadata(metadata, storeName);
-    const title = blocked || isBadLiveTitle(metadataTitle) ? titleFromProductUrl(normalizedUrl) : metadataTitle;
-    const productUrl = blocked ? normalizedUrl : normalizeUrl(metadata.finalUrl || normalizedUrl) || normalizedUrl;
-    const currentPrice = metadata.priceReliable ? firstPositiveNumeric(metadata.discountedPrice) : null;
-    const originalPrice = metadata.originalPriceReliable ? firstPositiveNumeric(metadata.originalPrice) : null;
-    const fallbackImageUrl = fallbackImageFromProductUrl(normalizedUrl, storeName);
-    const imageUrl = blocked ? fallbackImageUrl : normalizeUrl(metadata.imageUrl) || metadata.imageUrl || fallbackImageUrl;
-
-    if (!title && !imageUrl && currentPrice == null) return null;
-
-    const relatedDeals = title
-      ? await findLiveRelatedDeals({ title, storeName, productUrl })
-      : [];
-    const storeComparisons = buildLiveStoreComparisons({
-      storeName,
-      currentPrice,
-      productUrl,
-      relatedDeals,
-      title
-    });
-    const priceHistory = currentPrice != null
-      ? [{ price: currentPrice, checkedAt: new Date().toISOString(), storeName, source: "live-product-page" }]
-      : [];
-    const comparisonPrices = storeComparisons.map((item) => item.price).filter((price) => Number.isFinite(price) && price > 0);
-    const allPrices = [...priceHistory.map((point) => point.price), ...comparisonPrices];
-    const lowestPrice = allPrices.length ? Math.min(...allPrices) : currentPrice;
-    const highestPrice = allPrices.length ? Math.max(...allPrices) : firstNumeric(originalPrice, currentPrice);
-    const averagePrice = allPrices.length
-      ? Math.round(allPrices.reduce((sum, price) => sum + price, 0) / allPrices.length)
-      : currentPrice;
-    const discountPercent = safePercent(null, originalPrice, currentPrice);
-
-    return {
-      success: true,
-      status: "live_result",
-      trackingStarted: false,
-      dealId: null,
-      storeName,
-      productUrl,
-      title: title || `${storeName} product`,
-      description: metadata.description || "",
-      imageUrl,
-      images: uniqueStrings([imageUrl]),
-      categoryName: inferCategoryName(`${title} ${storeName}`),
-      currentPrice: currentPrice ?? null,
-      originalPrice: originalPrice ?? null,
-      discountPercent,
-      youSave: originalPrice && currentPrice != null && originalPrice > currentPrice ? Math.round(originalPrice - currentPrice) : null,
-      lowestPrice: lowestPrice ?? null,
-      highestPrice: highestPrice ?? null,
-      averagePrice: averagePrice ?? null,
-      thirtyDayAverage: null,
-      currency: "INR",
-      lastCheckedAt: new Date().toISOString(),
-      historyDays: priceHistory.length ? 1 : 0,
-      dealScore: null,
-      isAllTimeLow: currentPrice != null && lowestPrice != null ? currentPrice <= lowestPrice : false,
-      recommendation: buildRecommendation({ currentPrice, lowestPrice, averagePrice, priceHistory }),
-      priceHistory,
-      storeComparisons,
-      relatedDeals,
-      bestDeal: storeComparisons.find((item) => item.isBest) || null,
-      platformProductId: platformProductId || null,
-      message: currentPrice != null
-        ? "Live product details loaded. More price history will appear after future checks."
-        : "Product details loaded from the pasted URL. We will keep tracking for verified price updates."
-    };
+    metadata = await fetchProductMetadata(normalizedUrl, { timeoutMs: 10000 });
   } catch (error) {
-    console.warn("[track-price] live product metadata skipped:", error.message || error);
-    return null;
+    console.warn("[track-price] live product metadata fetch error:", error.message || error);
   }
+
+  const metadataTitle = cleanText(metadata.title);
+  const urlTitle = titleFromProductUrl(normalizedUrl);
+  const blocked = isBlockedLiveMetadata(metadata, storeName);
+  const title = !blocked && !isBadLiveTitle(metadataTitle) ? metadataTitle : (urlTitle || `${storeName} product`);
+  const productUrl = blocked ? normalizedUrl : (normalizeUrl(metadata.finalUrl || normalizedUrl) || normalizedUrl);
+  const currentPrice = metadata.priceReliable ? firstPositiveNumeric(metadata.discountedPrice) : null;
+  const originalPrice = metadata.originalPriceReliable ? firstPositiveNumeric(metadata.originalPrice) : null;
+  const fallbackImageUrl = getPlatformLogo(storeName) || fallbackImageFromProductUrl(normalizedUrl, storeName);
+  const imageUrl = !blocked && isHttpUrl(metadata.imageUrl) ? metadata.imageUrl : fallbackImageUrl;
+
+  const relatedDeals = title
+    ? await findLiveRelatedDeals({ title, storeName, productUrl }).catch(() => [])
+    : [];
+
+  const storeComparisons = buildLiveStoreComparisons({
+    storeName,
+    currentPrice,
+    productUrl,
+    relatedDeals,
+    title
+  });
+
+  const priceHistory = currentPrice != null
+    ? [{ price: currentPrice, checkedAt: new Date().toISOString(), storeName, source: "live-product-page" }]
+    : [];
+
+  const comparisonPrices = storeComparisons.map((item) => item.price).filter((price) => Number.isFinite(price) && price > 0);
+  const allPrices = [...priceHistory.map((point) => point.price), ...comparisonPrices];
+  const lowestPrice = allPrices.length ? Math.min(...allPrices) : currentPrice;
+  const highestPrice = allPrices.length ? Math.max(...allPrices) : firstNumeric(originalPrice, currentPrice);
+  const averagePrice = allPrices.length
+    ? Math.round(allPrices.reduce((sum, price) => sum + price, 0) / allPrices.length)
+    : currentPrice;
+  const discountPercent = safePercent(null, originalPrice, currentPrice);
+
+  return {
+    success: true,
+    status: "live_result",
+    trackingStarted: false,
+    dealId: null,
+    storeName,
+    productUrl,
+    title: title || `${storeName} Product`,
+    description: metadata.description || `Live price tracking for ${title} on ${storeName}.`,
+    imageUrl: imageUrl || fallbackImageUrl,
+    images: uniqueStrings([imageUrl, fallbackImageUrl].filter(Boolean)),
+    categoryName: inferCategoryName(`${title} ${storeName}`),
+    currentPrice: currentPrice ?? lowestPrice ?? null,
+    originalPrice: originalPrice ?? highestPrice ?? null,
+    discountPercent,
+    youSave: originalPrice && currentPrice != null && originalPrice > currentPrice ? Math.round(originalPrice - currentPrice) : null,
+    lowestPrice: lowestPrice ?? currentPrice ?? null,
+    highestPrice: highestPrice ?? originalPrice ?? null,
+    averagePrice: averagePrice ?? currentPrice ?? null,
+    thirtyDayAverage: null,
+    currency: "INR",
+    lastCheckedAt: new Date().toISOString(),
+    historyDays: priceHistory.length ? 1 : 0,
+    dealScore: null,
+    isAllTimeLow: currentPrice != null && lowestPrice != null ? currentPrice <= lowestPrice : false,
+    recommendation: buildRecommendation({ currentPrice, lowestPrice, averagePrice, priceHistory }),
+    priceHistory,
+    storeComparisons,
+    relatedDeals,
+    bestDeal: storeComparisons.find((item) => item.isBest) || null,
+    platformProductId: platformProductId || null,
+    message: currentPrice != null
+      ? "Live product details loaded. More price history will appear after future checks."
+      : "Product details loaded from link. Compare prices across stores below."
+  };
 }
 
 async function findTrackedProduct(normalizedUrl, platformProductId, storeName) {
