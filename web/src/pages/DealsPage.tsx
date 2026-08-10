@@ -87,6 +87,15 @@ export default function DealsPage() {
             name: "All Deals",
             url: `${SITE_URL}/deals`,
             description: "Browse the latest deals, coupons and cashback offers.",
+            isPartOf: { "@id": `${SITE_URL}/#website` },
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
+              { "@type": "ListItem", position: 2, name: "Deals" },
+            ],
           },
           ...(deals.length > 0 ? [{
             "@context": "https://schema.org",

@@ -11,9 +11,21 @@ Disallow: /savings/
 
 User-agent: Googlebot
 Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /preview/
+Disallow: /auth/
+Disallow: /profile/
+Disallow: /savings/
 
 User-agent: Bingbot
 Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /preview/
+Disallow: /auth/
+Disallow: /profile/
+Disallow: /savings/
 
 User-agent: Twitterbot
 Allow: /
@@ -23,24 +35,66 @@ Allow: /
 
 User-agent: GPTBot
 Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /preview/
+Disallow: /auth/
+Disallow: /profile/
+Disallow: /savings/
 
 User-agent: ChatGPT-User
 Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /preview/
+Disallow: /auth/
+Disallow: /profile/
+Disallow: /savings/
 
 User-agent: Google-Extended
 Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /preview/
+Disallow: /auth/
+Disallow: /profile/
+Disallow: /savings/
 
 User-agent: PerplexityBot
 Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /preview/
+Disallow: /auth/
+Disallow: /profile/
+Disallow: /savings/
 
 User-agent: anthropic-ai
 Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /preview/
+Disallow: /auth/
+Disallow: /profile/
+Disallow: /savings/
 
 User-agent: ClaudeBot
 Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /preview/
+Disallow: /auth/
+Disallow: /profile/
+Disallow: /savings/
 
 User-agent: Claude
 Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /preview/
+Disallow: /auth/
+Disallow: /profile/
+Disallow: /savings/
 
 Crawl-delay: 1
 

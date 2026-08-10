@@ -16,6 +16,9 @@ export interface BlogPost {
   created_at: string;
   updated_at: string;
   meta_description: string | null;
+  offer?: string;
+  deal_url?: string;
+  deal_phone?: string;
 }
 
 type SoftwareDealProduct = {
@@ -37,6 +40,63 @@ const EXPORTFLOW_IMAGE = "/exportflow-document-hub.png";
 const DEFAULT_OFFER = "Free 14-Day Trial";
 const DEFAULT_DEAL_TYPE = "Special software deal, free 14-day trial offer.";
 const BIZFLOW_DEAL_TAGS = ["bizflow", "software-deal", "special-offer", "free-trial"];
+
+function createProductBannerSvg(title: string, offerText: string, tag: string): string {
+  const cleanTitle = title.replace(" Software", "").replace(" Offer", "");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675">
+    <defs>
+      <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#0f172a" />
+        <stop offset="50%" stop-color="#1e1b4b" />
+        <stop offset="100%" stop-color="#311042" />
+      </linearGradient>
+      <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#6366f1" />
+        <stop offset="100%" stop-color="#a855f7" />
+      </linearGradient>
+      <linearGradient id="badgeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="#22c55e" />
+        <stop offset="100%" stop-color="#10b981" />
+      </linearGradient>
+      <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+        <feDropShadow dx="0" dy="10" stdDeviation="15" flood-color="#000" flood-opacity="0.5" />
+      </filter>
+    </defs>
+    <rect width="1200" height="675" fill="url(#bg)" />
+    <circle cx="1000" cy="150" r="300" fill="#6366f1" opacity="0.18" />
+    <circle cx="200" cy="550" r="250" fill="#a855f7" opacity="0.15" />
+    
+    <text x="70" y="90" fill="#a5b4fc" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="700" letter-spacing="3">BIZFLOW INDIA • EXCLUSIVE SOFTWARE DEAL</text>
+    
+    <rect x="70" y="130" width="1060" height="465" rx="24" fill="#1e293b" fill-opacity="0.75" stroke="#475569" stroke-width="2" filter="url(#shadow)" />
+    
+    <rect x="110" y="170" width="240" height="42" rx="21" fill="url(#accent)" />
+    <text x="230" y="197" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="700" text-anchor="middle">${tag.toUpperCase()}</text>
+
+    <rect x="780" y="165" width="310" height="50" rx="14" fill="url(#badgeGrad)" />
+    <text x="935" y="197" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="800" text-anchor="middle">🔥 ${offerText.toUpperCase()}</text>
+
+    <text x="110" y="280" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="42" font-weight="800">${cleanTitle}</text>
+    <text x="110" y="340" fill="#cbd5e1" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="400">Complete Business ERP &amp; Billing Solution for Indian SMEs</text>
+
+    <line x1="110" y1="380" x2="1050" y2="380" stroke="#334155" stroke-width="2" />
+
+    <rect x="110" y="420" width="200" height="44" rx="10" fill="#0f172a" stroke="#334155" />
+    <text x="210" y="448" fill="#38bdf8" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" text-anchor="middle">⚡ GST Billing</text>
+
+    <rect x="330" y="420" width="210" height="44" rx="10" fill="#0f172a" stroke="#334155" />
+    <text x="435" y="448" fill="#38bdf8" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" text-anchor="middle">📲 WhatsApp Sync</text>
+
+    <rect x="560" y="420" width="210" height="44" rx="10" fill="#0f172a" stroke="#334155" />
+    <text x="665" y="448" fill="#38bdf8" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="600" text-anchor="middle">📊 Cloud Analytics</text>
+
+    <text x="110" y="530" fill="#94a3b8" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="500">Free Demo Helpline: +91 8888567870 • Official bizflowindia.cloud</text>
+
+    <rect x="850" y="495" width="240" height="52" rx="14" fill="#ef4444" />
+    <text x="970" y="528" fill="#ffffff" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="800" text-anchor="middle">CLAIM OFFER 👉</text>
+  </svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
 
 const BIZFLOW_SOFTWARE_PRODUCTS: SoftwareDealProduct[] = [
   {
@@ -452,20 +512,49 @@ function toStaticBlogDeal(product: SoftwareDealProduct): BlogPost {
   const offer = product.offer || DEFAULT_OFFER;
   const dealType = product.dealType || DEFAULT_DEAL_TYPE;
   const tags = Array.from(new Set([...product.tags, ...BIZFLOW_DEAL_TAGS]));
+  const primaryTag = product.tags[0] || "Software Deal";
+  const coverImage = product.image || createProductBannerSvg(product.title, offer, primaryTag);
+
+  const richContent = `
+## 🌟 Special Software Deal Overview
+${product.description}
+
+### 🔥 Special Offer Details & Benefits
+- **Deal Offer**: **${offer}**
+- **Deal Type**: ${dealType}
+- **Official Software Page**: [Visit BizFlow India](${product.url})
+- **Helpline & Free Demo Call**: **+91 8888567870** (Available in English, Hindi & Marathi)
+- **Supported Platforms**: Cloud Web App, Desktop (Windows POS / Offline), Mobile (Android & iOS)
+
+---
+
+### 🚀 Key Features & Capabilities
+- **GST Billing & Quick Invoicing**: Create GST invoices, e-way bills, e-invoices, and share directly via WhatsApp.
+- **Inventory & Barcode Management**: Track real-time stock, batch expiry, reorder levels, and scan barcodes effortlessly.
+- **Automated Payment Reminders**: Send WhatsApp & SMS due reminders to collect payments faster.
+- **Multi-Device & User Permissions**: Enable multi-store setups, cashier restrictions, and role-based admin access.
+- **Comprehensive Reports**: Access 30+ business reports including GSTR-1, GSTR-3B, Profit/Loss, and daily ledger.
+
+---
+
+### 💡 Why Choose ${product.title}?
+Designed specifically for Indian SMEs, retailers, clinics, coaching institutes, and businesses, **${product.title}** helps you step away from manual registers and fragmented spreadsheets. Backed by local support in Sangamner & Maharashtra, setup takes under 5 minutes with zero hassle.
+
+---
+
+### 📞 How to Claim This Software Offer
+1. Click **"Claim Offer Now"** or **"Visit Official Site"** on this deal page.
+2. Select your business type and activate your **${offer}**.
+3. Call **+91 8888567870** or email \`hello@bizflowindia.cloud\` for free onboarding & live product demonstration!
+`;
+
   return {
     id: product.id,
     title: `${product.title} Offer: ${offer}`,
     slug: product.id,
     excerpt: product.excerpt,
-    content: [
-      product.excerpt,
-      `Deal type: ${dealType}`,
-      product.description,
-      `${product.title}: ${product.url}`,
-      "Book demo: https://bizflowindia.cloud/",
-      "Mobile: 8888567870",
-    ].join("\n\n"),
-    cover_image: product.image || BIZFLOW_IMAGE,
+    content: richContent.trim(),
+    cover_image: coverImage,
     category: "Software Deals",
     tags,
     author_name: "BizFlow Team",
@@ -474,6 +563,9 @@ function toStaticBlogDeal(product: SoftwareDealProduct): BlogPost {
     created_at: PUBLISHED_AT,
     updated_at: PUBLISHED_AT,
     meta_description: `${product.title} offer with ${offer.toLowerCase()}. ${product.excerpt}`,
+    offer: offer,
+    deal_url: product.url,
+    deal_phone: "8888567870",
   };
 }
 

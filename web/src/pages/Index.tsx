@@ -23,6 +23,7 @@ export default function Index() {
   const websiteJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
+    "@id": `${SITE_URL}/#website`,
     name: SITE_NAME,
     url: SITE_URL,
     description: "Best deals, coupons, and cashback offers from top Indian stores.",
@@ -37,6 +38,7 @@ export default function Index() {
   const orgJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
+    "@id": `${SITE_URL}/#organization`,
     name: SITE_NAME,
     url: SITE_URL,
     logo: `${SITE_URL}/logo.png`,

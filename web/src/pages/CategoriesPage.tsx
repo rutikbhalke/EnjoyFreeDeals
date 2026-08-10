@@ -14,10 +14,45 @@ const iconMap: Record<string, LucideIcon> = {
 
 export default function CategoriesPage() {
   const { data: categories, isLoading } = useCategories();
+  const jsonLd: Record<string, any>[] = [
+    {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      name: "Deal Categories",
+      description: "Browse deals by category on EnjoyFreeDeals.",
+      url: `${SITE_URL}/categories`,
+      isPartOf: { "@id": `${SITE_URL}/#website` },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
+        { "@type": "ListItem", position: 2, name: "Categories" },
+      ],
+    },
+    ...(categories && categories.length > 0 ? [{
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      name: "Deal Categories",
+      numberOfItems: categories.length,
+      itemListElement: categories.map((category, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        name: category.name,
+        url: `${SITE_URL}/deals?category=${category.slug}`,
+      })),
+    }] : []),
+  ];
 
   return (
     <MainLayout>
-      <SEO title="Categories" description="Explore deal categories on EnjoyFreeDeals — electronics, fashion, food, travel, health & more." canonical={`${SITE_URL}/categories`} />
+      <SEO
+        title="Deal Categories"
+        description="Explore the best deals by category on EnjoyFreeDeals, including electronics, fashion, food, travel, health, home and more."
+        canonical={`${SITE_URL}/categories`}
+        jsonLd={jsonLd}
+      />
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <h1 className="font-display text-3xl font-bold">All Categories</h1>

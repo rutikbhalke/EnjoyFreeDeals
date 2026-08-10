@@ -22,18 +22,36 @@ export default function StoresPage() {
         title="Stores"
         description="Browse all partner stores on EnjoyFreeDeals and find exclusive cashback deals, coupons and discounts."
         canonical={`${SITE_URL}/stores`}
-        jsonLd={filtered && filtered.length > 0 ? {
-          "@context": "https://schema.org",
-          "@type": "ItemList",
-          name: "All Stores",
-          numberOfItems: filtered.length,
-          itemListElement: filtered.slice(0, 10).map((store, i) => ({
-            "@type": "ListItem",
-            position: i + 1,
-            url: `${SITE_URL}/deals?store=${store.slug}`,
-            name: store.name,
-          })),
-        } : undefined}
+        jsonLd={[
+          {
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            name: "Partner Stores",
+            description: "Browse partner stores and their latest deals, coupons and cashback offers.",
+            url: `${SITE_URL}/stores`,
+            isPartOf: { "@id": `${SITE_URL}/#website` },
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
+              { "@type": "ListItem", position: 2, name: "Stores" },
+            ],
+          },
+          ...(filtered && filtered.length > 0 ? [{
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            name: "All Stores",
+            numberOfItems: filtered.length,
+            itemListElement: filtered.slice(0, 20).map((store, i) => ({
+              "@type": "ListItem",
+              position: i + 1,
+              url: `${SITE_URL}/deals?store=${store.slug}`,
+              name: store.name,
+            })),
+          }] : []),
+        ]}
       />
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
