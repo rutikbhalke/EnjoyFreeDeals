@@ -1,0 +1,1 @@
+import{ac as a,bb as i,ad as s,ae as t,af as e}from"./index-DpUz3LCd.js";var x=a({chartName:"BarChart",GraphicalChild:i,defaultTooltipEventType:"axis",validateTooltipEventTypes:["axis","item"],axisComponents:[{axisType:"xAxis",AxisComp:s},{axisType:"yAxis",AxisComp:t}],formatAxisMap:e});export{x as B};

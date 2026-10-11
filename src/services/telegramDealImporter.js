@@ -2,6 +2,31 @@ const { supabaseAdmin } = require("../config/supabaseClient");
 const { throwIfSupabaseError } = require("../utils/supabaseErrors");
 const { detectCategory } = require("../../lib/categoryDetector");
 
+const CORE_DEAL_COLUMNS = new Set([
+  'id', 'title', 'slug', 'description', 'store_id', 'category_id',
+  'original_price', 'discounted_price', 'discount_percentage', 'coupon_code',
+  'cashback_percentage', 'affiliate_link', 'image_url', 'expiry_date',
+  'status', 'is_featured', 'is_verified', 'click_count', 'submitted_by',
+  'created_at', 'updated_at', 'source', 'vote_score', 'source_product_id',
+  'source_url', 'dedupe_key', 'last_scraped_at', 'raw_source_payload',
+  'canonical_product_id', 'source_post_url', 'clean_product_url',
+  'our_affiliate_url', 'affiliate_network', 'is_our_affiliate_link',
+  'third_party_affiliate_detected', 'monetization_status', 'hot_score',
+  'freshness_score', 'trust_score', 'last_validated_at', 'validation_status',
+  'source_posted_at'
+]);
+
+function filterDealColumns(payload) {
+  const filtered = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (CORE_DEAL_COLUMNS.has(key)) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
+}
+
+
 const SOURCE_KEY = "telegram_enjoyfreedeals";
 const SOURCE_NAME = "EnjoyFreeDeals Telegram";
 const SOURCE_URL = "https://t.me/+X925uAMEGvgwOWY1";
@@ -97,7 +122,7 @@ async function scrapeGenieLootPage(options = {}) {
     const failedPages = pageResults.filter((result) => result.status === "failed");
     const messages = successfulPages.flatMap((group) => group.messages);
     const allDeals = telegramPageMessagesToDeals(messages, source);
-    const deals = selectBestDeals(allDeals, bestFraction);
+    const deals = selectBestDeals(allDeals, bestFraction, options);
     const selectedKeys = new Set(deals.map((deal) => deal.dedupeKey));
     const rejectedDeals = allDeals.filter((deal) => !selectedKeys.has(deal.dedupeKey));
 
@@ -333,7 +358,8 @@ async function fetchTelegramReaderMessages(pageUrl, maxPages) {
 }
 
 function readerUrl(url) {
-  return `https://r.jina.ai/http://r.jina.ai/http://${url}`;
+  const safe = String(url || "").trim();
+  return /^https?:\/\//i.test(safe) ? `https://r.jina.ai/${safe}` : `https://r.jina.ai/https://${safe}`;
 }
 
 async function fetchText(url) {
@@ -470,7 +496,10 @@ function telegramPageMessagesToDeals(messages, source) {
   return uniqueBy(deals, (deal) => deal.sourceProductId);
 }
 
-function selectBestDeals(deals, fraction = DEFAULT_BEST_DEAL_FRACTION) {
+function selectBestDeals(deals, fraction = DEFAULT_BEST_DEAL_FRACTION, options = {}) {
+  if (fraction >= 1 || options.keepAll || options.allDeals || process.env.GENIE_LOOT_BEST_DEAL_FRACTION === "1") {
+    return uniqueBy(deals, (deal) => deal.dedupeKey || deal.sourceProductId);
+  }
   const uniqueDeals = uniqueBy(deals, (deal) => deal.dedupeKey || deal.sourceProductId);
   if (uniqueDeals.length <= 1) return uniqueDeals;
 
@@ -701,7 +730,8 @@ function telegramMessageToDeal(update, message, source) {
     couponCode ||
     /\b(deal|offer|sale|discount|coupon|cashback|loot)\b/i.test(text);
 
-  if (!hasDealSignal || (prices.discountedPrice <= 0 && !prices.isFree)) return null;
+  if (!hasDealSignal) return null;
+  if (prices.discountedPrice <= 0 && !prices.isFree && !isProductUrl(productUrl)) return null;
 
   const title = extractTitle(rawText);
   if (!title) return null;
@@ -778,24 +808,11 @@ async function upsertDeal(deal) {
     cashback_percentage: deal.cashbackPercentage,
     affiliate_link: deal.affiliateLink,
     image_url: imageUrl,
-    source_image_url: sourceImageUrl,
-    platform_product_url: deal.affiliateLink,
     expiry_date: deal.expiryDate,
-    platform_expires_at: deal.expiryDate,
-    status: requiresReview ? "pending_review" : "approved",
+    status: requiresReview ? "pending" : "active",
     is_featured: deal.isFeatured,
     is_verified: !requiresReview,
-    is_valid: !requiresReview,
-    validation_flags: validationFlags,
-    admin_review_status: requiresReview ? "needs_review" : "approved",
-    source_type: "telegram",
-    source_channel: deal.rawPayload?.telegramChannel || deal.rawPayload?.telegramChatUsername || "",
-    telegram_post_url: deal.rawPayload?.telegramPostUrl || "",
-    price_status: Number(deal.discountedPrice || 0) > 0 ? "detected" : "manual_required",
-    price_min: null,
-    price_max: null,
     updated_at: now,
-    fetched_at: now,
     source: deal.dealType,
     source_product_id: deal.sourceProductId,
     source_url: deal.sourceUrl,
@@ -806,14 +823,25 @@ async function upsertDeal(deal) {
       imageUrl,
       sourceImageUrl,
       validation_flags: validationFlags,
-      admin_review_status: requiresReview ? "needs_review" : "approved"
+      admin_review_status: requiresReview ? "needs_review" : "approved",
+      source_type: "telegram",
+      source_channel: deal.rawPayload?.telegramChannel || deal.rawPayload?.telegramChatUsername || "",
+      telegram_post_url: deal.rawPayload?.telegramPostUrl || "",
+      price_status: Number(deal.discountedPrice || 0) > 0 ? "detected" : "manual_required",
+      price_min: null,
+      price_max: null,
+      platform_expires_at: deal.expiryDate,
+      platform_product_url: deal.affiliateLink,
+      is_valid: !requiresReview
     }
   };
+
+  const cleanPayload = filterDealColumns(payload);
 
   if (existing?.id) {
     const { data, error } = await supabaseAdmin
       .from("deals")
-      .update(payload)
+      .update(cleanPayload)
       .eq("id", existing.id)
       .select("id")
       .single();
@@ -824,7 +852,7 @@ async function upsertDeal(deal) {
 
   const { data, error } = await supabaseAdmin
     .from("deals")
-    .insert({ ...payload, created_at: now })
+    .insert({ ...cleanPayload, created_at: now })
     .select("id")
     .single();
 
@@ -844,6 +872,7 @@ async function findExistingDeal(dedupeKey) {
 }
 
 async function deactivateRejectedDeals(deals) {
+  if (process.env.GENIE_LOOT_REJECT_UNSELECTED !== "true") return 0;
   const dedupeKeys = uniqueBy(deals, (deal) => deal.dedupeKey)
     .map((deal) => deal.dedupeKey)
     .filter(Boolean);

@@ -9,8 +9,10 @@
     "build": "npm run check:deploy && npm run build:web:public",
     "build:web:public": "npm --prefix web ci --include=dev && npm --prefix web run build && node scripts/copy-web-dist-to-public.js",
     "check": "node --check src/server.js",
-    "check:deploy": "node --check src/server.js && node --check src/app.js && node --check src/controllers/compatApiController.js && node --check src/controllers/telegramScraperController.js && node --check src/controllers/priceHistoryController.js && node --check src/controllers/trackPriceController.js && node --check src/routes/priceHistoryRoutes.js && node --check src/routes/trackPriceRoutes.js && node --check src/repositories/trackPriceRepository.js && node --check lib/telegramScraper.js && node --check lib/dealParser.js && node --check api/index.js && node --check scripts/sync-genie-loot.js",
+    "check:deploy": "node --check src/server.js && node --check src/app.js && node --check src/controllers/compatApiController.js && node --check src/controllers/telegramScraperController.js && node --check src/controllers/priceHistoryController.js && node --check src/controllers/trackPriceController.js && node --check src/routes/priceHistoryRoutes.js && node --check src/routes/trackPriceRoutes.js && node --check src/repositories/trackPriceRepository.js && node --check lib/telegramScraper.js && node --check lib/dealParser.js && node --check api/index.js && node --check scripts/sync-genie-loot.js && node --check scripts/sync-price-tracking.js",
     "sync:genie-loot": "node scripts/sync-genie-loot.js",
+    "sync:price-tracking": "node scripts/sync-price-tracking.js",
+    "test": "node --test test/**/*.test.js",
     "pm2:start": "pm2 start ecosystem.config.cjs",
     "pm2:restart": "pm2 restart enjoyfreedeals-api",
     "vercel:deploy": "npx vercel --prod"
@@ -19,6 +21,7 @@
     "@supabase/supabase-js": "^2.49.4",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "pg": "^8.23.1"
   }
 }

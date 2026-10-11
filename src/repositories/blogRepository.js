@@ -479,4 +479,4 @@ function toApiBlog(row) {
   };
 }
 
-module.exports = { listPublishedBlogs };
+module.exports = { listPublishedBlogs, listBlogs: listPublishedBlogs };

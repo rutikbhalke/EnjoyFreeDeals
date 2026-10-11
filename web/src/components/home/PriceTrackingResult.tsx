@@ -4,6 +4,8 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "rec
 import {
   BadgeCheck,
   BarChart3,
+  Bell,
+  BellRing,
   CalendarClock,
   ExternalLink,
   IndianRupee,
@@ -18,12 +20,15 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { cn, isHttpUrl } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiPost, BackendDeal, TrackPriceResult } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { getUserId, isLoggedIn } from "@/lib/auth";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 type Props = {
   result: TrackPriceResult | null;
@@ -165,25 +170,89 @@ export function ProductSummary({ result }: { result: TrackPriceResult }) {
   const hasCurrentPrice = isPositivePrice(result.currentPrice);
   const lowMatch = hasCurrentPrice && Boolean(result.isAllTimeLow);
   const checkedText = result.lastCheckedAt ? new Date(result.lastCheckedAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : "Not checked yet";
-  const handleSetAlert = async () => {
+  const navigate = useNavigate();
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [alertSaving, setAlertSaving] = useState(false);
+  const [alertActive, setAlertActive] = useState(false);
+  const [targetPrice, setTargetPrice] = useState<string>("");
+
+  const currentPriceNum = Number(result.currentPrice ?? result.lowestPrice ?? 0);
+  const defaultTarget = currentPriceNum > 0 ? Math.round(currentPriceNum * 0.95) : 0;
+
+  useEffect(() => {
+    if (currentPriceNum > 0 && !targetPrice) {
+      setTargetPrice(String(defaultTarget));
+    }
+  }, [currentPriceNum]);
+
+  const handleOpenAlert = () => {
     const userId = isLoggedIn() ? getUserId() : user?.id || null;
-    if (!userId || !result.dealId || !Number.isFinite(Number(result.currentPrice ?? result.lowestPrice))) {
-      toast({ title: "Price alert feature coming soon", description: "We could not create an alert from this tracking result yet." });
+    if (!userId) {
+      toast({
+        title: "Sign in required",
+        description: "Please sign in to set price drop alerts."
+      });
+      navigate("/login");
+      return;
+    }
+    if (!targetPrice && currentPriceNum > 0) {
+      setTargetPrice(String(defaultTarget));
+    }
+    setIsAlertOpen(true);
+  };
+
+  const handleSaveAlert = async () => {
+    const userId = isLoggedIn() ? getUserId() : user?.id || null;
+    if (!userId) {
+      navigate("/login");
       return;
     }
 
+    const priceNum = Number(targetPrice);
+    if (!Number.isFinite(priceNum) || priceNum <= 0) {
+      toast({
+        title: "Invalid target price",
+        description: "Please enter a valid price to receive alerts.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setAlertSaving(true);
     try {
+      let dealId = result.dealId;
+      if (!dealId) {
+        const tracked = await apiPost<TrackPriceResult>("/api/track-price", {
+          productUrl: result.productUrl,
+          userId
+        });
+        dealId = tracked.dealId;
+      }
+
+      if (!dealId) {
+        throw new Error("Could not link product to price alerts. Please try again.");
+      }
+
       await apiPost("/api/price-alerts", {
         userId,
-        dealId: result.dealId,
-        targetPrice: Number(result.lowestPrice ?? result.currentPrice ?? 0)
+        dealId,
+        targetPrice: priceNum
       });
-      toast({ title: "Price alert created", description: "We will watch this deal for price drops." });
+
+      setAlertActive(true);
+      setIsAlertOpen(false);
+      toast({
+        title: "Price alert activated! 🔔",
+        description: `We will notify you when price drops to ₹${priceNum.toLocaleString("en-IN")}.`
+      });
     } catch (error) {
       toast({
-        title: "Price alert feature coming soon",
-        description: error instanceof Error ? error.message : "We could not create an alert from this result.",
+        title: "Price alert could not be saved",
+        description: error instanceof Error ? error.message : "Please try again later.",
+        variant: "destructive"
       });
+    } finally {
+      setAlertSaving(false);
     }
   };
 
@@ -234,13 +303,90 @@ export function ProductSummary({ result }: { result: TrackPriceResult }) {
               </a>
             </Button>
           )}
-          {result.dealId && (
-            <Button variant="outline" className="gap-2" onClick={handleSetAlert}>
-              Set Alert
-              <Sparkles className="h-4 w-4" />
+          {hasCurrentPrice && (
+            <Button
+              variant={alertActive ? "secondary" : "outline"}
+              className="gap-2"
+              onClick={handleOpenAlert}
+            >
+              {alertActive ? <BellRing className="h-4 w-4 text-emerald-600" /> : <Sparkles className="h-4 w-4" />}
+              {alertActive ? `Alert Active (₹${Number(targetPrice).toLocaleString("en-IN")})` : "Set Price Alert"}
             </Button>
           )}
         </div>
+
+        <Dialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Bell className="h-5 w-5 text-emerald-600" />
+                Set Price Drop Alert
+              </DialogTitle>
+              <DialogDescription>
+                We will monitor {result.storeName || "store"} and notify you when the price drops below your target.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg border border-border bg-muted/40 p-3">
+                <div className="text-xs uppercase text-muted-foreground">Product</div>
+                <div className="font-medium text-sm line-clamp-2 mt-1">{result.title}</div>
+                <div className="mt-2 text-sm text-muted-foreground">
+                  Current Price: <span className="font-bold text-foreground">{formatCurrency(result.currentPrice, result.currency)}</span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="targetPrice">Target Price (₹)</Label>
+                <Input
+                  id="targetPrice"
+                  type="number"
+                  value={targetPrice}
+                  onChange={(e) => setTargetPrice(e.target.value)}
+                  placeholder="e.g. 999"
+                />
+              </div>
+
+              {currentPriceNum > 0 && (
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setTargetPrice(String(Math.round(currentPriceNum * 0.95)))}
+                  >
+                    5% Drop (₹{Math.round(currentPriceNum * 0.95)})
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setTargetPrice(String(Math.round(currentPriceNum * 0.9)))}
+                  >
+                    10% Drop (₹{Math.round(currentPriceNum * 0.9)})
+                  </Button>
+                  {Number(result.lowestPrice) > 0 && Number(result.lowestPrice) < currentPriceNum && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setTargetPrice(String(Number(result.lowestPrice)))}
+                    >
+                      Lowest (₹{result.lowestPrice})
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button type="button" variant="ghost" onClick={() => setIsAlertOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="button" className="bg-emerald-600 hover:bg-emerald-700" onClick={handleSaveAlert} disabled={alertSaving}>
+                {alertSaving ? "Saving..." : "Start Tracking"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Separator />
 

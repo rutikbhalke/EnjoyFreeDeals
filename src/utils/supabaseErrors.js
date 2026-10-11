@@ -2,7 +2,8 @@ function isMissingTableError(error) {
   if (!error) return false;
   return ["42P01", "PGRST106", "PGRST205"].includes(error.code) ||
     /relation .* does not exist/i.test(error.message || "") ||
-    /could not find the table/i.test(error.message || "");
+    /could not find the table/i.test(error.message || "") ||
+    /schema cache/i.test(error.message || "");
 }
 
 function normalizeSupabaseError(error, tableName) {

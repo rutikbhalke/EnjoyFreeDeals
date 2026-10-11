@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import MainLayout from "@/components/layout/MainLayout";
@@ -9,31 +9,33 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Wallet, Copy, Check, User, Save, TrendingUp, Send, ExternalLink, Clock, CheckCircle2, XCircle, ThumbsUp } from "lucide-react";
+import { Wallet, Copy, Check, User, Save, TrendingUp, Send, ExternalLink, Clock, CheckCircle2, XCircle, ThumbsUp, Bell } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import SEO, { SITE_URL } from "@/components/SEO";
-import { fetchUpvotedDeals } from "@/lib/api";
+import { fetchUpvotedDeals, fetchPriceAlerts, removePriceAlert } from "@/lib/api";
 import { getUserId } from "@/lib/auth";
 
 export default function ProfilePage() {
   const { user, profile, mobileSession, displayName, displayMobile, isMobileLoggedIn } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [fullName, setFullName] = useState(profile?.full_name ?? "");
+  const [fullName, setFullName] = useState(profile?.full_name ?? mobileSession?.full_name ?? "");
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? "");
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Keep form in sync when profile loads
-  useState(() => {
+  // Keep form in sync when profile or mobile session loads
+  useEffect(() => {
     if (profile) {
       setFullName(profile.full_name ?? "");
       setAvatarUrl(profile.avatar_url ?? "");
+    } else if (mobileSession?.full_name) {
+      setFullName(mobileSession.full_name);
     }
-  });
+  }, [profile, mobileSession]);
 
   const { data: wallet } = useQuery({
     queryKey: ["wallet", user?.id],
@@ -69,6 +71,28 @@ export default function ProfilePage() {
     enabled: Boolean(upvotedUserId),
     queryFn: () => fetchUpvotedDeals(upvotedUserId),
   });
+
+  const alertsUserId = user?.id || (isMobileLoggedIn ? getUserId() : "") || getUserId();
+  const { data: priceAlerts = [], refetch: refetchPriceAlerts } = useQuery({
+    queryKey: ["my-price-alerts", alertsUserId],
+    enabled: Boolean(alertsUserId),
+    queryFn: () => fetchPriceAlerts(alertsUserId),
+  });
+
+  const handleRemoveAlert = async (dealId: string) => {
+    if (!alertsUserId || !dealId) return;
+    try {
+      await removePriceAlert(alertsUserId, dealId);
+      toast({ title: "Price alert removed" });
+      refetchPriceAlerts();
+    } catch (err) {
+      toast({
+        title: "Could not remove alert",
+        description: err instanceof Error ? err.message : "",
+        variant: "destructive"
+      });
+    }
+  };
 
   const isLoading = !profile && !!user;
 
@@ -110,11 +134,16 @@ export default function ProfilePage() {
     : displayName?.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase() || "U";
 
   const handleSave = async () => {
+    const targetUserId = user?.id || (isMobileLoggedIn ? getUserId() : null);
+    if (!targetUserId) {
+      toast({ title: "Error", description: "You must be logged in to update your profile.", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     const { error } = await supabase
       .from("profiles")
       .update({ full_name: fullName, avatar_url: avatarUrl || null })
-      .eq("user_id", user.id);
+      .eq("user_id", targetUserId);
     setSaving(false);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -207,6 +236,77 @@ export default function ProfilePage() {
             <Button variant="outline" size="sm" asChild>
               <Link to="/profile/upvoted-deals">View</Link>
             </Button>
+          </CardContent>
+        </Card>
+
+        {/* Price Alerts */}
+        <Card>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5 text-primary" />
+              Price Drop Alerts
+            </CardTitle>
+            <Badge variant="secondary">
+              {priceAlerts.length} alert{priceAlerts.length === 1 ? "" : "s"}
+            </Badge>
+          </CardHeader>
+          <CardContent>
+            {priceAlerts.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">
+                No active price drop alerts. Track any product on the home page and click "Set Price Alert".
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {priceAlerts.map((alert: any) => {
+                  const deal = alert.deal;
+                  const title = deal?.title || "Tracked Product";
+                  const currentPrice = deal?.dealPrice ?? deal?.discountedPrice ?? alert.currentPrice;
+                  const targetPrice = alert.targetPrice;
+                  const isTriggered = alert.isTriggered || (currentPrice && targetPrice && currentPrice <= targetPrice);
+
+                  return (
+                    <div key={alert.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border p-3">
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium truncate">{title}</p>
+                          {isTriggered ? (
+                            <Badge className="bg-emerald-600 text-white shrink-0">Target Met! 🎉</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs shrink-0">Tracking</Badge>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                          <span>Target: <strong className="text-foreground">₹{targetPrice?.toLocaleString("en-IN")}</strong></span>
+                          <span>·</span>
+                          <span>Current: <strong className={isTriggered ? "text-emerald-600 font-bold" : "text-foreground"}>₹{currentPrice ? currentPrice.toLocaleString("en-IN") : "Checking"}</strong></span>
+                          {deal?.storeName && (
+                            <>
+                              <span>·</span>
+                              <span>{deal.storeName}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {deal && (deal.slug || deal.id) && (
+                          <Button variant="outline" size="sm" asChild>
+                            <Link to={`/deals/${deal.slug || deal.id}`}>View</Link>
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => handleRemoveAlert(alert.dealId)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
 

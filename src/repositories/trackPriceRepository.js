@@ -1,5 +1,5 @@
 const { supabaseAdmin } = require("../config/supabaseClient");
-const { toApiDeal } = require("../mappers/dealMapper");
+const { slugify, toApiDeal } = require("../mappers/dealMapper");
 const { throwIfSupabaseError } = require("../utils/supabaseErrors");
 const { detectPlatform } = require("../../lib/platformDetector");
 const { buildSearchUrl, normalizeUrl } = require("../../lib/urlUtils");
@@ -116,6 +116,69 @@ async function trackProductPrice(productUrl, userId = null) {
   };
 }
 
+const CORE_DEAL_COLUMNS = new Set([
+  'id', 'title', 'slug', 'description', 'store_id', 'category_id',
+  'original_price', 'discounted_price', 'discount_percentage', 'coupon_code',
+  'cashback_percentage', 'affiliate_link', 'image_url', 'expiry_date',
+  'status', 'is_featured', 'is_verified', 'click_count', 'submitted_by',
+  'created_at', 'updated_at', 'source', 'vote_score', 'source_product_id',
+  'source_url', 'dedupe_key', 'last_scraped_at', 'raw_source_payload',
+  'canonical_product_id', 'source_post_url', 'clean_product_url',
+  'our_affiliate_url', 'affiliate_network', 'is_our_affiliate_link',
+  'third_party_affiliate_detected', 'monetization_status', 'hot_score',
+  'freshness_score', 'trust_score', 'last_validated_at', 'validation_status',
+  'source_posted_at'
+]);
+
+function filterDealColumns(payload) {
+  const filtered = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (CORE_DEAL_COLUMNS.has(key)) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
+}
+
+async function ensureStoreByName(value) {
+  const name = cleanText(value) || "Store";
+  const slug = slugify(name);
+  try {
+    const { data } = await supabaseAdmin
+      .from("stores")
+      .upsert({
+        name,
+        slug,
+        website_url: "",
+        is_active: true
+      }, { onConflict: "slug" })
+      .select("id")
+      .maybeSingle();
+    return data?.id || null;
+  } catch {
+    return null;
+  }
+}
+
+async function ensureCategoryByName(value) {
+  const name = cleanText(value) || "Other Deals";
+  const slug = slugify(name);
+  try {
+    const { data } = await supabaseAdmin
+      .from("categories")
+      .upsert({
+        name,
+        slug,
+        is_active: true
+      }, { onConflict: "slug" })
+      .select("id")
+      .maybeSingle();
+    return data?.id || null;
+  } catch {
+    return null;
+  }
+}
+
 async function tryBuildLiveTrackingSummary({ normalizedUrl, storeName, platformProductId }) {
   let metadata = {};
   try {
@@ -159,11 +222,124 @@ async function tryBuildLiveTrackingSummary({ normalizedUrl, storeName, platformP
     : currentPrice;
   const discountPercent = safePercent(null, originalPrice, currentPrice);
 
+  let dealId = null;
+  const dedupeKey = `tracked:${storeName.toLowerCase()}:${platformProductId || normalizedUrl}`;
+  try {
+    const storeId = await ensureStoreByName(storeName);
+    const categoryId = await ensureCategoryByName(inferCategoryName(`${title} ${storeName}`));
+    const effectivePrice = currentPrice ?? lowestPrice ?? null;
+    const effectiveOriginalPrice = originalPrice ?? highestPrice ?? effectivePrice;
+
+    const { data: existingDeal } = await supabaseAdmin
+      .from("deals")
+      .select("id")
+      .or(`dedupe_key.eq.${dedupeKey},source_url.eq.${normalizedUrl}`)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingDeal?.id) {
+      dealId = existingDeal.id;
+      if (effectivePrice != null) {
+        await supabaseAdmin
+          .from("deals")
+          .update(filterDealColumns({
+            discounted_price: effectivePrice,
+            original_price: effectiveOriginalPrice || effectivePrice,
+            discount_percentage: discountPercent || 0,
+            image_url: imageUrl || fallbackImageUrl,
+            updated_at: new Date().toISOString()
+          }))
+          .eq("id", dealId);
+      }
+    } else if (title) {
+      const slug = `${slugify(title || storeName)}-${Math.random().toString(36).slice(2, 8)}`;
+      const dealPayload = filterDealColumns({
+        title: title || `${storeName} Product`,
+        slug,
+        description: metadata.description || `Price tracking for ${title} on ${storeName}.`,
+        store_id: storeId,
+        category_id: categoryId,
+        original_price: effectiveOriginalPrice || effectivePrice,
+        discounted_price: effectivePrice,
+        discount_percentage: discountPercent || 0,
+        affiliate_link: productUrl,
+        source_url: normalizedUrl,
+        image_url: imageUrl || fallbackImageUrl,
+        expiry_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        status: "active",
+        is_featured: (discountPercent || 0) >= 40,
+        is_verified: true,
+        source: "PRICE_TRACKED",
+        dedupe_key: dedupeKey,
+        source_product_id: platformProductId || null,
+        raw_source_payload: {
+          connectorMode: "direct-platform-fetch",
+          storeName,
+          trackedAt: new Date().toISOString()
+        },
+        last_scraped_at: new Date().toISOString()
+      });
+
+      const { data: insertedDeal, error: insertError } = await supabaseAdmin
+        .from("deals")
+        .insert(dealPayload)
+        .select("id")
+        .maybeSingle();
+      if (!insertError && insertedDeal?.id) {
+        dealId = insertedDeal.id;
+      }
+    }
+  } catch (err) {
+    console.warn("[track-price] failed to persist deal record:", err.message || err);
+  }
+
+  try {
+    await supabaseAdmin
+      .from("tracked_products")
+      .upsert({
+        deal_id: dealId || null,
+        title: title || `${storeName} Product`,
+        image_url: imageUrl || fallbackImageUrl,
+        product_url: productUrl,
+        normalized_url: normalizedUrl,
+        store_name: storeName,
+        platform_product_id: platformProductId || null,
+        current_price: currentPrice ?? lowestPrice ?? null,
+        lowest_price: lowestPrice ?? currentPrice ?? null,
+        highest_price: highestPrice ?? originalPrice ?? null,
+        average_price: averagePrice ?? currentPrice ?? null,
+        currency: "INR",
+        last_checked_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, { onConflict: "normalized_url" });
+  } catch (err) {
+    console.warn("[track-price] failed to upsert tracked_products:", err.message || err);
+  }
+
+  if (currentPrice != null) {
+    try {
+      await supabaseAdmin
+        .from("price_history")
+        .insert({
+          deal_id: dealId || null,
+          product_url: normalizedUrl,
+          store_name: storeName,
+          platform_product_id: platformProductId || null,
+          price: currentPrice,
+          currency: "INR",
+          checked_at: new Date().toISOString(),
+          source: "live-product-page"
+        });
+    } catch (err) {
+      console.warn("[track-price] failed to record price_history:", err.message || err);
+    }
+  }
+
   return {
     success: true,
     status: "live_result",
-    trackingStarted: false,
-    dealId: null,
+    trackingStarted: Boolean(dealId),
+    dealId: dealId || null,
     storeName,
     productUrl,
     title: title || `${storeName} Product`,
@@ -329,7 +505,7 @@ async function findLiveRelatedDeals({ title, storeName, productUrl }) {
   const search = terms.join(" ");
   if (!search) return [];
 
-  const { data, error } = await supabaseAdmin
+  let { data, error } = await supabaseAdmin
     .from("deals")
     .select("*, categories(*), stores(*)")
     .or(`title.ilike.%${escapeLike(search)}%,description.ilike.%${escapeLike(search)}%`)
@@ -338,6 +514,21 @@ async function findLiveRelatedDeals({ title, storeName, productUrl }) {
     .or(`platform_expires_at.is.null,platform_expires_at.gt.${new Date().toISOString()}`)
     .order("updated_at", { ascending: false })
     .limit(12);
+
+  if (error && isMissingColumn(error)) {
+    const fallback = await supabaseAdmin
+      .from("deals")
+      .select("*, categories(*), stores(*)")
+      .or(`title.ilike.%${escapeLike(search)}%,description.ilike.%${escapeLike(search)}%`)
+      .or(`status.eq.active,status.eq.approved,status.is.null`)
+      .gte("discounted_price", 0)
+      .or(`expiry_date.is.null,expiry_date.gt.${new Date().toISOString()}`)
+      .order("updated_at", { ascending: false })
+      .limit(12);
+    data = fallback.data;
+    error = fallback.error;
+  }
+
   if (isMissingColumn(error)) return [];
   throwIfSupabaseError(error, "deals");
 
@@ -423,7 +614,7 @@ function queryRelatedDeals() {
     .select("*, categories(*), stores(*)")
     .eq("status", "active")
     .gte("discounted_price", 0)
-    .or(`platform_expires_at.is.null,platform_expires_at.gt.${new Date().toISOString()}`)
+    .or(`expiry_date.is.null,expiry_date.gt.${new Date().toISOString()}`)
     .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"])
     .order("updated_at", { ascending: false });
 }
@@ -716,12 +907,17 @@ function extractPlatformProductId(productUrl, storeName) {
   try {
     const parsed = new URL(productUrl);
     const path = decodeURIComponent(parsed.pathname);
-    const storeKey = key(storeName);
+    let storeKey = key(storeName);
+    if (!storeKey) {
+      if (parsed.hostname.includes("amazon.")) storeKey = "amazon";
+      else if (parsed.hostname.includes("flipkart.")) storeKey = "flipkart";
+      else if (parsed.hostname.includes("myntra.")) storeKey = "myntra";
+    }
     if (storeKey === "amazon") {
       return path.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?]|$)/i)?.[1]?.toUpperCase() || "";
     }
     if (storeKey === "flipkart") {
-      return path.match(/\/(itm[a-z0-9]+)/i)?.[1] || parsed.searchParams.get("pid") || "";
+      return parsed.searchParams.get("pid") || path.match(/\/(itm[a-z0-9]+)/i)?.[1] || "";
     }
     if (storeKey === "myntra") {
       return path.match(/\/(\d+)(?:\/|$)/)?.[1] || "";

@@ -1,0 +1,48 @@
+name: CI - Test & Build
+
+on:
+  push:
+    branches:
+      - main
+      - Develop
+  pull_request:
+    branches:
+      - main
+      - Develop
+  workflow_dispatch:
+
+jobs:
+  test-and-build:
+    name: Backend & Web CI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Backend Dependencies
+        run: npm ci
+
+      - name: Verify Backend Syntax & Files
+        run: npm run check:deploy
+
+      - name: Run Backend Tests
+        run: npm test
+
+      - name: Install Web Dependencies
+        run: npm --prefix web ci --include=dev
+
+      - name: Run Web Tests
+        run: npm --prefix web run test
+
+      - name: Build Web Application
+        run: npm --prefix web run build
+
+      - name: Copy Web Dist to Public
+        run: node scripts/copy-web-dist-to-public.js

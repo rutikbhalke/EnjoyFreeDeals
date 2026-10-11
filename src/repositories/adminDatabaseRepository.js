@@ -1,25 +1,29 @@
+const fs = require("fs");
+const path = require("path");
 const { supabaseAdmin } = require("../config/supabaseClient");
 const { isMissingTableError } = require("../utils/supabaseErrors");
 
+const CONSOLIDATED_MIGRATION = "supabase/migrations/20261011_create_all_missing_admin_tables.sql";
+
 const ADMIN_TABLES = [
   { name: "profiles", group: "Users", migration: "supabase/schema.sql" },
-  { name: "sample_whatsapp_otp_logins", group: "Users", migration: "supabase/schema.sql" },
-  { name: "otp_verifications", group: "Users", migration: "supabase/migrations/20260621_ensure_missing_admin_tables.sql" },
+  { name: "sample_whatsapp_otp_logins", group: "Users", migration: CONSOLIDATED_MIGRATION },
+  { name: "otp_verifications", group: "Users", migration: CONSOLIDATED_MIGRATION },
   { name: "user_roles", group: "Users", migration: "supabase/schema.sql" },
   { name: "user_preferences", group: "Users", migration: "supabase/schema.sql" },
   { name: "user_activity", group: "Users", migration: "supabase/migrations/20260621_ensure_missing_admin_tables.sql" },
   { name: "categories", group: "Catalog", migration: "supabase/schema.sql" },
   { name: "stores", group: "Catalog", migration: "supabase/schema.sql" },
   { name: "deals", group: "Deals", migration: "supabase/schema.sql" },
-  { name: "products", group: "Deals", migration: "supabase/schema.sql" },
-  { name: "product_offers", group: "Deals", migration: "supabase/schema.sql" },
-  { name: "fetch_runs", group: "Imports", migration: "supabase/schema.sql" },
+  { name: "products", group: "Deals", migration: CONSOLIDATED_MIGRATION },
+  { name: "product_offers", group: "Deals", migration: CONSOLIDATED_MIGRATION },
+  { name: "fetch_runs", group: "Imports", migration: CONSOLIDATED_MIGRATION },
   { name: "blog_posts", group: "Content", migration: "supabase/schema.sql" },
   { name: "deal_watchlist", group: "Engagement", migration: "supabase/schema.sql" },
-  { name: "saved_deals", group: "Engagement", migration: "supabase/schema.sql" },
+  { name: "saved_deals", group: "Engagement", migration: CONSOLIDATED_MIGRATION },
   { name: "shared_deals", group: "Engagement", migration: "supabase/schema.sql" },
-  { name: "price_alerts", group: "Pricing", migration: "supabase/schema.sql" },
-  { name: "recently_viewed_deals", group: "Engagement", migration: "supabase/schema.sql" },
+  { name: "price_alerts", group: "Pricing", migration: CONSOLIDATED_MIGRATION },
+  { name: "recently_viewed_deals", group: "Engagement", migration: CONSOLIDATED_MIGRATION },
   { name: "price_history", group: "Pricing", migration: "supabase/schema.sql" },
   { name: "notifications", group: "Notifications", migration: "supabase/schema.sql" },
   { name: "deal_clicks", group: "Analytics", migration: "supabase/schema.sql" },
@@ -34,21 +38,26 @@ const ADMIN_TABLES = [
   { name: "scraper_jobs", group: "Imports", migration: "supabase/schema.sql" },
   { name: "deal_sources", group: "Imports", migration: "supabase/schema.sql" },
   { name: "scraped_deal_items", group: "Imports", migration: "supabase/schema.sql" },
-  { name: "telegram_channels", group: "Telegram", migration: "supabase_telegram_manual_review.sql" },
-  { name: "scrape_logs", group: "Telegram", migration: "supabase_telegram_manual_review.sql" },
-  { name: "telegram_sources", group: "Telegram", migration: "supabase/migrations/20260612_live_telegram_sources.sql" },
-  { name: "price_tracking_requests", group: "Pricing", migration: "supabase/migrations/20260613_web_price_tracking.sql" },
-  { name: "tracked_products", group: "Pricing", migration: "supabase/migrations/20260613_web_price_tracking.sql" },
-  { name: "upvoted_deals", group: "Engagement", migration: "supabase/migrations/20260611_web_upvoted_deals.sql" },
-  { name: "deal_upvotes", group: "Engagement", migration: "supabase/migrations/20260615_ensure_deal_upvotes_table.sql" }
+  { name: "telegram_channels", group: "Telegram", migration: CONSOLIDATED_MIGRATION },
+  { name: "scrape_logs", group: "Telegram", migration: CONSOLIDATED_MIGRATION },
+  { name: "telegram_sources", group: "Telegram", migration: CONSOLIDATED_MIGRATION },
+  { name: "price_tracking_requests", group: "Pricing", migration: CONSOLIDATED_MIGRATION },
+  { name: "tracked_products", group: "Pricing", migration: CONSOLIDATED_MIGRATION },
+  { name: "upvoted_deals", group: "Engagement", migration: CONSOLIDATED_MIGRATION },
+  { name: "deal_upvotes", group: "Engagement", migration: CONSOLIDATED_MIGRATION }
 ];
 
-async function listAdminTables() {
-  const tables = [];
-
-  for (const table of ADMIN_TABLES) {
-    tables.push(await checkTable(table));
+function getMissingTablesSql() {
+  try {
+    const migrationPath = path.resolve(__dirname, "../../", CONSOLIDATED_MIGRATION);
+    return fs.readFileSync(migrationPath, "utf8");
+  } catch (_err) {
+    return "";
   }
+}
+
+async function listAdminTables() {
+  const tables = await Promise.all(ADMIN_TABLES.map((table) => checkTable(table)));
 
   const summary = tables.reduce((acc, table) => {
     acc.total += 1;
@@ -56,18 +65,27 @@ async function listAdminTables() {
     return acc;
   }, { total: 0, ok: 0, missing: 0, error: 0 });
 
+  const missingTablesSql = getMissingTablesSql();
+  const projectId = process.env.SUPABASE_PROJECT_ID || "pzgyphnerjatlqlvvvsl";
+
   return {
     summary,
     tables,
+    missingTablesSql,
+    missingCount: summary.missing,
+    supabaseSqlEditorUrl: `https://supabase.com/dashboard/project/${projectId}/sql/new`,
     checkedAt: new Date().toISOString()
   };
 }
 
 async function checkTable(table) {
   const startedAt = Date.now();
+  // We use .limit(1) without head: true so PostgREST returns real row count for existing tables
+  // and real schema cache error (PGRST205) for missing tables instead of HTTP 204.
   const { count, error } = await supabaseAdmin
     .from(table.name)
-    .select("*", { count: "exact", head: true });
+    .select("*", { count: "exact" })
+    .limit(1);
 
   const latencyMs = Date.now() - startedAt;
 
@@ -75,22 +93,26 @@ async function checkTable(table) {
     return {
       ...table,
       status: "ok",
-      count: count ?? null,
+      count: count ?? 0,
       latencyMs
     };
   }
 
+  const isMissing = isMissingTableError(error);
+
   return {
     ...table,
-    status: isMissingTableError(error) ? "missing" : "error",
+    status: isMissing ? "missing" : "error",
     count: null,
     latencyMs,
     errorCode: error.code || "SUPABASE_ERROR",
-    errorMessage: error.message || "Supabase table check failed."
+    errorMessage: isMissing ? "Table missing in Supabase schema." : (error.message || "Supabase table check failed.")
   };
 }
 
 module.exports = {
   ADMIN_TABLES,
+  CONSOLIDATED_MIGRATION,
+  getMissingTablesSql,
   listAdminTables
 };

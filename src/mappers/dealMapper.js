@@ -168,7 +168,7 @@ function toApiDeal(row) {
 function isAutomatedScrapedDeal(row) {
   if (!row || !["active", "approved"].includes(row.status) || !row.source_url || !row.dedupe_key) return false;
   const mode = row.raw_source_payload?.connectorMode || "";
-  if (!["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"].includes(mode)) return false;
+  if (!["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch", "web-price-tracker"].includes(mode) && row.source !== "PRICE_TRACKED") return false;
   if (row.is_valid === false || row.is_expired === true) return false;
   if (row.discounted_price < 0 || (row.original_price > 0 && row.discounted_price > row.original_price)) return false;
   const platformExpiresAt = row.platform_expires_at || row.expiry_date || null;
@@ -389,4 +389,4 @@ const FALLBACK_DEAL_IMAGES = {
   general: "https://images.unsplash.com/photo-1607082349566-187342175e2f?auto=format&fit=crop&w=900&q=80"
 };
 
-module.exports = { isAutomatedScrapedDeal, normalizeDealPayload, toApiDeal };
+module.exports = { isAutomatedScrapedDeal, normalizeDealPayload, slugify, toApiDeal };

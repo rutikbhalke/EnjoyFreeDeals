@@ -393,6 +393,35 @@ export async function trackPrice(productUrl: string) {
   return apiPost<TrackPriceResult>("/api/track-price", { productUrl });
 }
 
+export interface PriceAlertItem {
+  id: string;
+  userId: string;
+  dealId: string;
+  targetPrice: number;
+  currentPrice: number | null;
+  isActive: boolean;
+  isTriggered: boolean;
+  triggeredAt: string | null;
+  alertStatus: string;
+  createdAt: string;
+  updatedAt: string;
+  deal: BackendDeal | null;
+}
+
+export async function fetchPriceAlerts(userId: string): Promise<PriceAlertItem[]> {
+  if (!userId) return [];
+  try {
+    return await apiGet<PriceAlertItem[]>('/api/price-alerts/' + encodeURIComponent(userId));
+  } catch (err) {
+    console.warn('[price-alerts] fetch error:', err);
+    return [];
+  }
+}
+
+export async function removePriceAlert(userId: string, dealId: string): Promise<void> {
+  await apiDelete('/api/price-alerts/' + encodeURIComponent(userId) + '/' + encodeURIComponent(dealId), {});
+}
+
 export function mapBackendDeal(deal: BackendDeal): WebDeal {
   const storeName = deal.storeName || "Store";
   const categoryName = normalizeCategoryName(deal.categoryName);
@@ -546,6 +575,9 @@ export type AdminDatabaseTablesResponse = {
     error: number;
   };
   tables: AdminDatabaseTableStatus[];
+  missingTablesSql?: string;
+  missingCount?: number;
+  supabaseSqlEditorUrl?: string;
   checkedAt: string;
 };
 

@@ -65,3 +65,10 @@ Important:
 - Do not commit `.mcp.json`.
 - Do not put `SUPABASE_SERVICE_ROLE_KEY` in Android.
 - Android should call backend at `http://10.0.2.2:5000` on emulator.
+
+## Admin Panel Access & Missing Tables Setup
+
+- **Admin Login Secret Key**: `enjoyfreedeals_admin_secret`
+- **Admin Panel URL**: `http://localhost:8080/admin` (or `/admin/database`)
+- **Missing Tables SQL Migration**: [`supabase/migrations/20261011_create_all_missing_admin_tables.sql`](file:///d:/freedeals1/supabase/migrations/20261011_create_all_missing_admin_tables.sql)
+- **Supabase SQL Editor**: [https://supabase.com/dashboard/project/pzgyphnerjatlqlvvvsl/sql/new](https://supabase.com/dashboard/project/pzgyphnerjatlqlvvvsl/sql/new)

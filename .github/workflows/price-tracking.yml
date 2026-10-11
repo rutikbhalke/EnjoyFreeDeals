@@ -1,0 +1,40 @@
+name: Sync Price Tracking & Drop Alerts
+
+on:
+  schedule:
+    # Run every 6 hours offset by 30 mins (00:30, 06:30, 12:30, 18:30 UTC)
+    - cron: "30 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  sync-prices:
+    name: Track Prices & Trigger Alerts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci --omit=dev
+
+      - name: Run Price Tracking Sync
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          APP_ENV: "production"
+        run: |
+          if [ -n "$SUPABASE_URL" ]; then
+            npm run sync:price-tracking
+          else
+            echo "SUPABASE_URL secret is not configured in repository secrets. Skipping sync."
+          fi

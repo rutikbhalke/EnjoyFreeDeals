@@ -32,8 +32,8 @@ async function enrichGenieLootDetails(options = {}) {
 async function loadGenieLootDeals(limit) {
   const { data, error } = await supabaseAdmin
     .from("deals")
-    .select("id,title,description,original_price,discounted_price,coupon_code,affiliate_link,source_url,image_url,source_image_url,platform_product_url,raw_source_payload")
-    .eq("raw_source_payload->>connectorMode", "telegram-page")
+    .select("id,title,description,original_price,discounted_price,coupon_code,affiliate_link,source_url,image_url,raw_source_payload")
+    .or("raw_source_payload->>connectorMode.eq.telegram-page,raw_source_payload->>connectorMode.eq.telegram-bot,source.eq.FREE_DEAL,source.eq.DISCOUNT,source.eq.COUPON,source.eq.FREE")
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -191,14 +191,11 @@ async function buildDealUpdate(deal, page, metadata) {
   const metadataTitle = isUsableProductTitle(metadata.title) ? metadata.title : "";
   const update = {
     updated_at: new Date().toISOString(),
-    fetched_at: new Date().toISOString(),
-    source_updated_at: new Date().toISOString()
   };
 
   if (finalUrl && finalUrl !== deal.source_url) {
     update.source_url = finalUrl;
     update.affiliate_link = finalUrl;
-    update.platform_product_url = finalUrl;
   }
 
   const productImageUrl = metadata.imageUrl || amazonImageFromUrl(finalUrl);

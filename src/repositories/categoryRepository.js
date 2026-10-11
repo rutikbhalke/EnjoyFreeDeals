@@ -49,12 +49,22 @@ async function listCategories() {
 
 async function activeDealCountsByCategory() {
   const now = new Date().toISOString();
-  const { data, error } = await supabaseAdmin
+  let { data, error } = await supabaseAdmin
     .from("deals")
     .select("category_id")
     .gte("discounted_price", 0)
     .or(`platform_expires_at.is.null,platform_expires_at.gt.${now}`)
     .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"]);
+
+  if (error && isMissingColumn(error)) {
+    const fallback = await supabaseAdmin
+      .from("deals")
+      .select("category_id")
+      .gte("discounted_price", 0)
+      .or(`expiry_date.is.null,expiry_date.gt.${now}`);
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (error) {
     console.warn("[categories] Deal counts unavailable:", error.message);
@@ -71,7 +81,7 @@ async function activeDealCountsByCategory() {
 
 async function activeOtherDealCount() {
   const now = new Date().toISOString();
-  const { data, error } = await supabaseAdmin
+  let { data, error } = await supabaseAdmin
     .from("deals")
     .select("id")
     .gte("discounted_price", 0)
@@ -79,11 +89,26 @@ async function activeOtherDealCount() {
     .is("category_id", null)
     .in("raw_source_payload->>connectorMode", ["html-scrape", "telegram-bot", "telegram-page", "telegram-channel", "direct-platform-fetch"]);
 
+  if (error && isMissingColumn(error)) {
+    const fallback = await supabaseAdmin
+      .from("deals")
+      .select("id")
+      .gte("discounted_price", 0)
+      .or(`expiry_date.is.null,expiry_date.gt.${now}`)
+      .is("category_id", null);
+    data = fallback.data;
+    error = fallback.error;
+  }
+
   if (error) {
     console.warn("[categories] Other deals count unavailable:", error.message);
     return 0;
   }
   return (data || []).length;
+}
+
+function isMissingColumn(error) {
+  return /column .* does not exist|could not find .* column|schema cache/i.test(error?.message || "");
 }
 
 function toApiCategory(row, dealCount = 0) {

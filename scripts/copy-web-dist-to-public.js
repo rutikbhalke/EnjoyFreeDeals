@@ -9,6 +9,11 @@ if (!fs.existsSync(webDistDir)) {
   throw new Error(`Web build output not found: ${webDistDir}`);
 }
 
+const publicAssetsDir = path.join(publicDir, "assets");
+if (fs.existsSync(publicAssetsDir)) {
+  fs.rmSync(publicAssetsDir, { recursive: true, force: true });
+}
+
 copyDirectory(webDistDir, publicDir);
 console.log(`Copied web build output to ${publicDir}`);
 

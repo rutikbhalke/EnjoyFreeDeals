@@ -19,3 +19,5 @@ node_modules/
 .mcp.json
 supabase/.temp/
 .vercel
+*KEY*.txt
+*.key

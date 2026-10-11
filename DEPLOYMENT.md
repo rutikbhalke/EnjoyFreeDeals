@@ -33,19 +33,21 @@ npm run vercel:deploy
 After deployment, test:
 
 ```bash
-curl https://YOUR-VERCEL-DOMAIN.vercel.app/api/health
-curl https://YOUR-VERCEL-DOMAIN.vercel.app/api/deals?limit=10
+curl https://enjoyfreedeals-web.vercel.app/api/health
+curl https://enjoyfreedeals-web.vercel.app/api/deals?limit=10
 ```
 
-Use the Vercel URL in Android `local.properties`:
+Use the active Vercel URL in Android `local.properties`:
 
 ```properties
-BACKEND_BASE_URL=https://freedeals1.vercel.app
+BACKEND_BASE_URL=https://enjoyfreedeals-web.vercel.app
 ```
+
+> **Note on Vercel Environment Variables**: Ensure `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` are populated with non-empty values in the Vercel Project Settings for `enjoyfreedeals-web` so that `/api/*` endpoints pass environment validation.
 
 Do not use `http://192.168.1.3:5000` for installed APKs. That address only works on the same local Wi-Fi while the backend is running on the development PC.
 
-Vercel functions are serverless. For long Telegram scraping jobs, prefer the VPS sync below so the job is not stopped when a serverless function ends.
+Vercel functions are serverless. For long Telegram scraping jobs, prefer the VPS sync or GitHub Actions workflow (`.github/workflows/telegram-sync.yml`) so the job is not stopped when a serverless function ends.
 
 ## VPS API With PM2
 
@@ -90,6 +92,38 @@ Reload Nginx:
 sudo nginx -t
 sudo systemctl reload nginx
 ```
+
+## Price Tracking & Drop Alerts
+
+The platform includes real-time product price tracking across Amazon, Flipkart, Myntra, Ajio, and more, as well as periodic background price synchronization and user price drop alerts.
+
+### GitHub Actions Workflows
+
+1. **CI - Test & Build** (`.github/workflows/ci.yml`):
+   - Runs syntax checks (`npm run check:deploy`), backend node tests (`npm test`), web tests (`npm --prefix web run test`), and builds the web application.
+2. **Vercel Deploy & Health Check** (`.github/workflows/deploy.yml`):
+   - Validates build readiness and verifies live API health.
+3. **Sync Telegram Loot Deals** (`.github/workflows/telegram-sync.yml`):
+   - Scrapes connected Telegram channels every 6 hours and enriches product details.
+4. **Sync Price Tracking & Drop Alerts** (`.github/workflows/price-tracking.yml`):
+   - Scheduled job running every 6 hours (`30 */6 * * *`) that checks current live prices for all tracked products, updates `price_history`, and fires alerts/notifications when prices drop below user targets.
+
+Run manual price tracking sync:
+
+```bash
+npm run sync:price-tracking
+```
+
+### Database Tables & Migrations
+
+Price tracking uses the following Supabase tables:
+- `deals`: Stores all deals and tracked products (`source: "PRICE_TRACKED"`).
+- `price_history`: Records historical price checks for trend graphs.
+- `tracked_products`: Holds normalized URLs, lowest/highest prices, and refresh times.
+- `price_alerts`: User price targets, triggered flags, and timestamps.
+- `notifications`: User alert notifications when prices drop below targets.
+
+If `price_alerts` or `tracked_products` are missing in a fresh Supabase instance, execute `supabase/migrations/20260605_user_deal_actions_profile.sql` and `supabase/migrations/20260613_web_price_tracking.sql` in the Supabase SQL Editor.
 
 ## Permanent Deal Filtering
 

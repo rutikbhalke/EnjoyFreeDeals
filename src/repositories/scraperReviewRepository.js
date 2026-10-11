@@ -2,7 +2,7 @@ const { supabaseAdmin } = require("../config/supabaseClient");
 const { toApiDeal } = require("../mappers/dealMapper");
 const { fetchProductMetadata } = require("../services/dealDetailEnricher");
 const { getPagination } = require("../utils/pagination");
-const { throwIfSupabaseError } = require("../utils/supabaseErrors");
+const { isMissingTableError, throwIfSupabaseError } = require("../utils/supabaseErrors");
 
 const TABLE = "scraped_deal_items";
 
@@ -71,19 +71,19 @@ async function listTelegramDeals(filters) {
   let query = supabaseAdmin
     .from("deals")
     .select("*, categories(*), stores(*)", { count: "exact" })
-    .or("source_type.eq.telegram,telegram_channel.not.is.null,raw_source_payload->>connectorMode.eq.telegram-channel")
+    .or("raw_source_payload->>connectorMode.eq.telegram-page,raw_source_payload->>connectorMode.eq.telegram-channel,raw_source_payload->>connectorMode.eq.telegram-bot")
     .order("last_scraped_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .range(from, to);
 
   if (review === "price" || review === "needs_price_review") {
-    query = query.eq("price_status", "manual_required");
+    query = query.or("raw_source_payload->>price_status.eq.manual_required,discounted_price.eq.0");
   } else if (review === "expiry" || review === "needs_expiry_review") {
-    query = query.eq("expiry_status", "manual_required");
+    query = query.or("raw_source_payload->>expiry_status.eq.manual_required,expiry_date.is.null");
   } else if (review === "expired") {
-    query = query.or("is_expired.eq.true,status.eq.expired");
+    query = query.or("status.eq.expired,raw_source_payload->>is_expired.eq.true");
   } else if (review === "pending") {
-    query = query.eq("admin_review_status", "needs_review");
+    query = query.or("status.eq.pending,status.eq.pending_review,raw_source_payload->>admin_review_status.eq.needs_review");
   }
 
   let { data, error, count } = await query;
@@ -123,6 +123,17 @@ async function listScrapeLogs(filters) {
   if (filters.channel) query = query.eq("source_channel", String(filters.channel));
 
   const { data, error, count } = await query;
+  if (isMissingTableError(error)) {
+    return {
+      items: [],
+      pagination: {
+        page,
+        limit,
+        total: 0,
+        totalPages: 0
+      }
+    };
+  }
   throwIfSupabaseError(error, "scrape_logs");
   return {
     items: data || [],

@@ -34,6 +34,11 @@ async function createPriceAlert(payload) {
     }, { onConflict: "user_id,deal_id" })
     .select("*, deals(*, categories(*), stores(*))")
     .single();
+  if (isMissingTable(error)) {
+    const tableErr = new Error("Price alerts database table is not initialized. Please run the price_alerts migration in Supabase SQL editor.");
+    tableErr.statusCode = 503;
+    throw tableErr;
+  }
   throwIfSupabaseError(error, TABLE);
   return toApiPriceAlert(data);
 }
@@ -52,24 +57,35 @@ async function removePriceAlert(userId, dealId) {
     .eq("deal_id", dealId)
     .select("*, deals(*, categories(*), stores(*))")
     .maybeSingle();
+  if (isMissingTable(error)) {
+    return { userId, dealId, targetPrice: null, alertStatus: "removed" };
+  }
   throwIfSupabaseError(error, TABLE);
 
-  return data && isAutomatedScrapedDeal(data.deals)
+  return data
     ? toApiPriceAlert(data)
     : { userId, dealId, targetPrice: null, alertStatus: "removed" };
 }
 
 async function getPriceAlerts(userId) {
+  if (!userId) return [];
   const { data, error } = await supabaseAdmin
     .from(TABLE)
     .select("*, deals(*, categories(*), stores(*))")
     .eq("user_id", userId)
     .eq("is_active", true)
     .order("updated_at", { ascending: false });
+  if (isMissingTable(error)) {
+    return [];
+  }
   throwIfSupabaseError(error, TABLE);
   return (data || [])
-    .filter((row) => isAutomatedScrapedDeal(row.deals))
+    .filter((row) => row.deals && (isAutomatedScrapedDeal(row.deals) || row.deals.status === "active" || row.deals.source === "PRICE_TRACKED"))
     .map(toApiPriceAlert);
+}
+
+function isMissingTable(error) {
+  return /relation .* does not exist|could not find the table|schema cache/i.test(error?.message || "");
 }
 
 async function getDealForAlert(dealId) {

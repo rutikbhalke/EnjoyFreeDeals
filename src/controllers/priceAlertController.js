@@ -12,7 +12,8 @@ async function createPriceAlert(req, res, next) {
 
 async function getPriceAlerts(req, res, next) {
   try {
-    const alerts = await priceAlertRepository.getPriceAlerts(req.params.userId);
+    const userId = req.params.userId || req.query?.userId || req.query?.user_id;
+    const alerts = await priceAlertRepository.getPriceAlerts(userId);
     return sendSuccess(res, alerts);
   } catch (error) {
     next(error);
