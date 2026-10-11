@@ -1,43 +1,12 @@
 -- ==============================================================================
--- EnjoyFreeDeals: Consolidated Migration for All 15 Missing Admin Panel Tables
+-- EnjoyFreeDeals: Consolidated Migration for All 13 Needed Admin Panel Tables
 -- File: supabase/migrations/20261011_create_all_missing_admin_tables.sql
 -- Safe, additive & idempotent (run directly in Supabase SQL Editor)
 -- ==============================================================================
 
 create extension if not exists pgcrypto;
 
--- 1. sample_whatsapp_otp_logins
-create table if not exists public.sample_whatsapp_otp_logins (
-  mobile text primary key,
-  otp_code text not null,
-  display_name text not null default 'WhatsApp User',
-  is_active boolean not null default true,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-alter table public.sample_whatsapp_otp_logins enable row level security;
-drop policy if exists "Service role full access on sample_whatsapp_otp_logins" on public.sample_whatsapp_otp_logins;
-create policy "Service role full access on sample_whatsapp_otp_logins" on public.sample_whatsapp_otp_logins for all using (true) with check (true);
-
--- 2. otp_verifications
-create table if not exists public.otp_verifications (
-  id uuid primary key default gen_random_uuid(),
-  mobile text not null,
-  otp_code text,
-  otp_hash text,
-  expires_at timestamptz not null,
-  used boolean not null default false,
-  is_test_user boolean not null default false,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-create index if not exists idx_otp_verifications_mobile on public.otp_verifications(mobile);
-create index if not exists idx_otp_verifications_expires_at on public.otp_verifications(expires_at);
-alter table public.otp_verifications enable row level security;
-drop policy if exists "Service role full access on otp_verifications" on public.otp_verifications;
-create policy "Service role full access on otp_verifications" on public.otp_verifications for all using (true) with check (true);
-
--- 3. products
+-- 1. products
 create table if not exists public.products (
   id uuid primary key default gen_random_uuid(),
   external_product_id text not null unique,
@@ -60,7 +29,7 @@ create policy "Allow public read products" on public.products for select using (
 drop policy if exists "Service role full access on products" on public.products;
 create policy "Service role full access on products" on public.products for all using (true) with check (true);
 
--- 4. product_offers
+-- 2. product_offers
 create table if not exists public.product_offers (
   id uuid primary key default gen_random_uuid(),
   product_id uuid not null references public.products(id) on delete cascade,
@@ -93,7 +62,7 @@ create policy "Allow public read product_offers" on public.product_offers for se
 drop policy if exists "Service role full access on product_offers" on public.product_offers;
 create policy "Service role full access on product_offers" on public.product_offers for all using (true) with check (true);
 
--- 5. fetch_runs
+-- 3. fetch_runs
 create table if not exists public.fetch_runs (
   id uuid primary key default gen_random_uuid(),
   started_at timestamptz not null default now(),
@@ -107,7 +76,7 @@ alter table public.fetch_runs enable row level security;
 drop policy if exists "Service role full access on fetch_runs" on public.fetch_runs;
 create policy "Service role full access on fetch_runs" on public.fetch_runs for all using (true) with check (true);
 
--- 6. saved_deals
+-- 4. saved_deals
 create table if not exists public.saved_deals (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -123,7 +92,7 @@ create policy "Users manage their own saved_deals" on public.saved_deals for all
 drop policy if exists "Service role full access on saved_deals" on public.saved_deals;
 create policy "Service role full access on saved_deals" on public.saved_deals for all using (true) with check (true);
 
--- 7. price_alerts
+-- 5. price_alerts
 create table if not exists public.price_alerts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -145,7 +114,7 @@ create policy "Users manage their own price_alerts" on public.price_alerts for a
 drop policy if exists "Service role full access on price_alerts" on public.price_alerts;
 create policy "Service role full access on price_alerts" on public.price_alerts for all using (true) with check (true);
 
--- 8. recently_viewed_deals
+-- 6. recently_viewed_deals
 create table if not exists public.recently_viewed_deals (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -161,7 +130,7 @@ create policy "Users manage their own recently_viewed_deals" on public.recently_
 drop policy if exists "Service role full access on recently_viewed_deals" on public.recently_viewed_deals;
 create policy "Service role full access on recently_viewed_deals" on public.recently_viewed_deals for all using (true) with check (true);
 
--- 9. telegram_channels
+-- 7. telegram_channels
 create table if not exists public.telegram_channels (
   id uuid primary key default gen_random_uuid(),
   username text not null unique,
@@ -183,7 +152,7 @@ create policy "Allow public read telegram_channels" on public.telegram_channels 
 drop policy if exists "Service role full access on telegram_channels" on public.telegram_channels;
 create policy "Service role full access on telegram_channels" on public.telegram_channels for all using (true) with check (true);
 
--- 10. scrape_logs
+-- 8. scrape_logs
 create table if not exists public.scrape_logs (
   id uuid primary key default gen_random_uuid(),
   source_type text default 'telegram',
@@ -201,7 +170,7 @@ alter table public.scrape_logs enable row level security;
 drop policy if exists "Service role full access on scrape_logs" on public.scrape_logs;
 create policy "Service role full access on scrape_logs" on public.scrape_logs for all using (true) with check (true);
 
--- 11. telegram_sources
+-- 9. telegram_sources
 create table if not exists public.telegram_sources (
   id uuid primary key default gen_random_uuid(),
   channel_username text not null unique,
@@ -230,7 +199,7 @@ create policy "Allow public read telegram_sources" on public.telegram_sources fo
 drop policy if exists "Service role full access on telegram_sources" on public.telegram_sources;
 create policy "Service role full access on telegram_sources" on public.telegram_sources for all using (true) with check (true);
 
--- 12. price_tracking_requests
+-- 10. price_tracking_requests
 create table if not exists public.price_tracking_requests (
   id uuid primary key default gen_random_uuid(),
   product_url text not null,
@@ -255,7 +224,7 @@ create policy "Allow public read price_tracking_requests" on public.price_tracki
 drop policy if exists "Service role full access on price_tracking_requests" on public.price_tracking_requests;
 create policy "Service role full access on price_tracking_requests" on public.price_tracking_requests for all using (true) with check (true);
 
--- 13. tracked_products
+-- 11. tracked_products
 create table if not exists public.tracked_products (
   id uuid primary key default gen_random_uuid(),
   deal_id uuid null references public.deals(id) on delete set null,
@@ -285,7 +254,7 @@ create policy "Allow public read tracked_products" on public.tracked_products fo
 drop policy if exists "Service role full access on tracked_products" on public.tracked_products;
 create policy "Service role full access on tracked_products" on public.tracked_products for all using (true) with check (true);
 
--- 14. upvoted_deals
+-- 12. upvoted_deals
 create table if not exists public.upvoted_deals (
   id uuid primary key default gen_random_uuid(),
   user_id text not null,
@@ -313,7 +282,7 @@ create policy "Allow delete upvoted deals" on public.upvoted_deals for delete us
 drop policy if exists "Service role full access on upvoted_deals" on public.upvoted_deals;
 create policy "Service role full access on upvoted_deals" on public.upvoted_deals for all using (true) with check (true);
 
--- 15. deal_upvotes
+-- 13. deal_upvotes
 create table if not exists public.deal_upvotes (
   id uuid primary key default gen_random_uuid(),
   deal_id uuid not null references public.deals(id) on delete cascade,
@@ -339,6 +308,6 @@ create policy "Allow read deal_upvotes" on public.deal_upvotes for select using 
 drop policy if exists "Service role full access on deal_upvotes" on public.deal_upvotes;
 create policy "Service role full access on deal_upvotes" on public.deal_upvotes for all using (true) with check (true);
 
--- Ensure deal helper columns and notify postgrest
+-- Ensure deal helper column and reload PostgREST schema cache
 alter table public.deals add column if not exists upvote_count integer default 0;
 notify pgrst, 'reload schema';
