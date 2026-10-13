@@ -1,7 +1,7 @@
 import { type ReactNode, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle, Clock, ExternalLink, ImageOff, MessageCircle, Pencil, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle, Clock, ExternalLink, ImageOff, KeyRound, MessageCircle, Pencil, RefreshCw, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import SEO from "@/components/SEO";
 import { useToast } from "@/hooks/use-toast";
@@ -12,12 +12,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import {
   approveAdminDeal,
   expireAdminTelegramDeal,
   fetchAdminTelegramDeals,
   fetchAdminTelegramScrapeLogs,
   rejectAdminDeal,
+  triggerScrapeTelegramDeals,
   updateAdminTelegramManualExpiry,
   updateAdminTelegramManualPrice,
   type AdminTelegramScrapeLog,
@@ -42,6 +44,10 @@ export default function AdminTelegramDeals() {
   const [editingExpiry, setEditingExpiry] = useState<BackendDeal | null>(null);
   const [priceForm, setPriceForm] = useState({ min: "", max: "", note: "" });
   const [expiryForm, setExpiryForm] = useState({ expiryAt: "", note: "" });
+  const [showSecretDialog, setShowSecretDialog] = useState(false);
+  const [secretInput, setSecretInput] = useState(() => {
+    return (typeof window !== "undefined" ? localStorage.getItem("enjoyfreedeals_admin_secret") : "") || "enjoyfreedeals_admin_secret";
+  });
 
   const dealsQuery = useQuery({
     queryKey: ["admin-telegram-deals", section],
@@ -131,6 +137,24 @@ export default function AdminTelegramDeals() {
     setExpiryForm({ expiryAt: value, note: deal.expiryNote || deal.expiry_note || "" });
   };
 
+  const scrapeMutation = useMutation({
+    mutationFn: () => triggerScrapeTelegramDeals({ limit: 50 }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["admin-telegram-deals"] });
+      toast({
+        title: "Telegram Scraping Completed",
+        description: `Saved ${data.valid_deals_saved} deals, updated ${data.updated}, skipped ${data.duplicates_skipped} duplicates via Free Reader API.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Scraping failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const deals = dealsQuery.data || [];
   const logs = logsQuery.data || [];
   const loading = section === "failed" ? logsQuery.isLoading : dealsQuery.isLoading;
@@ -143,6 +167,42 @@ export default function AdminTelegramDeals() {
           <MessageCircle className="h-5 w-5 text-primary" />
           <h1 className="font-display text-2xl font-bold">Telegram Deal Review</h1>
         </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => scrapeMutation.mutate()}
+            disabled={scrapeMutation.isPending}
+            title="Scrape latest deals using free API"
+          >
+            <RefreshCw className={cn("mr-1.5 h-4 w-4", scrapeMutation.isPending && "animate-spin")} />
+            {scrapeMutation.isPending ? "Scraping..." : "Scrape Deals (Free API)"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowSecretDialog(true)}
+            title="Configure Admin Secret Key"
+          >
+            <KeyRound className="mr-1.5 h-4 w-4" />
+            Admin Key
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (section === "failed") {
+                logsQuery.refetch();
+              } else {
+                dealsQuery.refetch();
+              }
+            }}
+            disabled={loading}
+          >
+            <RefreshCw className={cn("mr-1.5 h-4 w-4", loading && "animate-spin")} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -150,6 +210,33 @@ export default function AdminTelegramDeals() {
         <MetricCard label="Needs Expiry Review" value={counts.expiry} icon={<Clock className="h-4 w-4" />} />
         <MetricCard label="Expired Deals" value={counts.expired} icon={<XCircle className="h-4 w-4" />} />
       </div>
+
+      {(dealsQuery.error || logsQuery.error) && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span>{((dealsQuery.error || logsQuery.error) as Error).message}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => {
+                localStorage.setItem("enjoyfreedeals_admin_secret", "enjoyfreedeals_admin_secret");
+                setSecretInput("enjoyfreedeals_admin_secret");
+                if (section === "failed") logsQuery.refetch();
+                else dealsQuery.refetch();
+                toast({ title: "Admin key reset to default", description: "Reloading deals..." });
+              }}
+            >
+              Set Default Key & Retry
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setShowSecretDialog(true)}>
+              Enter Secret Key
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         {sections.map((item) => (
@@ -201,6 +288,56 @@ export default function AdminTelegramDeals() {
             <div className="space-y-2"><Label>Expiry Date & Time</Label><Input type="datetime-local" value={expiryForm.expiryAt} onChange={(event) => setExpiryForm({ ...expiryForm, expiryAt: event.target.value })} required /></div>
             <div className="space-y-2"><Label>Expiry Note</Label><Textarea value={expiryForm.note} onChange={(event) => setExpiryForm({ ...expiryForm, note: event.target.value })} /></div>
             <Button type="submit" className="w-full" disabled={manualExpiryMutation.isPending}>Save Expiry</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showSecretDialog} onOpenChange={setShowSecretDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Admin Authorization Key</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const trimmed = secretInput.trim() || "enjoyfreedeals_admin_secret";
+              localStorage.setItem("enjoyfreedeals_admin_secret", trimmed);
+              setShowSecretDialog(false);
+              if (section === "failed") logsQuery.refetch();
+              else dealsQuery.refetch();
+              toast({ title: "Admin key updated", description: "Reloading deals..." });
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label>Backend Admin Secret</Label>
+              <Input
+                type="password"
+                value={secretInput}
+                onChange={(e) => setSecretInput(e.target.value)}
+                placeholder="enjoyfreedeals_admin_secret"
+              />
+              <p className="text-xs text-muted-foreground">
+                Default key: <code className="rounded bg-muted px-1 py-0.5 font-mono">enjoyfreedeals_admin_secret</code>
+              </p>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setSecretInput("enjoyfreedeals_admin_secret");
+                  localStorage.setItem("enjoyfreedeals_admin_secret", "enjoyfreedeals_admin_secret");
+                  setShowSecretDialog(false);
+                  if (section === "failed") logsQuery.refetch();
+                  else dealsQuery.refetch();
+                  toast({ title: "Reset to default key", description: "Reloading deals..." });
+                }}
+              >
+                Reset to Default
+              </Button>
+              <Button type="submit">Save & Reload</Button>
+            </div>
           </form>
         </DialogContent>
       </Dialog>
@@ -374,7 +511,8 @@ function expiryAt(deal: BackendDeal) {
 }
 
 function sourceChannel(deal: BackendDeal) {
-  return deal.sourceChannel || deal.source_channel || "";
+  const raw = (deal as any).raw_source_payload || (deal as any).rawSourcePayload || {};
+  return deal.sourceChannel || deal.source_channel || raw.telegramChannel || raw.telegramChatUsername || raw.telegramChatTitle || "";
 }
 
 function adminReviewStatus(deal: BackendDeal) {

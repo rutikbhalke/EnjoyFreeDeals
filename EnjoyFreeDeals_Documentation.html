@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>EnjoyFreeDeals - Complete System Documentation</title>
+<style>
+  @page {
+    size: A4;
+    margin: 18mm 16mm 18mm 16mm;
+    @bottom-right {
+      content: counter(page);
+      font-size: 9pt;
+      color: #64748b;
+    }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #1e293b;
+    line-height: 1.55;
+    font-size: 10pt;
+    margin: 0;
+    padding: 0;
+  }
+
+  .page-break {
+    page-break-after: always;
+  }
+
+  .avoid-break {
+    page-break-inside: avoid;
+  }
+
+  /* Cover Page */
+  .cover {
+    height: 94vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    page-break-after: always;
+    box-sizing: border-box;
+    padding: 50px 20px 30px 20px;
+  }
+
+  .badge-tag {
+    display: inline-block;
+    background: #e0e7ff;
+    color: #4338ca;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    font-size: 11pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .cover-title {
+    font-size: 34pt;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 24px 0 12px 0;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+
+  .cover-subtitle {
+    font-size: 14pt;
+    color: #475569;
+    max-width: 650px;
+    margin: 0 0 30px 0;
+    line-height: 1.45;
+  }
+
+  .cover-meta {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 24px;
+    margin-top: 30px;
+  }
+
+  .cover-meta table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .cover-meta td {
+    padding: 8px 12px;
+    font-size: 10pt;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .cover-meta td.label {
+    font-weight: 700;
+    color: #64748b;
+    width: 32%;
+  }
+
+  .cover-meta td.value {
+    color: #0f172a;
+    font-weight: 600;
+  }
+
+  .cover-meta tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* Headings */
+  h1 {
+    font-size: 20pt;
+    color: #0f172a;
+    border-bottom: 2px solid #4f46e5;
+    padding-bottom: 8px;
+    margin-top: 28px;
+    margin-bottom: 16px;
+    page-break-after: avoid;
+    font-weight: 800;
+  }
+
+  h2 {
+    font-size: 14pt;
+    color: #1e293b;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 6px;
+    margin-top: 22px;
+    margin-bottom: 12px;
+    page-break-after: avoid;
+    font-weight: 700;
+  }
+
+  h3 {
+    font-size: 11pt;
+    color: #334155;
+    margin-top: 16px;
+    margin-bottom: 8px;
+    page-break-after: avoid;
+    font-weight: 700;
+  }
+
+  /* Tables */
+  table.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0 20px 0;
+    font-size: 9pt;
+  }
+
+  table.data-table th {
+    background: #f1f5f9;
+    color: #1e293b;
+    font-weight: 700;
+    text-align: left;
+    padding: 8px 10px;
+    border: 1px solid #cbd5e1;
+  }
+
+  table.data-table td {
+    padding: 7px 10px;
+    border: 1px solid #e2e8f0;
+    vertical-align: top;
+  }
+
+  table.data-table tr:nth-child(even) td {
+    background: #f8fafc;
+  }
+
+  /* Code Blocks */
+  pre {
+    background: #0f172a;
+    color: #f8fafc;
+    padding: 12px 14px;
+    border-radius: 8px;
+    font-size: 8.5pt;
+    line-height: 1.45;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    overflow-x: auto;
+    margin: 10px 0 16px 0;
+    page-break-inside: avoid;
+  }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 8.5pt;
+    background: #f1f5f9;
+    color: #4338ca;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  pre code {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+  }
+
+  /* Callouts */
+  .callout {
+    border-left: 4px solid #4f46e5;
+    background: #f5f3ff;
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin: 14px 0;
+    page-break-inside: avoid;
+  }
+
+  .callout.success {
+    border-color: #10b981;
+    background: #ecfdf5;
+  }
+
+  .callout.warning {
+    border-color: #f59e0b;
+    background: #fffbeb;
+  }
+
+  .callout.danger {
+    border-color: #ef4444;
+    background: #fef2f2;
+  }
+
+  .callout-title {
+    font-weight: 700;
+    font-size: 9.5pt;
+    margin-bottom: 4px;
+    color: #0f172a;
+  }
+
+  /* Badges */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 8pt;
+    font-weight: 700;
+  }
+
+  .badge-get { background: #dbeafe; color: #1e40af; }
+  .badge-post { background: #dcfce7; color: #166534; }
+  .badge-put { background: #fef3c7; color: #92400e; }
+  .badge-delete { background: #fee2e2; color: #991b1b; }
+  .badge-ok { background: #d1fae5; color: #065f46; }
+
+  /* TOC */
+  .toc-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 7px 0;
+    border-bottom: 1px dotted #cbd5e1;
+    font-size: 10pt;
+  }
+  .toc-item span.title { font-weight: 600; color: #1e293b; }
+  .toc-item span.num { color: #64748b; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- Cover Page -->
+<div class="cover">
+  <div>
+    <span class="badge-tag">Official Technical Documentation</span>
+    <h1 class="cover-title">EnjoyFreeDeals</h1>
+    <p class="cover-subtitle">Complete Architecture, Database Schema, REST API Reference, Automation Pipelines &amp; Deployment Operations Manual</p>
+  </div>
+
+  <div class="cover-meta">
+    <table>
+      <tr>
+        <td class="label">Project Name</td>
+        <td class="value">EnjoyFreeDeals (Mobile &amp; Web Platform)</td>
+      </tr>
+      <tr>
+        <td class="label">Architecture Version</td>
+        <td class="value">v1.0.0 (Production Verified)</td>
+      </tr>
+      <tr>
+        <td class="label">Database Status</td>
+        <td class="value">37 / 37 Supabase Tables Healthy &amp; Active (0 Missing)</td>
+      </tr>
+      <tr>
+        <td class="label">Stack Components</td>
+        <td class="value">Android Kotlin, React + Vite Web, Node.js Express API, Supabase PostgreSQL</td>
+      </tr>
+      <tr>
+        <td class="label">Database Project Ref</td>
+        <td class="value">pzgyphnerjatlqlvvvsl (Supabase Cloud)</td>
+      </tr>
+      <tr>
+        <td class="label">Documentation Date</td>
+        <td class="value">October 2026</td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<!-- Table of Contents -->
+<div class="page-break">
+  <h1>Table of Contents</h1>
+  <div style="margin-top: 24px;">
+    <div class="toc-item"><span class="title">1. System Architecture &amp; Ecosystem</span><span class="num">Section 1</span></div>
+    <div class="toc-item"><span class="title">2. Database Architecture &amp; 37 Monitored Tables</span><span class="num">Section 2</span></div>
+    <div class="toc-item"><span class="title">3. Consolidated Migrations &amp; Schema Integrity</span><span class="num">Section 3</span></div>
+    <div class="toc-item"><span class="title">4. Complete REST API Reference</span><span class="num">Section 4</span></div>
+    <div class="toc-item"><span class="title">5. Automation, Scrapers &amp; Telegram Sync Engine</span><span class="num">Section 5</span></div>
+    <div class="toc-item"><span class="title">6. Client Integration (Android, Web &amp; Admin Panel)</span><span class="num">Section 6</span></div>
+    <div class="toc-item"><span class="title">7. Security, Roles &amp; Row Level Security (RLS)</span><span class="num">Section 7</span></div>
+    <div class="toc-item"><span class="title">8. Environment Variables Reference</span><span class="num">Section 8</span></div>
+    <div class="toc-item"><span class="title">9. Deployment &amp; Operations Manual</span><span class="num">Section 9</span></div>
+  </div>
+
+  <div class="callout success" style="margin-top: 30px;">
+    <div class="callout-title">System Status: All 37 Tables Operational</div>
+    All 37 database tables across Catalog, Deals, Pricing, Users, Telegram, and Wallet have passed health checks with 0 missing tables and 0 schema errors.
+  </div>
+</div>
+
+<!-- Section 1: Architecture -->
+<div class="page-break">
+  <h1>1. System Architecture &amp; Ecosystem</h1>
+  <p>EnjoyFreeDeals is an end-to-end deal aggregation and price comparison ecosystem consisting of four primary components:</p>
+
+  <div class="avoid-break">
+    <h2>1.1 Core Components</h2>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Technology</th>
+          <th>Role &amp; Responsibilities</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Android App</strong></td>
+          <td>Kotlin, Jetpack Compose / XML, Retrofit, Coroutines</td>
+          <td>Native mobile app delivering personalized feed, price alerts, notifications, and deal discovery. Consumes backend API.</td>
+        </tr>
+        <tr>
+          <td><strong>Web Portal</strong></td>
+          <td>React 18, Vite, TypeScript, Tailwind CSS, Lucide Icons</td>
+          <td>Fast web interface for browsing deals, search, store comparisons, blog posts, and administrative management.</td>
+        </tr>
+        <tr>
+          <td><strong>Backend API</strong></td>
+          <td>Node.js 20+, Express.js, Supabase Client SDK</td>
+          <td>Secure API layer for affiliate link resolution, telegram loot scrapers, deal scoring, price tracking, and admin health checkers.</td>
+        </tr>
+        <tr>
+          <td><strong>Database &amp; Auth</strong></td>
+          <td>Supabase (PostgreSQL 15), RLS, Realtime Replication</td>
+          <td>Centralized transactional store, user authentication, role-based access control, and automated deal expiration workflows.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="avoid-break">
+    <h2>1.2 Architectural Security Boundary</h2>
+    <div class="callout warning">
+      <div class="callout-title">Critical Security Separation: Public vs. Service Role</div>
+      <ul>
+        <li><strong>SUPABASE_ANON_KEY</strong>: Allowed in Android app and web client for read-only / public operations guarded by PostgreSQL Row Level Security (RLS).</li>
+        <li><strong>SUPABASE_SERVICE_ROLE_KEY</strong>: STRICTLY restricted to the Node.js backend. Never bundled in Android APKs, web code, or client repositories.</li>
+        <li>Clients communicate through the backend API (<code>http://localhost:5000</code> or production Vercel base URL) for administrative and privileged updates.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- Section 2: Database Architecture -->
+<div class="page-break">
+  <h1>2. Database Architecture &amp; 37 Monitored Tables</h1>
+  <p>The database layer consists of 37 structured tables divided into functional modules. All tables are actively checked and verified healthy:</p>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Module</th>
+        <th>Table Name</th>
+        <th>Status</th>
+        <th>Purpose &amp; Data Model</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Users</strong></td>
+        <td><code>profiles</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>User profiles linked to auth.users, avatars, display names.</td>
+      </tr>
+      <tr>
+        <td><strong>Users</strong></td>
+        <td><code>user_roles</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Role assignments (e.g., admin, moderator, premium).</td>
+      </tr>
+      <tr>
+        <td><strong>Users</strong></td>
+        <td><code>user_preferences</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Category preferences, price alert thresholds, notification options.</td>
+      </tr>
+      <tr>
+        <td><strong>Users</strong></td>
+        <td><code>user_activity</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Audit log of user actions, clicks, and session footprints.</td>
+      </tr>
+      <tr>
+        <td><strong>Users</strong></td>
+        <td><code>referrals</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Referral reward tracking, inviter/invitee relationships.</td>
+      </tr>
+      <tr>
+        <td><strong>Catalog</strong></td>
+        <td><code>categories</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Deal categories (Electronics, Fashion, Grocery, Mobiles, Travel).</td>
+      </tr>
+      <tr>
+        <td><strong>Catalog</strong></td>
+        <td><code>stores</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>E-commerce store directory (Amazon, Flipkart, Myntra, Ajio, Meesho).</td>
+      </tr>
+      <tr>
+        <td><strong>Deals</strong></td>
+        <td><code>deals</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Active deal items, original/deal price, discount, affiliate link, score.</td>
+      </tr>
+      <tr>
+        <td><strong>Deals</strong></td>
+        <td><code>products</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Canonical catalog products aggregated across multiple stores.</td>
+      </tr>
+      <tr>
+        <td><strong>Deals</strong></td>
+        <td><code>product_offers</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Individual store offers for products with Realtime replication enabled.</td>
+      </tr>
+      <tr>
+        <td><strong>Content</strong></td>
+        <td><code>blog_posts</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Editorial deals, promotional articles, shopping guides.</td>
+      </tr>
+      <tr>
+        <td><strong>Engagement</strong></td>
+        <td><code>deal_watchlist</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Watchlisted deals flagged by users for price drop updates.</td>
+      </tr>
+      <tr>
+        <td><strong>Engagement</strong></td>
+        <td><code>saved_deals</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>User bookmark collection of favorite deals.</td>
+      </tr>
+      <tr>
+        <td><strong>Engagement</strong></td>
+        <td><code>shared_deals</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Share event tracking across WhatsApp, Telegram, and social links.</td>
+      </tr>
+      <tr>
+        <td><strong>Engagement</strong></td>
+        <td><code>deal_votes</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Community upvotes / downvotes for crowd verification.</td>
+      </tr>
+      <tr>
+        <td><strong>Engagement</strong></td>
+        <td><code>deal_comments</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>User comments and discussions on deal listings.</td>
+      </tr>
+      <tr>
+        <td><strong>Engagement</strong></td>
+        <td><code>upvoted_deals</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Quick cache of user upvoted items.</td>
+      </tr>
+      <tr>
+        <td><strong>Engagement</strong></td>
+        <td><code>deal_upvotes</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Idempotent unique constraint table for upvote tracking.</td>
+      </tr>
+      <tr>
+        <td><strong>Engagement</strong></td>
+        <td><code>recently_viewed_deals</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>User browsing history for personalized recommendations.</td>
+      </tr>
+      <tr>
+        <td><strong>Pricing</strong></td>
+        <td><code>price_alerts</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Target price threshold triggers set by shoppers.</td>
+      </tr>
+      <tr>
+        <td><strong>Pricing</strong></td>
+        <td><code>price_history</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Historical pricing logs for charting product lowest/highest price.</td>
+      </tr>
+      <tr>
+        <td><strong>Pricing</strong></td>
+        <td><code>price_comparisons</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Multi-store price matrix (Amazon vs Flipkart vs Croma).</td>
+      </tr>
+      <tr>
+        <td><strong>Pricing</strong></td>
+        <td><code>price_comparison_platforms</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Store platform metadata and deep link configuration.</td>
+      </tr>
+      <tr>
+        <td><strong>Pricing</strong></td>
+        <td><code>price_tracking_requests</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Async price tracking jobs submitted by users via product URLs.</td>
+      </tr>
+      <tr>
+        <td><strong>Pricing</strong></td>
+        <td><code>tracked_products</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Products actively monitored on interval schedules.</td>
+      </tr>
+      <tr>
+        <td><strong>Notifications</strong></td>
+        <td><code>notifications</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Push and in-app notifications sent to users.</td>
+      </tr>
+      <tr>
+        <td><strong>Analytics</strong></td>
+        <td><code>deal_clicks</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Outbound affiliate click tracking and conversion analytics.</td>
+      </tr>
+      <tr>
+        <td><strong>Wallet</strong></td>
+        <td><code>wallets</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>User cashback balances and reward earnings.</td>
+      </tr>
+      <tr>
+        <td><strong>Wallet</strong></td>
+        <td><code>cashback_transactions</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Credit/debit ledger entries for verified purchases.</td>
+      </tr>
+      <tr>
+        <td><strong>Wallet</strong></td>
+        <td><code>withdrawal_requests</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Payout requests (UPI, Bank Transfer, Gift Cards).</td>
+      </tr>
+      <tr>
+        <td><strong>Imports</strong></td>
+        <td><code>fetch_runs</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Execution log of automated scrape cycles.</td>
+      </tr>
+      <tr>
+        <td><strong>Imports</strong></td>
+        <td><code>scraper_jobs</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Background scraper queue items and processing status.</td>
+      </tr>
+      <tr>
+        <td><strong>Imports</strong></td>
+        <td><code>deal_sources</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Configured feed sources, RSS channels, and scrapers.</td>
+      </tr>
+      <tr>
+        <td><strong>Imports</strong></td>
+        <td><code>scraped_deal_items</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Staging buffer of raw uncleaned deals before validation.</td>
+      </tr>
+      <tr>
+        <td><strong>Telegram</strong></td>
+        <td><code>telegram_channels</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Channels monitored for live loot deals (e.g., India_loot_deals).</td>
+      </tr>
+      <tr>
+        <td><strong>Telegram</strong></td>
+        <td><code>scrape_logs</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Telegram message parse logs, error captures, and sync counts.</td>
+      </tr>
+      <tr>
+        <td><strong>Telegram</strong></td>
+        <td><code>telegram_sources</code></td>
+        <td><span class="badge badge-ok">OK</span></td>
+        <td>Active Telegram bot and webhook connection metadata.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Section 3: Consolidated Migrations -->
+<div class="page-break">
+  <h1>3. Consolidated Migrations &amp; Schema Integrity</h1>
+  <p>To avoid fragmented SQL migrations, all missing administrative and engagement tables were combined into a single, idempotent migration:</p>
+
+  <div class="callout">
+    <div class="callout-title">Migration File Location</div>
+    <code>supabase/migrations/20261011_create_all_missing_admin_tables.sql</code>
+  </div>
+
+  <h2>3.1 Key Tables Created in the Consolidated Migration</h2>
+  <ul>
+    <li><strong><code>products</code> &amp; <code>product_offers</code></strong>: Canonical catalog and multi-store offers with foreign key cascading.</li>
+    <li><strong><code>fetch_runs</code></strong>: Tracks run duration, items discovered, items updated, and errors.</li>
+    <li><strong><code>saved_deals</code> &amp; <code>recently_viewed_deals</code></strong>: Per-user engagement features with composite unique keys.</li>
+    <li><strong><code>price_alerts</code>, <code>price_tracking_requests</code> &amp; <code>tracked_products</code></strong>: Dynamic price drops and scheduler queue.</li>
+    <li><strong><code>telegram_channels</code>, <code>telegram_sources</code> &amp; <code>scrape_logs</code></strong>: Real-time Telegram loot monitoring.</li>
+    <li><strong><code>upvoted_deals</code> &amp; <code>deal_upvotes</code></strong>: Concurrency-safe community upvote tracking.</li>
+  </ul>
+
+  <h2>3.2 Verification Script</h2>
+  <p>Run the automated database test script at any time to verify health:</p>
+  <pre><code>node scripts/test-tables.js</code></pre>
+</div>
+
+<!-- Section 4: REST API Reference -->
+<div class="page-break">
+  <h1>4. Complete REST API Reference</h1>
+  <p>The backend serves JSON REST endpoints under the <code>/api</code> prefix.</p>
+
+  <h2>4.1 System &amp; Health Endpoints</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="badge badge-get">GET</span></td>
+        <td><code>/api/health</code></td>
+        <td>Returns server uptime, timestamp, memory, and status (ok).</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-get">GET</span></td>
+        <td><code>/api/health/supabase</code></td>
+        <td>Performs live query against Supabase to verify connectivity.</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-get">GET</span></td>
+        <td><code>/api/admin/database/tables</code></td>
+        <td>Inspects all 37 database tables, row counts, and latency.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>4.2 Deals &amp; Catalog Endpoints</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="badge badge-get">GET</span></td>
+        <td><code>/api/deals</code></td>
+        <td>Fetches active deals with optional category, search, and pagination.</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-get">GET</span></td>
+        <td><code>/api/deals/featured</code></td>
+        <td>Returns top-scored trending and hot loot deals.</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-get">GET</span></td>
+        <td><code>/api/deals/:id</code></td>
+        <td>Returns complete deal details, store comparisons, and price history.</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-post">POST</span></td>
+        <td><code>/api/deals/:id/upvote</code></td>
+        <td>Records community upvote and increments upvote_count.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>4.3 Price Tracking &amp; Comparison Endpoints</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="badge badge-post">POST</span></td>
+        <td><code>/api/track-price</code></td>
+        <td>Extracts platform product ID (Amazon ASIN / Flipkart PID) and starts tracking.</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-get">GET</span></td>
+        <td><code>/api/price-history?url=...</code></td>
+        <td>Retrieves 30/90/180-day price trends for chart rendering.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>4.4 Telegram Ingestion Endpoints</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Method</th>
+        <th>Path</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="badge badge-post">POST</span></td>
+        <td><code>/api/telegram-scraper/fetch</code></td>
+        <td>Triggers manual scrape run across configured Telegram public loot channels.</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-post">POST</span></td>
+        <td><code>/api/telegram-scraper/webhook</code></td>
+        <td>Receives real-time Telegram channel message payload from bot webhooks.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Section 5: Scrapers & Automation -->
+<div class="page-break">
+  <h1>5. Automation, Scrapers &amp; Telegram Sync Engine</h1>
+
+  <h2>5.1 Scraper Architecture</h2>
+  <p>The deal ingestion engine automatically scrapes, parses, normalizes, and ranks deals from Telegram channels and merchant feeds.</p>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Script / Task</th>
+        <th>Schedule</th>
+        <th>Functionality</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>scripts/sync-genie-loot.js</code></td>
+        <td>Every 15-30 mins</td>
+        <td>Scrapes public preview pages of top Telegram channels, parses titles, discount percentages, and original prices.</td>
+      </tr>
+      <tr>
+        <td><code>scripts/sync-price-tracking.js</code></td>
+        <td>Hourly</td>
+        <td>Refreshes prices for all items in tracked_products and logs changes to price_history.</td>
+      </tr>
+      <tr>
+        <td><code>.github/workflows/telegram-sync.yml</code></td>
+        <td>Cron Schedule</td>
+        <td>Automated GitHub Actions workflow triggering serverless scrape runs.</td>
+      </tr>
+      <tr>
+        <td><code>cleanup_expired_deals()</code></td>
+        <td>Every 1 min (pg_cron)</td>
+        <td>Hides expired deals, mark zero-stock items as inactive.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>5.2 URL Normalization &amp; Platform Detection</h2>
+  <p>Links are cleaned to strip tracking pixels and extract standard affiliate parameters:</p>
+  <ul>
+    <li><strong>Amazon</strong>: Standardizes <code>amzn.to</code> shortlinks to canonical <code>amazon.in/dp/{ASIN}</code> and appends associate tag.</li>
+    <li><strong>Flipkart</strong>: Extracts <code>pid</code> query parameters and generates standardized affiliate links.</li>
+    <li><strong>Other Platforms</strong>: Detects Myntra, Ajio, Meesho, Croma, Nykaa, and Tata Cliq automatically.</li>
+  </ul>
+</div>
+
+<!-- Section 6: Client Integration -->
+<div class="page-break">
+  <h1>6. Client Integration (Android, Web &amp; Admin Panel)</h1>
+
+  <h2>6.1 Android Client Configuration</h2>
+  <p>In the Android project, configure <code>local.properties</code>:</p>
+  <pre><code>SUPABASE_URL=https://pzgyphnerjatlqlvvvsl.supabase.co
+SUPABASE_ANON_KEY=&lt;YOUR_PUBLIC_ANON_KEY&gt;
+BACKEND_BASE_URL=http://10.0.2.2:5000</code></pre>
+  <div class="callout">
+    <div class="callout-title">Android Networking Note</div>
+    When testing in Android Studio Emulator, use <code>http://10.0.2.2:5000</code> to reach the host machine backend.
+  </div>
+
+  <h2>6.2 Web Frontend Configuration</h2>
+  <p>The web client runs on Vite with React 18 and Shadcn UI. The development server proxies <code>/api</code> requests directly to the Node backend:</p>
+  <pre><code>// web/vite.config.ts
+server: {
+  port: 8080,
+  proxy: {
+    '/api': {
+      target: 'http://localhost:5000',
+      changeOrigin: true
+    }
+  }
+}</code></pre>
+
+  <h2>6.3 Admin Panel Access</h2>
+  <ul>
+    <li><strong>URL</strong>: <code>http://localhost:8080/admin</code> (or <code>/admin/database</code>)</li>
+    <li><strong>Admin Secret Key</strong>: <code>enjoyfreedeals_admin_secret</code></li>
+    <li><strong>Features</strong>: Real-time 37-table status monitor, row counts, missing table alerts, and direct SQL migration viewer.</li>
+  </ul>
+</div>
+
+<!-- Section 7: Environment Variables -->
+<div class="page-break">
+  <h1>7. Environment Variables Reference</h1>
+  <p>Reference of all environment variables configured in <code>.env</code>:</p>
+
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Variable</th>
+        <th>Required</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>SUPABASE_URL</code></td>
+        <td>Yes</td>
+        <td>Supabase API URL (e.g. <code>https://pzgyphnerjatlqlvvvsl.supabase.co</code>).</td>
+      </tr>
+      <tr>
+        <td><code>SUPABASE_ANON_KEY</code></td>
+        <td>Yes</td>
+        <td>Public anonymous client key for public read operations.</td>
+      </tr>
+      <tr>
+        <td><code>SUPABASE_SERVICE_ROLE_KEY</code></td>
+        <td>Yes</td>
+        <td>Privileged server key for backend admin operations.</td>
+      </tr>
+      <tr>
+        <td><code>SUPABASE_PROJECT_ID</code></td>
+        <td>Yes</td>
+        <td>Supabase unique project reference (pzgyphnerjatlqlvvvsl).</td>
+      </tr>
+      <tr>
+        <td><code>PORT</code></td>
+        <td>No</td>
+        <td>API server listening port (Default: 5000).</td>
+      </tr>
+      <tr>
+        <td><code>ADMIN_AUTH_SECRET</code></td>
+        <td>Yes</td>
+        <td>Admin authentication secret token (enjoyfreedeals_admin_secret).</td>
+      </tr>
+      <tr>
+        <td><code>TELEGRAM_IMPORT_SECRET</code></td>
+        <td>Yes</td>
+        <td>Bearer token protecting scraper manual triggers and webhook ingestions.</td>
+      </tr>
+      <tr>
+        <td><code>GENIE_LOOT_PAGE_URLS</code></td>
+        <td>No</td>
+        <td>Comma-separated list of Telegram channel preview URLs to scrape.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Section 8: Deployment -->
+<div class="page-break">
+  <h1>8. Deployment &amp; Operations Manual</h1>
+
+  <h2>8.1 Production Deployment on Vercel</h2>
+  <p>The repository includes a serverless adapter in <code>api/index.js</code> configured via <code>vercel.json</code>:</p>
+  <pre><code># Deploy to production
+npm run vercel:deploy</code></pre>
+
+  <h2>8.2 Production Deployment on Linux VPS with PM2</h2>
+  <pre><code># Start process manager
+npm run pm2:start
+
+# Check process health
+pm2 status
+
+# Restart if updated
+npm run pm2:restart</code></pre>
+
+  <h2>8.3 Automated Test Suite</h2>
+  <p>Verify system integrity before deploying:</p>
+  <pre><code># Run all 39 backend tests
+npm test
+
+# Run database health check
+node scripts/test-tables.js</code></pre>
+
+  <div class="callout success">
+    <div class="callout-title">Documentation Verified</div>
+    EnjoyFreeDeals backend, database schema, client integration, and scraping pipelines are fully operational.
+  </div>
+</div>
+
+</body>
+</html>

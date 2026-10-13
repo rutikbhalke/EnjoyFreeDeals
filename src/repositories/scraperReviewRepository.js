@@ -71,7 +71,7 @@ async function listTelegramDeals(filters) {
   let query = supabaseAdmin
     .from("deals")
     .select("*, categories(*), stores(*)", { count: "exact" })
-    .or("raw_source_payload->>connectorMode.eq.telegram-page,raw_source_payload->>connectorMode.eq.telegram-channel,raw_source_payload->>connectorMode.eq.telegram-bot")
+    .or("raw_source_payload->>connectorMode.eq.telegram-page,raw_source_payload->>connectorMode.eq.telegram-channel,raw_source_payload->>connectorMode.eq.telegram-bot,raw_source_payload->>connectorMode.eq.telegram-public,source_post_url.ilike.%t.me%,source_url.ilike.%t.me%,source.ilike.%telegram%")
     .order("last_scraped_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .range(from, to);

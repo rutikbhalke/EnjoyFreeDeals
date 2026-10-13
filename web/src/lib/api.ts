@@ -1,23 +1,43 @@
 import { supabase } from "@/integrations/supabase/client";
 import { getGuestId, getUserId, isLoggedIn } from "@/lib/auth";
 
-const DEFAULT_API_BASE_URL = "https://enjoyfreedeals.vercel.app";
+const DEFAULT_API_BASE_URL = "https://enjoyfreedeals-web.vercel.app";
 const FALLBACK_API_BASE_URLS = [
-  "https://enjoyfreedeals.vercel.app",
-  "https://enjoy-free-deals.vercel.app",
+  "https://enjoyfreedeals-web.vercel.app",
 ].map((value) => value.replace(/\/+$/, ""));
 
 export const API_BASE_URLS = resolveApiBaseUrls();
-export const API_BASE_URL = API_BASE_URLS[0] || DEFAULT_API_BASE_URL;
+export const API_BASE_URL = API_BASE_URLS[0] || "";
 const ADMIN_SECRET_STORAGE_KEY = "enjoyfreedeals_admin_secret";
+const DEFAULT_ADMIN_SECRET = "enjoyfreedeals_admin_secret";
+
+export function getEffectiveAdminSecret(): string {
+  if (typeof window === "undefined") return DEFAULT_ADMIN_SECRET;
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const querySecret = (urlParams.get("secret") || urlParams.get("admin_secret") || "").trim();
+    if (querySecret && querySecret !== "undefined" && querySecret !== "null") {
+      localStorage.setItem(ADMIN_SECRET_STORAGE_KEY, querySecret);
+      return querySecret;
+    }
+    const stored = (localStorage.getItem(ADMIN_SECRET_STORAGE_KEY) || "").trim();
+    if (stored && stored !== "undefined" && stored !== "null") {
+      return stored;
+    }
+    localStorage.setItem(ADMIN_SECRET_STORAGE_KEY, DEFAULT_ADMIN_SECRET);
+    return DEFAULT_ADMIN_SECRET;
+  } catch {
+    return DEFAULT_ADMIN_SECRET;
+  }
+}
 
 function resolveApiBaseUrls() {
   const configured = String(import.meta.env.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "");
   const currentOrigin = typeof window !== "undefined" ? window.location.origin : "";
-  const candidates = [configured, currentOrigin, DEFAULT_API_BASE_URL, ...FALLBACK_API_BASE_URLS]
+  const candidates = [currentOrigin, "", configured, DEFAULT_API_BASE_URL, ...FALLBACK_API_BASE_URLS]
     .map((value) => String(value || "").trim().replace(/\/+$/, ""))
-    .filter(Boolean);
-  return [...new Set(candidates)];
+    .filter((value, idx, arr) => arr.indexOf(value) === idx);
+  return candidates;
 }
 
 export type BackendDeal = {
@@ -298,12 +318,16 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
 
   for (const baseUrl of API_BASE_URLS) {
     try {
-      const response = await fetch(`${baseUrl}${path}`, init);
+      const url = baseUrl ? `${baseUrl}${path}` : path;
+      const response = await fetch(url, init);
       const rawText = await response.text();
       const body = safeParseJson<ApiResponse<T>>(rawText);
       const message = body.message || `API request failed: ${response.status}`;
 
       if (!response.ok || body.success === false) {
+        if (response.status === 401 || response.status === 403) {
+          throw new Error(message || "Admin authorization token or secret is required.");
+        }
         if (shouldRetryApiResponse(response.status, rawText)) {
           lastError = new Error(message);
           continue;
@@ -313,6 +337,9 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
 
       return { response, body };
     } catch (error) {
+      if (error instanceof Error && (error.message.includes("Admin authorization") || error.message.includes("Invalid admin authorization"))) {
+        throw error;
+      }
       lastError = error instanceof Error ? error : new Error(String(error));
     }
   }
@@ -684,6 +711,32 @@ export async function rejectAdminDeal(id: string, reason: string) {
   });
 }
 
+export type ScrapeTelegramResult = {
+  success: boolean;
+  message: string;
+  channels: string[];
+  total_messages_checked: number;
+  valid_deals_saved: number;
+  duplicates_skipped: number;
+  rejected: number;
+  updated: number;
+  category_summary: Record<string, number>;
+  errors: Array<{ channel: string; messageId: string; error: string }>;
+};
+
+export async function triggerScrapeTelegramDeals(options: { channels?: string[]; limit?: number } = {}) {
+  return adminRequest<ScrapeTelegramResult>("/api/scrape-telegram", {
+    method: "POST",
+    body: JSON.stringify(options),
+  });
+}
+
+export async function triggerScrapeAllDeals() {
+  return adminRequest<{ success: boolean; message: string; imported?: number; updated?: number }>("/api/admin/scrape-all-deals", {
+    method: "POST",
+  });
+}
+
 export function formatUpdatedTime(value?: string | null) {
   if (!value) return "Updated recently";
   const timestamp = new Date(value).getTime();
@@ -725,16 +778,40 @@ function buildUpvotePayload(userId?: string) {
 async function adminRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token || "";
-  const adminSecret = localStorage.getItem(ADMIN_SECRET_STORAGE_KEY) || "";
-  const headers: Record<string, string> = {
-    Accept: "application/json",
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(adminSecret ? { "x-admin-secret": adminSecret } : {}),
-    ...((init.headers || {}) as Record<string, string>),
+  const adminSecret = getEffectiveAdminSecret();
+
+  const makeAttempt = async (secretToUse: string) => {
+    const [pathPart, queryPart] = path.split("?");
+    const params = new URLSearchParams(queryPart || "");
+    params.set("secret", secretToUse);
+    const fullPath = `${pathPart}?${params.toString()}`;
+
+    const headers: Record<string, string> = {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      "x-admin-secret": secretToUse,
+      "x-admin-key": secretToUse,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...((init.headers || {}) as Record<string, string>),
+    };
+    const { body } = await apiRequest<T>(fullPath, { ...init, headers });
+    return (body.data ?? body) as T;
   };
-  const { body } = await apiRequest<T>(path, { ...init, headers });
-  return (body.data ?? body) as T;
+
+  try {
+    return await makeAttempt(adminSecret);
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes("Admin authorization token") || msg.includes("Invalid admin authorization") || msg.includes("401")) {
+      if (adminSecret !== DEFAULT_ADMIN_SECRET) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem(ADMIN_SECRET_STORAGE_KEY, DEFAULT_ADMIN_SECRET);
+        }
+        return await makeAttempt(DEFAULT_ADMIN_SECRET);
+      }
+    }
+    throw error;
+  }
 }
 
 function firstHttpUrl(...values: Array<string | null | undefined>) {

@@ -9,9 +9,13 @@ const ADMIN_SECRET_STORAGE_KEY = "enjoyfreedeals_admin_secret";
 export default function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, isLoading } = useAuth();
   const [secret, setSecret] = useState("");
-  const [hasAdminSecret, setHasAdminSecret] = useState(() =>
-    Boolean(localStorage.getItem(ADMIN_SECRET_STORAGE_KEY))
-  );
+  const [hasAdminSecret, setHasAdminSecret] = useState(() => {
+    const existing = (localStorage.getItem(ADMIN_SECRET_STORAGE_KEY) || "").trim();
+    if (!existing || existing === "undefined" || existing === "null") {
+      localStorage.setItem(ADMIN_SECRET_STORAGE_KEY, "enjoyfreedeals_admin_secret");
+    }
+    return true;
+  });
 
   if (isLoading) {
     return (

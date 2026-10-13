@@ -120,7 +120,7 @@ function toApiDeal(row) {
     expiry_note: row.expiry_note || "",
     adminReviewStatus: row.admin_review_status || "approved",
     admin_review_status: row.admin_review_status || "approved",
-    sourceChannel: row.source_channel || row.telegram_channel || "",
+    sourceChannel: row.source_channel || row.telegram_channel || row.raw_source_payload?.telegramChannel || row.raw_source_payload?.telegramChatUsername || row.raw_source_payload?.telegramChatTitle || row.raw_source_payload?.telegramChatId || row.raw_source_payload?.sourceChannel || "",
     source_channel: row.source_channel || row.telegram_channel || "",
     telegramMessageId: row.telegram_message_id || "",
     telegram_message_id: row.telegram_message_id || "",

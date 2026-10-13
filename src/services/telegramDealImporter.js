@@ -32,14 +32,16 @@ const SOURCE_NAME = "EnjoyFreeDeals Telegram";
 const SOURCE_URL = "https://t.me/+X925uAMEGvgwOWY1";
 const GENIE_LOOT_PAGE_SOURCE_KEY = "genie_loot_page";
 const GENIE_LOOT_PAGE_SOURCE_NAME = "Genie Loot Page";
-const DEFAULT_GENIE_LOOT_PAGE_URL = "https://t.me/s/India_loot_deals";
+const DEFAULT_GENIE_LOOT_PAGE_URL = "https://t.me/s/king_deal_1";
 const DEFAULT_GENIE_LOOT_PAGE_URLS = [
-  "https://t.me/s/India_loot_deals",
   "https://t.me/s/king_deal_1",
-  "https://t.me/s/icoolzTricks"
+  "https://t.me/s/icoolzTricks",
+  "https://t.me/s/FreeKaMaalOfficial"
 ];
 const DEFAULT_BEST_DEAL_FRACTION = 0.3;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+let directTelegramAvailable = true;
 
 async function importTelegramDeals() {
   const token = telegramBotToken();
@@ -285,12 +287,12 @@ async function acknowledgeUpdates(token, updates) {
   });
 }
 
-async function fetchTelegramPageMessages(pageUrl, maxPages) {
+async function fetchTelegramPageMessages(pageUrl, maxPages, timeoutMs) {
   const messagesById = new Map();
   let nextUrl = pageUrl;
 
   for (let page = 0; page < maxPages && nextUrl; page += 1) {
-    const html = await fetchText(nextUrl);
+    const html = await fetchText(nextUrl, timeoutMs);
     const messages = parseTelegramPageMessages(html, pageUrl);
     for (const message of messages) {
       messagesById.set(message.sourceProductId, message);
@@ -307,33 +309,44 @@ async function fetchTelegramPageMessages(pageUrl, maxPages) {
 }
 
 async function fetchTelegramPageMessagesSafely(pageUrl, maxPages) {
-  try {
+  if (directTelegramAvailable) {
+    try {
+      const messages = await fetchTelegramPageMessages(pageUrl, maxPages, Number(process.env.TELEGRAM_DIRECT_FETCH_TIMEOUT_MS || 2500));
+      if (messages.length > 0) {
+        return {
+          status: "success",
+          pageUrl,
+          messages,
+          error: ""
+        };
+      }
+    } catch (error) {
+      directTelegramAvailable = false;
+      const directError = error instanceof Error ? error.message : "Telegram page fetch failed.";
+      console.log(`[telegram-importer] Direct Telegram fetch unavailable (${directError}). Using free reader API.`);
+    }
+  }
+
+  const readerMessages = await fetchTelegramReaderMessages(pageUrl, maxPages).catch((err) => {
+    console.log(`[telegram-importer] Free reader API failed for ${pageUrl}: ${err.message}`);
+    return [];
+  });
+  if (readerMessages.length > 0) {
     return {
       status: "success",
       pageUrl,
-      messages: await fetchTelegramPageMessages(pageUrl, maxPages),
-      error: ""
-    };
-  } catch (error) {
-    const directError = error instanceof Error ? error.message : "Telegram page fetch failed.";
-    const readerMessages = await fetchTelegramReaderMessages(pageUrl, maxPages).catch(() => []);
-    if (readerMessages.length > 0) {
-      return {
-        status: "success",
-        pageUrl,
-        messages: readerMessages,
-        error: directError,
-        fallback: "jina-reader"
-      };
-    }
-
-    return {
-      status: "failed",
-      pageUrl,
-      messages: [],
-      error: directError
+      messages: readerMessages,
+      error: "",
+      fallback: "jina-reader"
     };
   }
+
+  return {
+    status: "failed",
+    pageUrl,
+    messages: [],
+    error: "No messages retrieved from Telegram channel."
+  };
 }
 
 async function fetchTelegramReaderMessages(pageUrl, maxPages) {
@@ -341,7 +354,7 @@ async function fetchTelegramReaderMessages(pageUrl, maxPages) {
   let nextUrl = pageUrl;
 
   for (let page = 0; page < maxPages && nextUrl; page += 1) {
-    const markdown = await fetchText(readerUrl(nextUrl));
+    const markdown = await fetchText(readerUrl(nextUrl), Number(process.env.TELEGRAM_READER_FETCH_TIMEOUT_MS || 12000));
     const messages = parseTelegramReaderMessages(markdown, pageUrl);
     for (const message of messages) {
       messagesById.set(message.sourceProductId, message);
@@ -362,9 +375,9 @@ function readerUrl(url) {
   return /^https?:\/\//i.test(safe) ? `https://r.jina.ai/${safe}` : `https://r.jina.ai/https://${safe}`;
 }
 
-async function fetchText(url) {
+async function fetchText(url, timeoutMs) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), Number(process.env.TELEGRAM_PAGE_FETCH_TIMEOUT_MS || 15000));
+  const timeout = setTimeout(() => controller.abort(), Number(timeoutMs || process.env.TELEGRAM_PAGE_FETCH_TIMEOUT_MS || 15000));
 
   let response;
   try {
@@ -574,18 +587,21 @@ function parseTelegramReaderMessages(markdown, pageUrl) {
   const channel = telegramChannelFromPageUrl(pageUrl);
   if (!channel) return [];
 
-  const postLinkPattern = new RegExp(`views(?:\\s+[^\\n,]+,)?\\[[^\\]]+\\]\\(https://t\\.me/${escapeRegExp(channel)}/(\\d+)\\)`, "gi");
+  const channelPattern = escapeRegExp(channel);
+  const postLinkPattern = new RegExp(`(?:\\[[^\\]]*\\]\\(https?://t\\.me/${channelPattern}/(\\d+)\\)|(?:https?://)?t\\.me/${channelPattern}/(\\d+))`, "gi");
   const matches = [...String(markdown || "").matchAll(postLinkPattern)];
   if (matches.length === 0) {
     return parseTelegramReaderImageBlocks(markdown, pageUrl, channel);
   }
 
   const messages = [];
+  const seenIds = new Set();
 
   for (let index = 0; index < matches.length; index += 1) {
     const match = matches[index];
-    const messageId = Number(match[1]);
-    if (!Number.isFinite(messageId)) continue;
+    const messageId = Number(match[1] || match[2]);
+    if (!Number.isFinite(messageId) || seenIds.has(messageId)) continue;
+    seenIds.add(messageId);
 
     const previousEnd = index > 0 ? (matches[index - 1].index || 0) + matches[index - 1][0].length : 0;
     const block = markdown.slice(previousEnd, match.index || 0);
@@ -1156,9 +1172,10 @@ function extractTitle(text) {
   const lines = text
     .split(/\r?\n/)
     .map((line) => cleanText(removeUrls(line)))
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((line) => !/^(?:,\s*)?\d{4}$|^(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|\d+[\s\w,]+views)/i.test(line));
 
-  return truncateClean(lines.find((line) => /[a-z0-9]/i.test(line) && !isMostlyPriceOrCoupon(line)) || lines[0] || "Telegram Deal", 96);
+  return truncateClean(lines.find((line) => /[a-z]/i.test(line) && !isMostlyPriceOrCoupon(line) && line.length >= 6) || lines[0] || "Telegram Deal", 96);
 }
 
 function inferCategory(text) {
@@ -1255,19 +1272,16 @@ function telegramMessageUrl(message) {
 }
 
 function telegramPageUrls(options = {}) {
-  const rawValues = [
-    options.pageUrls,
-    options.urls,
-    options.pageUrl,
-    process.env.GENIE_LOOT_PAGE_URLS,
-    process.env.GENIE_LOOT_PAGE_URL
-  ];
-  const configured = rawValues
-    .flatMap((value) => stringList(value))
+  const explicit = stringList(options.pageUrls || options.urls || options.pageUrl)
+    .map(normalizeTelegramPageUrl)
+    .filter(Boolean);
+  if (explicit.length > 0) return uniqueBy(explicit, (url) => url);
+
+  const envValues = stringList(process.env.GENIE_LOOT_PAGE_URLS || process.env.GENIE_LOOT_PAGE_URL)
     .map(normalizeTelegramPageUrl)
     .filter(Boolean);
 
-  return uniqueBy(configured.length ? configured : DEFAULT_GENIE_LOOT_PAGE_URLS, (url) => url);
+  return uniqueBy(envValues.length ? envValues : DEFAULT_GENIE_LOOT_PAGE_URLS, (url) => url);
 }
 
 function bestDealFraction(value) {

@@ -21,3 +21,4 @@ supabase/.temp/
 .vercel
 *KEY*.txt
 *.key
+*.log

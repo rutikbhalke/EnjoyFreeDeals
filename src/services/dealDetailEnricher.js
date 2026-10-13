@@ -630,8 +630,8 @@ function isUsableProductTitle(value) {
 
 function isBadProductTitle(value) {
   const title = cleanText(value);
-  return /^(page not found|not found|access denied|robot check|captcha|just a moment|amazon\.in|amazon|error|oops)$/i.test(title) ||
-    /\b(page not found|recaptcha|captcha|robot check|verify you are human|unusual traffic|enter the characters you see below|sorry, we just need to make sure)\b/i.test(title);
+  return /^(page not found|not found|access denied|robot check|captcha|just a moment|amazon\.in|amazon|error|oops|403 forbidden|403|503|503 service.*|500 internal.*|404 not found)$/i.test(title) ||
+    /\b(page not found|recaptcha|captcha|robot check|verify you are human|unusual traffic|enter the characters you see below|sorry, we just need to make sure|403 forbidden|service temporarily unavailable)\b/i.test(title);
 }
 
 function isBlockedProductPage(page, metadata = {}) {
